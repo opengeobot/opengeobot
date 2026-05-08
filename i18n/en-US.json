@@ -1,0 +1,21 @@
+{
+  "common.button.save": "Save",
+  "common.button.cancel": "Cancel",
+  "common.status.pending": "Pending",
+  "common.status.running": "Running",
+  "common.status.success": "Success",
+  "common.status.failed": "Failed",
+  "project.title": "Project",
+  "prompt.library.title": "Prompt Library",
+  "run.center.title": "Run Center",
+  "insight.center.title": "Insight Center",
+  "bot.workspace.title": "GEO Bot Workspace",
+  "alert.center.title": "Monitoring Alerts",
+  "report.section.summary": "Summary",
+  "report.section.metricTrend": "Metric Trends",
+  "report.section.nextAction": "Next Actions",
+  "error.engine.timeout": "Engine call timed out. Please retry later.",
+  "error.validation.required": "Required field cannot be empty.",
+  "notification.monitor.alertTriggered": "A monitoring alert was triggered.",
+  "notification.run.finished": "Run task completed."
+}

@@ -1,0 +1,98 @@
+openapi: 3.1.0
+info:
+  title: OpenGEO Bot V1 Core Run API
+  version: 1.0.0
+  description: 核心数据采集与评测链路最小 API 契约
+servers:
+  - url: https://api.opengeobot.local/v1
+paths:
+  /projects:
+    post:
+      summary: 创建项目
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectType, projectName, defaultLanguage]
+              properties:
+                projectType:
+                  type: string
+                  enum: [website, repository]
+                projectName:
+                  type: string
+                defaultLanguage:
+                  type: string
+                regions:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Created
+  /prompts/import:
+    post:
+      summary: 批量导入提示词
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectId, prompts]
+              properties:
+                projectId:
+                  type: string
+                prompts:
+                  type: array
+                  items:
+                    type: object
+                    required: [content, language, region]
+                    properties:
+                      content:
+                        type: string
+                      language:
+                        type: string
+                      region:
+                        type: string
+      responses:
+        "202":
+          description: Accepted
+  /runs:
+    post:
+      summary: 创建评测任务
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectId, runType, promptSetId, engines]
+              properties:
+                projectId:
+                  type: string
+                runType:
+                  type: string
+                  enum: [baseline, after, scheduled, on-demand]
+                promptSetId:
+                  type: string
+                engines:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Created
+  /runs/{runId}:
+    get:
+      summary: 查询任务状态
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK

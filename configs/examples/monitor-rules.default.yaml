@@ -1,0 +1,35 @@
+# OpenGEO Bot 监控告警规则模板
+# 作者：AxeXie
+# 创建时间：2026-05-08 13:20:00
+
+version: "1.0.0"
+
+rules:
+  - id: "visibility-regression"
+    name: "可见性回退告警"
+    metric: "mentionRate"
+    operator: "lt"
+    threshold: -0.1
+    compareWindow: "last_7d_vs_prev_7d"
+    severity: "high"
+  - id: "citation-drop"
+    name: "引用率下降告警"
+    metric: "citationRate"
+    operator: "lt"
+    threshold: -0.15
+    compareWindow: "last_7d_vs_prev_7d"
+    severity: "high"
+  - id: "negative-sentiment-growth"
+    name: "负面情感增长告警"
+    metric: "negativeSentimentRatio"
+    operator: "gt"
+    threshold: 0.2
+    compareWindow: "last_7d"
+    severity: "medium"
+
+routing:
+  channels:
+    - "email"
+    - "feishu"
+  dedupWindowMinutes: 30
+  escalationMinutes: 60

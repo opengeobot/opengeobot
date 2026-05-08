@@ -1,0 +1,71 @@
+# OpenGEO Bot 系统配置模板
+# 作者：AxeXie
+# 创建时间：2026-05-08 13:03:00
+
+version: "1.0.0"
+
+global:
+  defaultLanguage: "zh-CN"
+  fallbackLanguage: "en-US"
+  supportedLanguages:
+    - "zh-CN"
+    - "en-US"
+  monitoring:
+    defaultSchedule: "weekly"
+    errorRateAlertThreshold: 0.05
+    citationDropAlertThreshold: 0.15
+  engine:
+    timeoutMs: 45000
+    maxRetries: 2
+    retryBackoffMs: 1500
+    rateLimitPerMinute: 60
+  security:
+    enableSensitiveDetection: true
+    secretMasking: true
+  logging:
+    level: "INFO"
+    format: "json"
+    requiredFields:
+      - "traceId"
+      - "projectId"
+      - "operator"
+      - "module"
+      - "event"
+      - "timestamp"
+
+featureFlags:
+  enableBotDraftGeneration: true
+  enableAutoMonitorReport: true
+  enableStrategyMemoryRanking: false
+  enableMultiTenantConfigOverride: true
+
+release:
+  mode: "canary"
+  canaryPercentage: 10
+  promotionRule: "error_rate_below_threshold_24h"
+
+rollback:
+  enabled: true
+  triggerRules:
+    - "error_rate_above_8_percent_for_10m"
+    - "run_failure_rate_above_15_percent_for_30m"
+  rollbackToVersion: "last_stable"
+
+tenants:
+  - tenantId: "default"
+    overrides:
+      global:
+        defaultLanguage: "zh-CN"
+        monitoring:
+          defaultSchedule: "weekly"
+      featureFlags:
+        enableStrategyMemoryRanking: true
+
+audit:
+  enabled: true
+  requiredFields:
+    - "operator"
+    - "changeSet"
+    - "reason"
+    - "approvalId"
+  retentionDays: 180

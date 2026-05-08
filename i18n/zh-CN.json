@@ -1,0 +1,21 @@
+{
+  "common.button.save": "保存",
+  "common.button.cancel": "取消",
+  "common.status.pending": "待处理",
+  "common.status.running": "运行中",
+  "common.status.success": "成功",
+  "common.status.failed": "失败",
+  "project.title": "项目",
+  "prompt.library.title": "提示词库",
+  "run.center.title": "运行中心",
+  "insight.center.title": "洞察中心",
+  "bot.workspace.title": "GEO Bot 工作台",
+  "alert.center.title": "监控告警",
+  "report.section.summary": "摘要",
+  "report.section.metricTrend": "指标趋势",
+  "report.section.nextAction": "下一步建议",
+  "error.engine.timeout": "引擎调用超时，请稍后重试",
+  "error.validation.required": "必填字段不能为空",
+  "notification.monitor.alertTriggered": "监控告警已触发",
+  "notification.run.finished": "评测任务已完成"
+}

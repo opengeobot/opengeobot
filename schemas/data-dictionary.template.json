@@ -1,0 +1,128 @@
+{
+  "name": "opengeobot-data-dictionary",
+  "version": "1.0.0",
+  "owner": "platform-governance",
+  "defaultLanguage": "zh-CN",
+  "metricDefinitions": [
+    {
+      "key": "mentionRate",
+      "displayName": {
+        "zh-CN": "提及率",
+        "en-US": "Mention Rate"
+      },
+      "description": {
+        "zh-CN": "提示词集合中 AI 回答提及目标对象的比例",
+        "en-US": "Percentage of responses mentioning the target"
+      },
+      "formula": "mentionedPromptCount / totalPromptCount",
+      "unit": "percentage",
+      "precision": 4
+    },
+    {
+      "key": "citationRate",
+      "displayName": {
+        "zh-CN": "引用率",
+        "en-US": "Citation Rate"
+      },
+      "description": {
+        "zh-CN": "提示词集合中 AI 回答引用目标来源的比例",
+        "en-US": "Percentage of responses citing target sources"
+      },
+      "formula": "citedPromptCount / totalPromptCount",
+      "unit": "percentage",
+      "precision": 4
+    }
+  ],
+  "fieldDefinitions": [
+    {
+      "fieldKey": "traceId",
+      "type": "string",
+      "required": true,
+      "scope": "global",
+      "comment": "链路追踪唯一标识"
+    },
+    {
+      "fieldKey": "runStatus",
+      "type": "enum",
+      "required": true,
+      "scope": "run",
+      "enumRef": "runStatus"
+    }
+  ],
+  "enumerations": [
+    {
+      "key": "runStatus",
+      "items": [
+        "pending",
+        "running",
+        "partial_success",
+        "success",
+        "failed",
+        "cancelled"
+      ]
+    },
+    {
+      "key": "sentiment",
+      "items": [
+        "positive",
+        "neutral",
+        "negative"
+      ]
+    }
+  ],
+  "stateMachines": [
+    {
+      "name": "runLifecycle",
+      "states": [
+        "pending",
+        "running",
+        "partial_success",
+        "success",
+        "failed",
+        "cancelled"
+      ],
+      "transitions": [
+        {
+          "from": "pending",
+          "to": "running"
+        },
+        {
+          "from": "running",
+          "to": "partial_success"
+        },
+        {
+          "from": "running",
+          "to": "success"
+        },
+        {
+          "from": "running",
+          "to": "failed"
+        },
+        {
+          "from": "pending",
+          "to": "cancelled"
+        }
+      ]
+    }
+  ],
+  "unitConversions": [
+    {
+      "unit": "percentage",
+      "base": "ratio",
+      "multiplier": 100
+    },
+    {
+      "unit": "millisecond",
+      "base": "second",
+      "multiplier": 0.001
+    }
+  ],
+  "changeLog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-05-08",
+      "author": "AxeXie",
+      "summary": "初始化 V1 统一数据字典模板"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "strategyId": "strategy_xxx",
+  "playbookType": "content",
+  "projectType": "website",
+  "applicableScenario": [
+    "faq_missing",
+    "citation_low"
+  ],
+  "evidenceSet": [
+    {
+      "runId": "run_xxx",
+      "metricDelta": {
+        "mentionRate": 0.06,
+        "citationRate": 0.09
+      },
+      "confidence": 0.73
+    }
+  ],
+  "impactPrompts": [
+    "prompt_001",
+    "prompt_002"
+  ],
+  "successRate": 0.68,
+  "reuseWeight": 1.2,
+  "lastValidatedAt": "2026-05-08T13:22:00Z",
+  "version": "1.0.0"
+}

@@ -1,0 +1,40 @@
+{
+  "insight": {
+    "insightId": "insight_xxx",
+    "projectId": "project_xxx",
+    "opportunityType": "content_gap",
+    "priorityScore": 0.87,
+    "evidence": [
+      {
+        "responseId": "resp_xxx",
+        "promptId": "prompt_xxx",
+        "engine": "engine_a",
+        "metricImpacts": {
+          "mentionRate": -0.12,
+          "citationRate": -0.21
+        }
+      }
+    ],
+    "parserVersion": "1.0.0",
+    "metricVersion": "1.0.0"
+  },
+  "playbook": {
+    "playbookId": "playbook_xxx",
+    "insightId": "insight_xxx",
+    "playbookType": "content",
+    "draftType": "markdown",
+    "estimatedImpact": {
+      "mentionRate": 0.08,
+      "citationRate": 0.1
+    },
+    "riskLevel": "medium",
+    "approval": {
+      "required": true,
+      "status": "pending",
+      "approvers": [
+        "owner@example.com"
+      ]
+    },
+    "rollbackPlan": "revert_commit_or_restore_content_version"
+  }
+}
