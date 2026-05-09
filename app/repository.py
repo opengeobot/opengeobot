@@ -26,7 +26,9 @@ class Repository(Protocol):
     def save_project_config(self, config: ProjectConfig) -> None: ...
     def get_project_config(self, project_id: str) -> Optional[ProjectConfig]: ...
     def save_prompt(self, prompt: Prompt) -> None: ...
-    def list_project_prompts(self, project_id: str) -> List[Prompt]: ...
+    def get_prompt(self, prompt_id: str) -> Optional[Prompt]: ...
+    def has_prompt(self, prompt_id: str) -> bool: ...
+    def list_project_prompts(self, project_id: str, include_disabled: bool = False) -> List[Prompt]: ...
     def save_run(self, run: Run) -> None: ...
     def get_run(self, run_id: str) -> Optional[Run]: ...
     def has_run(self, run_id: str) -> bool: ...
@@ -106,8 +108,17 @@ class MemoryRepository:
     def save_prompt(self, prompt: Prompt) -> None:
         self.prompts.save(prompt.prompt_id, prompt)
 
-    def list_project_prompts(self, project_id: str) -> List[Prompt]:
-        return [item for item in self.prompts.list() if item.project_id == project_id and item.enabled]
+    def get_prompt(self, prompt_id: str) -> Optional[Prompt]:
+        return self.prompts.get(prompt_id)
+
+    def has_prompt(self, prompt_id: str) -> bool:
+        return self.prompts.has(prompt_id)
+
+    def list_project_prompts(self, project_id: str, include_disabled: bool = False) -> List[Prompt]:
+        items = [item for item in self.prompts.list() if item.project_id == project_id]
+        if include_disabled:
+            return items
+        return [item for item in items if item.enabled]
 
     def save_run(self, run: Run) -> None:
         self.runs.save(run.run_id, run)
@@ -267,8 +278,16 @@ class SQLiteRepository:
     def save_prompt(self, prompt: Prompt) -> None:
         self._save("prompts", prompt.prompt_id, prompt, prompt.project_id)
 
-    def list_project_prompts(self, project_id: str) -> List[Prompt]:
+    def get_prompt(self, prompt_id: str) -> Optional[Prompt]:
+        return self._get("prompts", prompt_id, Prompt)
+
+    def has_prompt(self, prompt_id: str) -> bool:
+        return self._has("prompts", prompt_id)
+
+    def list_project_prompts(self, project_id: str, include_disabled: bool = False) -> List[Prompt]:
         items = self._list("prompts", Prompt, project_id)
+        if include_disabled:
+            return items
         return [item for item in items if item.enabled]
 
     def save_run(self, run: Run) -> None:
@@ -448,8 +467,16 @@ class PostgreSQLRepository:
     def save_prompt(self, prompt: Prompt) -> None:
         self._save("prompts", prompt.prompt_id, prompt, prompt.project_id)
 
-    def list_project_prompts(self, project_id: str) -> List[Prompt]:
+    def get_prompt(self, prompt_id: str) -> Optional[Prompt]:
+        return self._get("prompts", prompt_id, Prompt)
+
+    def has_prompt(self, prompt_id: str) -> bool:
+        return self._has("prompts", prompt_id)
+
+    def list_project_prompts(self, project_id: str, include_disabled: bool = False) -> List[Prompt]:
         items = self._list("prompts", Prompt, project_id)
+        if include_disabled:
+            return items
         return [item for item in items if item.enabled]
 
     def save_run(self, run: Run) -> None:

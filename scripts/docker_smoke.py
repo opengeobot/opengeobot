@@ -35,16 +35,16 @@ def call_api(endpoint, method="GET", body=None, headers=None):
 
 
 def main() -> None:
-    print("[1/10] Health check")
+    print("[1/13] Health check")
     health, trace_id = call_api("/health")
     print(f"  health: {health}, traceId: {trace_id}")
 
-    print("[2/10] Foundation info")
+    print("[2/13] Foundation info")
     foundation, _ = call_api("/foundation")
     print(f"  dictionary_version: {foundation.get('dictionary_version')}")
     print(f"  dictionary_enums count: {len(foundation.get('dictionary_enums', []))}")
 
-    print("[3/10] Create project")
+    print("[3/13] Create project")
     project_body = {
         "project_name": "Docker Demo",
         "project_type": "website",
@@ -59,30 +59,30 @@ def main() -> None:
     project_id = project["project_id"]
     print(f"  project_id: {project_id}, traceId: {trace_id}")
 
-    print("[4/10] Check project config (empty)")
+    print("[4/13] Check project config (empty)")
     config, trace_id = call_api(f"/projects/{project_id}/config")
     print(f"  config: {config}")
 
-    print("[5/10] Update project config")
-    config_body = {"monitoring": {"alertEnabled": True}, "preferences": {"language": "zh-CN"}}
-    config, trace_id = call_api(f"/projects/{project_id}/config", method="PUT", body=config_body)
+    print("[5/13] Update project config")
+    config_body = {"global": {"engine": {"timeoutMs": 5000}}}
+    config, trace_id = call_api(f"/projects/{project_id}/config", method="PUT", body={"config": config_body})
     print(f"  updated config: {config}")
 
-    print("[6/10] Get effective config (sanitized)")
+    print("[6/13] Get effective config (sanitized)")
     effective, trace_id = call_api(f"/projects/{project_id}/config/effective")
     print(f"  effective keys: {sorted(effective.keys())}")
 
-    print("[7/10] Generate prompts")
+    print("[7/13] Generate prompts")
     prompts_resp, trace_id = call_api(f"/projects/{project_id}/prompts/generate", method="POST", body={"count": 20})
     print(f"  generated prompts count: {len(prompts_resp) if isinstance(prompts_resp, list) else 1}")
 
-    print("[8/10] Create baseline run")
+    print("[8/13] Create baseline run")
     run_body = {"run_type": "baseline", "engines": ["engine_alpha", "engine_beta"]}
     baseline, trace_id = call_api(f"/projects/{project_id}/runs", method="POST", body=run_body)
     baseline_run_id = baseline["run_id"]
     print(f"  baseline_run_id: {baseline_run_id}, metrics: {baseline['metrics']}")
 
-    print("[9/10] Generate insights")
+    print("[9/13] Generate insights")
     insight_body = {"run_id": baseline_run_id, "limit": 20}
     insights, trace_id = call_api(f"/projects/{project_id}/insights", method="POST", body=insight_body)
     if not insights:
@@ -94,8 +94,34 @@ def main() -> None:
     insight_id = insights[0]["insight_id"] if insights else ""
     print(f"  insight_id: {insight_id}, count: {len(insights)}")
 
-    print("[10/10] Query audit logs")
-    logs, trace_id = call_api(f"/projects/{project_id}/audit-logs?limit=5")
+    print("[10/13] Generate playbook")
+    playbook, trace_id = call_api(
+        f"/projects/{project_id}/playbooks",
+        method="POST",
+        body={"insight_id": insight_id},
+    )
+    playbook_id = playbook.get("playbook_id")
+    print(f"  playbook_id: {playbook_id}, traceId: {trace_id}")
+
+    print("[11/13] Create after run")
+    after, trace_id = call_api(f"/projects/{project_id}/runs", method="POST", body={"run_type": "after", "engines": ["engine_alpha", "engine_beta"]})
+    after_run_id = after["run_id"]
+    print(f"  after_run_id: {after_run_id}, metrics: {after['metrics']}")
+
+    print("[12/13] Verification + monitor + weekly report")
+    verification, _ = call_api(
+        f"/projects/{project_id}/verification",
+        method="POST",
+        body={"baseline_run_id": baseline_run_id, "after_run_id": after_run_id},
+    )
+    monitor, _ = call_api(f"/projects/{project_id}/monitor/{after_run_id}?language=zh-CN", method="POST")
+    weekly, _ = call_api(f"/projects/{project_id}/weekly-report?language=zh-CN")
+    print(f"  verification_summary: {verification.get('summary')}")
+    print(f"  monitor_alert_count: {len(monitor.get('alerts', [])) if isinstance(monitor, dict) else 0}")
+    print(f"  weekly_subject: {weekly.get('subject') if isinstance(weekly, dict) else ''}")
+
+    print("[13/13] Query audit logs")
+    logs, trace_id = call_api(f"/projects/{project_id}/audit-logs?limit=20")
     print(f"  audit logs count: {len(logs)}")
     if logs:
         latest = logs[0]

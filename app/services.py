@@ -7,11 +7,11 @@
 from __future__ import annotations
 
 import logging
-import random
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List
 
+from app.engines import EngineContext, EngineManager, EngineRequest, MockEngineAdapter, TemplateEngineAdapter
 from app.foundation import ConfigCenter, DataDictionary, I18N, deep_merge_config, get_operator, get_trace_id, log_with_context
 from app.models import (
     AuditLog,
@@ -23,9 +23,11 @@ from app.models import (
     Project,
     ProjectConfig,
     ProjectCreate,
+    ProjectUpdate,
     Prompt,
     PromptImportItem,
     PromptRunResult,
+    PromptUpdate,
     Run,
     RunStatus,
     RunType,
@@ -33,6 +35,7 @@ from app.models import (
     StrategyMemory,
     VerificationReport,
 )
+from app.parser import PARSER_RULE_VERSION, build_engine_result
 from app.repository import Repository
 
 
@@ -82,7 +85,34 @@ class OpenGeoBotService:
         self.dictionary = dictionary
         self.i18n = i18n
         self.logger = logger
-        self.supported_engines = ["engine_alpha", "engine_beta"]
+        timeout_ms = self.config_center.get("global.engine.timeoutMs", 45000)
+        max_retries = self.config_center.get("global.engine.maxRetries", 2)
+        retry_backoff_ms = self.config_center.get("global.engine.retryBackoffMs", 1500)
+        rate_limit_per_minute = self.config_center.get("global.engine.rateLimitPerMinute", 60)
+        cache_ttl_seconds = self.config_center.get("global.engine.cacheTtlSeconds", 300)
+
+        configured_engines = self.config_center.get("global.engine.adapters")
+        if isinstance(configured_engines, list) and configured_engines:
+            engine_ids = [str(item) for item in configured_engines if str(item).strip()]
+        else:
+            engine_ids = ["engine_alpha", "engine_beta"]
+
+        adapters: Dict[str, Any] = {}
+        for engine_id in engine_ids:
+            if engine_id in ("engine_beta", "template"):
+                adapters[engine_id] = TemplateEngineAdapter(engine_id)
+            else:
+                adapters[engine_id] = MockEngineAdapter(engine_id)
+
+        self.engine_manager = EngineManager(
+            adapters=adapters,
+            timeout_ms=timeout_ms,
+            max_retries=max_retries,
+            retry_backoff_ms=retry_backoff_ms,
+            rate_limit_per_minute=rate_limit_per_minute,
+            cache_ttl_seconds=cache_ttl_seconds,
+        )
+        self.supported_engines = self.engine_manager.supported_engines()
 
     def _write_audit_log(
         self,
@@ -92,6 +122,13 @@ class OpenGeoBotService:
         event: str,
         message: str,
         run_id: str | None = None,
+        prompt_id: str | None = None,
+        engine: str | None = None,
+        region: str | None = None,
+        language: str | None = None,
+        duration_ms: int | None = None,
+        error_code: str | None = None,
+        retry_count: int | None = None,
         attributes: Dict[str, Any] | None = None,
     ) -> AuditLog:
         trace_id = get_trace_id() or uuid.uuid4().hex
@@ -107,6 +144,13 @@ class OpenGeoBotService:
             level="INFO",
             timestamp=datetime.utcnow(),
             message=message,
+            promptId=prompt_id,
+            engine=engine,
+            region=region,
+            language=language,
+            durationMs=duration_ms,
+            errorCode=error_code,
+            retryCount=retry_count,
             attributes=attributes or {},
         )
         self.repository.save_audit_log(audit_log)
@@ -149,8 +193,66 @@ class OpenGeoBotService:
         )
         return project
 
-    def list_projects(self) -> List[Project]:
-        return self.repository.list_projects()
+    def get_project(self, project_id: str) -> Project:
+        project = self.repository.get_project(project_id)
+        if project is None or project.deleted:
+            raise ValueError("project not found")
+        return project
+
+    def list_projects(self, include_deleted: bool = False) -> List[Project]:
+        items = self.repository.list_projects()
+        if include_deleted:
+            return items
+        return [item for item in items if not item.deleted]
+
+    def update_project(self, project_id: str, payload: ProjectUpdate) -> Project:
+        project = self.get_project(project_id)
+        changed: Dict[str, Any] = {}
+        if payload.project_name is not None:
+            project.project_name = payload.project_name
+            changed["projectName"] = payload.project_name
+        if payload.source_url is not None:
+            project.source_url = payload.source_url
+            changed["sourceUrl"] = payload.source_url
+        if payload.brand_name is not None:
+            project.brand_name = payload.brand_name
+            changed["brandName"] = payload.brand_name
+        if payload.aliases is not None:
+            project.aliases = payload.aliases
+            changed["aliases"] = payload.aliases
+        if payload.language is not None:
+            project.language = payload.language
+            changed["language"] = payload.language
+        if payload.region is not None:
+            project.region = payload.region
+            changed["region"] = payload.region
+        if payload.competitors is not None:
+            project.competitors = payload.competitors
+            changed["competitors"] = payload.competitors
+        self.repository.save_project(project)
+        if changed:
+            self._write_audit_log(
+                project_id=project.project_id,
+                module="project",
+                event="project.updated",
+                message="project updated",
+                attributes=changed,
+            )
+        return project
+
+    def delete_project(self, project_id: str) -> Project:
+        project = self.get_project(project_id)
+        project.deleted = True
+        project.deleted_at = datetime.utcnow()
+        self.repository.save_project(project)
+        self._write_audit_log(
+            project_id=project.project_id,
+            module="project",
+            event="project.deleted",
+            message="project deleted",
+            attributes={"deletedAt": project.deleted_at.isoformat()},
+        )
+        return project
 
     def get_project_config(self, project_id: str) -> ProjectConfig:
         config = self.repository.get_project_config(project_id)
@@ -204,6 +306,74 @@ class OpenGeoBotService:
         )
         return prompts
 
+    def list_prompts(self, project_id: str, *, include_disabled: bool = False) -> List[Prompt]:
+        return self.repository.list_project_prompts(project_id, include_disabled=include_disabled)
+
+    def get_prompt(self, project_id: str, prompt_id: str) -> Prompt:
+        prompt = self.repository.get_prompt(prompt_id)
+        if prompt is None or prompt.project_id != project_id:
+            raise ValueError("prompt not found")
+        return prompt
+
+    def update_prompt(self, project_id: str, prompt_id: str, payload: PromptUpdate) -> Prompt:
+        prompt = self.get_prompt(project_id, prompt_id)
+        changed = False
+        if payload.content is not None:
+            prompt.content = payload.content
+            changed = True
+        if payload.language is not None:
+            prompt.language = payload.language
+            changed = True
+        if payload.region is not None:
+            prompt.region = payload.region
+            changed = True
+        if payload.topic is not None:
+            prompt.topic = payload.topic
+            changed = True
+        if payload.stage is not None:
+            prompt.stage = payload.stage
+            changed = True
+        if payload.priority is not None:
+            prompt.priority = payload.priority
+            changed = True
+        if payload.enabled is not None:
+            prompt.enabled = payload.enabled
+            changed = True
+        if changed:
+            prompt.version += 1
+            self.repository.save_prompt(prompt)
+            self._write_audit_log(
+                project_id=project_id,
+                module="prompt",
+                event="prompt.updated",
+                message="prompt updated",
+                prompt_id=prompt.prompt_id,
+                attributes={"version": prompt.version, "enabled": prompt.enabled},
+            )
+        return prompt
+
+    def list_runs(self, project_id: str) -> List[Run]:
+        items = self.repository.list_project_runs(project_id)
+        items.sort(key=lambda item: item.started_at, reverse=True)
+        return items
+
+    def get_run(self, project_id: str, run_id: str) -> Run:
+        run = self.repository.get_run(run_id)
+        if run is None or run.project_id != project_id:
+            raise ValueError("run not found")
+        return run
+
+    def list_insights(self, project_id: str) -> List[Insight]:
+        items = self.repository.list_project_insights(project_id)
+        items.sort(key=lambda item: item.priority_score, reverse=True)
+        return items
+
+    def get_insight(self, project_id: str, insight_id: str) -> Insight:
+        insight = self.repository.get_insight(insight_id)
+        if insight is None or insight.project_id != project_id:
+            raise ValueError("insight not found")
+        return insight
+
     def generate_initial_prompts(self, project_id: str, count: int = 20) -> List[Prompt]:
         project = self.repository.get_project(project_id)
         if project is None:
@@ -250,6 +420,7 @@ class OpenGeoBotService:
             prompt_count=len(prompts),
             engines=engines,
             started_at=datetime.utcnow(),
+            parser_rule_version=PARSER_RULE_VERSION,
         )
         self.repository.save_run(run)
         self._write_audit_log(
@@ -275,10 +446,16 @@ class OpenGeoBotService:
         )
 
         prompt_results: List[PromptRunResult] = []
+        total_engine_calls = 0
+        success_engine_calls = 0
         for prompt in prompts:
             engine_results: List[EngineResult] = []
             for engine in engines:
-                engine_results.append(self._execute_engine(project, prompt, engine))
+                total_engine_calls += 1
+                result = self._execute_engine(project, prompt, engine, run_id=run_id)
+                if result.status == "success":
+                    success_engine_calls += 1
+                engine_results.append(result)
             prompt_results.append(
                 PromptRunResult(
                     prompt_id=prompt.prompt_id,
@@ -289,7 +466,14 @@ class OpenGeoBotService:
 
         run.prompt_results = prompt_results
         run.metrics = self._calculate_metrics(prompt_results)
-        run.status = RunStatus.success
+        if total_engine_calls == 0:
+            run.status = RunStatus.success
+        elif success_engine_calls == 0:
+            run.status = RunStatus.failed
+        elif success_engine_calls < total_engine_calls:
+            run.status = RunStatus.partial_success
+        else:
+            run.status = RunStatus.success
         run.finished_at = datetime.utcnow()
         self.repository.save_run(run)
 
@@ -305,34 +489,60 @@ class OpenGeoBotService:
         )
         return run
 
-    def _execute_engine(self, project: Project, prompt: Prompt, engine: str) -> EngineResult:
-        brand_aliases = [project.brand_name.lower(), *[alias.lower() for alias in project.aliases]]
-        content_lower = prompt.content.lower()
-        mention = any(alias in content_lower for alias in brand_aliases) or random.random() > 0.3
-        citation_hit = random.random() > 0.35
-        citations = [project.source_url] if citation_hit else []
-        position = random.randint(1, 10)
-        sentiment = random.choices(
-            population=[Sentiment.positive, Sentiment.neutral, Sentiment.negative],
-            weights=[0.45, 0.4, 0.15],
-            k=1,
-        )[0]
-
-        raw_answer = (
-            f"{project.brand_name} 在该问题中具有相关性，建议参考官方资料。"
-            if mention
-            else "该问题未明确命中目标品牌。"
+    def _execute_engine(self, project: Project, prompt: Prompt, engine: str, *, run_id: str) -> EngineResult:
+        request = EngineRequest(
+            prompt=prompt.content,
+            language=prompt.language,
+            region=prompt.region,
         )
-        return EngineResult(
+        context = EngineContext(
+            project_id=project.project_id,
+            brand_name=project.brand_name,
+            aliases=project.aliases,
+            competitors=project.competitors,
+            source_url=project.source_url,
+        )
+        raw, meta = self.engine_manager.execute(engine, request, context)
+        result = build_engine_result(
+            project=project,
+            prompt=prompt,
             engine=engine,
-            raw_answer=raw_answer,
-            citations=citations,
-            mention=mention,
-            position=position,
-            sentiment=sentiment,
-            duration_ms=random.randint(300, 1200),
-            status="success",
+            raw_answer=raw.raw_answer,
+            citations=raw.citations,
+            duration_ms=raw.duration_ms,
+            status=raw.status,
+            failure_reason=raw.failure_reason,
+            response_metadata=raw.response_metadata,
         )
+
+        prompt_hash = uuid.uuid5(uuid.NAMESPACE_URL, f"{project.project_id}:{prompt.prompt_id}").hex
+        attributes = {
+            "cacheHit": bool(meta.get("cacheHit")),
+            "retryCount": int(meta.get("retryCount") or 0),
+            "promptHash": prompt_hash,
+            "citationCount": len(result.citations),
+            "riskTags": result.risk_tags,
+            "status": result.status,
+        }
+        if result.failure_reason:
+            attributes["failureReason"] = result.failure_reason
+
+        self._write_audit_log(
+            project_id=project.project_id,
+            run_id=run_id,
+            module="engine",
+            event="engine.call",
+            message="engine executed",
+            prompt_id=prompt.prompt_id,
+            engine=engine,
+            region=prompt.region,
+            language=prompt.language,
+            duration_ms=result.duration_ms,
+            error_code="engine_failed" if result.status != "success" else None,
+            retry_count=int(meta.get("retryCount") or 0),
+            attributes=attributes,
+        )
+        return result
 
     def _calculate_metrics(self, prompt_results: List[PromptRunResult]) -> Metrics:
         total = 0
@@ -455,7 +665,7 @@ class OpenGeoBotService:
     def verify_runs(self, project_id: str, baseline_run_id: str, after_run_id: str) -> VerificationReport:
         baseline = self.repository.get_run(baseline_run_id)
         after = self.repository.get_run(after_run_id)
-        if baseline is None or after is None:
+        if baseline is None or after is None or baseline.project_id != project_id or after.project_id != project_id:
             raise ValueError("run not found")
         deltas = {
             "mention_rate": round(after.metrics.mention_rate - baseline.metrics.mention_rate, 4),
@@ -489,7 +699,7 @@ class OpenGeoBotService:
 
     def build_monitor_report(self, project_id: str, run_id: str, language: str = "zh-CN") -> MonitorReport:
         run = self.repository.get_run(run_id)
-        if run is None:
+        if run is None or run.project_id != project_id:
             raise ValueError("run not found")
         thresholds = self.config_center.get("global.monitoring", {})
         citation_drop_threshold = thresholds.get("citationDropAlertThreshold", 0.15)
@@ -516,8 +726,11 @@ class OpenGeoBotService:
         return report
 
     def save_strategy_memory(self, project_id: str, playbook_id: str, verification_report_id: str) -> StrategyMemory:
+        playbook = self.repository.get_playbook(playbook_id)
+        if playbook is None or playbook.project_id != project_id:
+            raise ValueError("playbook not found")
         report = self.repository.get_verification_report(verification_report_id)
-        if report is None:
+        if report is None or report.project_id != project_id:
             raise ValueError("verification report not found")
         success = report.metric_deltas.get("mention_rate", 0) >= 0 and report.metric_deltas.get("citation_rate", 0) >= 0
         memory = StrategyMemory(

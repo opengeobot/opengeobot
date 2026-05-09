@@ -26,7 +26,7 @@ from app.foundation import (
     set_operator,
     set_trace_id,
 )
-from app.models import AuditLog, ProjectConfig, ProjectCreate, PromptImportItem, RunType
+from app.models import AuditLog, ProjectConfig, ProjectCreate, ProjectUpdate, PromptImportItem, PromptUpdate, RunType
 from app.repository import MemoryRepository, PostgreSQLRepository, SQLiteRepository
 from app.services import OpenGeoBotService
 
@@ -88,7 +88,7 @@ class PromptGenerateRequest(BaseModel):
 
 class RunCreateRequest(BaseModel):
     run_type: RunType
-    engines: List[str] = Field(default_factory=lambda: ["engine_alpha", "engine_beta"])
+    engines: List[str] = Field(default_factory=list)
 
 
 class InsightGenerateRequest(BaseModel):
@@ -112,6 +112,13 @@ class StrategyMemoryRequest(BaseModel):
 
 class ProjectConfigUpdateRequest(BaseModel):
     config: Dict[str, Any] = Field(default_factory=dict)
+
+
+def _require_project(project_id: str):
+    project = repository.get_project(project_id)
+    if project is None or project.deleted:
+        raise HTTPException(status_code=404, detail="project not found")
+    return project
 
 
 @app.get("/health")
@@ -162,107 +169,188 @@ def create_project(payload: ProjectCreate):
 
 
 @app.get("/projects")
-def list_projects():
-    return service.list_projects()
+def list_projects(include_deleted: bool = False):
+    return service.list_projects(include_deleted=include_deleted)
+
+
+@app.get("/projects/{project_id}")
+def get_project(project_id: str):
+    try:
+        return service.get_project(project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.patch("/projects/{project_id}")
+def update_project(project_id: str, payload: ProjectUpdate):
+    _require_project(project_id)
+    try:
+        return service.update_project(project_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/projects/{project_id}")
+def delete_project(project_id: str):
+    _require_project(project_id)
+    try:
+        return service.delete_project(project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/engines")
+def list_engines():
+    return {"engines": service.supported_engines}
 
 
 @app.get("/projects/{project_id}/config", response_model=ProjectConfig)
 def get_project_config(project_id: str):
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
+    _require_project(project_id)
     return service.get_project_config(project_id)
 
 
 @app.put("/projects/{project_id}/config", response_model=ProjectConfig)
 def update_project_config(project_id: str, payload: ProjectConfigUpdateRequest):
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
+    _require_project(project_id)
     return service.update_project_config(project_id, payload.config)
 
 
 @app.get("/projects/{project_id}/config/effective")
 def get_effective_project_config(project_id: str) -> Dict[str, Any]:
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
+    _require_project(project_id)
     return service.get_effective_project_config(project_id)
 
 
 @app.post("/projects/{project_id}/prompts/import")
 def import_prompts(project_id: str, payload: PromptImportRequest):
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
+    _require_project(project_id)
     return service.import_prompts(project_id, payload.items)
 
 
 @app.post("/projects/{project_id}/prompts/generate")
 def generate_prompts(project_id: str, payload: PromptGenerateRequest):
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
+    _require_project(project_id)
     return service.generate_initial_prompts(project_id, payload.count)
+
+
+@app.get("/projects/{project_id}/prompts")
+def list_prompts(project_id: str, include_disabled: bool = False):
+    _require_project(project_id)
+    return service.list_prompts(project_id, include_disabled=include_disabled)
+
+
+@app.get("/projects/{project_id}/prompts/{prompt_id}")
+def get_prompt(project_id: str, prompt_id: str):
+    _require_project(project_id)
+    try:
+        return service.get_prompt(project_id, prompt_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.patch("/projects/{project_id}/prompts/{prompt_id}")
+def update_prompt(project_id: str, prompt_id: str, payload: PromptUpdate):
+    _require_project(project_id)
+    try:
+        return service.update_prompt(project_id, prompt_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/projects/{project_id}/runs")
 def create_run(project_id: str, payload: RunCreateRequest):
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
+    _require_project(project_id)
     try:
         return service.create_run(project_id, payload.run_type, payload.engines)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/projects/{project_id}/runs")
+def list_runs(project_id: str):
+    _require_project(project_id)
+    return service.list_runs(project_id)
+
+
+@app.get("/projects/{project_id}/runs/{run_id}")
+def get_run(project_id: str, run_id: str):
+    _require_project(project_id)
+    try:
+        return service.get_run(project_id, run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.post("/projects/{project_id}/insights")
 def generate_insights(project_id: str, payload: InsightGenerateRequest):
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
-    if not repository.has_run(payload.run_id):
-        raise HTTPException(status_code=404, detail="run not found")
-    return service.generate_insights(project_id, payload.run_id, payload.limit)
+    _require_project(project_id)
+    try:
+        return service.generate_insights(project_id, payload.run_id, payload.limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/projects/{project_id}/insights")
+def list_insights(project_id: str):
+    _require_project(project_id)
+    return service.list_insights(project_id)
+
+
+@app.get("/projects/{project_id}/insights/{insight_id}")
+def get_insight(project_id: str, insight_id: str):
+    _require_project(project_id)
+    try:
+        return service.get_insight(project_id, insight_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/projects/{project_id}/playbooks")
 def generate_playbook(project_id: str, payload: PlaybookGenerateRequest):
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
-    if not repository.has_insight(payload.insight_id):
-        raise HTTPException(status_code=404, detail="insight not found")
-    return service.generate_playbook(project_id, payload.insight_id)
+    _require_project(project_id)
+    try:
+        return service.generate_playbook(project_id, payload.insight_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/projects/{project_id}/verification")
 def verify(project_id: str, payload: VerificationRequest):
-    if not repository.has_run(payload.baseline_run_id) or not repository.has_run(payload.after_run_id):
-        raise HTTPException(status_code=404, detail="run not found")
-    return service.verify_runs(project_id, payload.baseline_run_id, payload.after_run_id)
+    _require_project(project_id)
+    try:
+        return service.verify_runs(project_id, payload.baseline_run_id, payload.after_run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/projects/{project_id}/monitor/{run_id}")
 def monitor(project_id: str, run_id: str, language: str = "zh-CN"):
-    if not repository.has_run(run_id):
-        raise HTTPException(status_code=404, detail="run not found")
-    return service.build_monitor_report(project_id, run_id, language)
+    _require_project(project_id)
+    try:
+        return service.build_monitor_report(project_id, run_id, language)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/projects/{project_id}/strategy-memory")
 def strategy_memory(project_id: str, payload: StrategyMemoryRequest):
-    if not repository.has_playbook(payload.playbook_id):
-        raise HTTPException(status_code=404, detail="playbook not found")
-    if not repository.has_verification_report(payload.verification_report_id):
-        raise HTTPException(status_code=404, detail="verification report not found")
-    return service.save_strategy_memory(project_id, payload.playbook_id, payload.verification_report_id)
+    _require_project(project_id)
+    try:
+        return service.save_strategy_memory(project_id, payload.playbook_id, payload.verification_report_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/projects/{project_id}/overview")
 def overview(project_id: str):
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
+    _require_project(project_id)
     return service.project_overview(project_id)
 
 
 @app.get("/projects/{project_id}/weekly-report")
 def weekly_report(project_id: str, language: str = "zh-CN"):
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
+    _require_project(project_id)
     return service.build_weekly_email_report(project_id, language)
 
 
@@ -273,8 +361,7 @@ def list_audit_logs(
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
 ):
-    if not repository.has_project(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
+    _require_project(project_id)
     if start_time is not None and end_time is not None and start_time > end_time:
         raise HTTPException(status_code=400, detail="invalid time range")
     return repository.list_project_audit_logs(project_id, start_time=start_time, end_time=end_time, limit=limit)

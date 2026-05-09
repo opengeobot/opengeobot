@@ -19,6 +19,10 @@ global:
     maxRetries: 2
     retryBackoffMs: 1500
     rateLimitPerMinute: 60
+    cacheTtlSeconds: 300
+    adapters:
+      - "engine_alpha"
+      - "engine_beta"
   security:
     enableSensitiveDetection: true
     secretMasking: true

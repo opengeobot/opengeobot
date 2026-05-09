@@ -61,6 +61,18 @@ class Project(BaseModel):
     region: str
     competitors: List[str]
     created_at: datetime
+    deleted: bool = False
+    deleted_at: Optional[datetime] = None
+
+
+class ProjectUpdate(BaseModel):
+    project_name: Optional[str] = None
+    source_url: Optional[str] = None
+    brand_name: Optional[str] = None
+    aliases: Optional[List[str]] = None
+    language: Optional[str] = None
+    region: Optional[str] = None
+    competitors: Optional[List[str]] = None
 
 
 class PromptImportItem(BaseModel):
@@ -85,6 +97,16 @@ class Prompt(BaseModel):
     version: int = 1
 
 
+class PromptUpdate(BaseModel):
+    content: Optional[str] = None
+    language: Optional[str] = None
+    region: Optional[str] = None
+    topic: Optional[str] = None
+    stage: Optional[str] = None
+    priority: Optional[int] = None
+    enabled: Optional[bool] = None
+
+
 class EngineResult(BaseModel):
     engine: str
     raw_answer: str
@@ -95,6 +117,8 @@ class EngineResult(BaseModel):
     duration_ms: int
     status: str
     failure_reason: Optional[str] = None
+    risk_tags: List[str] = Field(default_factory=list)
+    response_metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class PromptRunResult(BaseModel):
