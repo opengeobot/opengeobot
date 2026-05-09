@@ -26,7 +26,24 @@ from app.foundation import (
     set_operator,
     set_trace_id,
 )
-from app.models import AssetCreate, AssetUpdate, AuditLog, ProjectConfig, ProjectCreate, ProjectUpdate, PromptImportItem, PromptUpdate, RunType
+from app.models import (
+    AlertStatus,
+    AlertUpdate,
+    AssetCreate,
+    AssetUpdate,
+    AuditLog,
+    CitationSource,
+    GitHubPRDraftApprove,
+    GitHubPRDraftCreate,
+    GitHubPRDraftStatus,
+    ProjectConfig,
+    ProjectCreate,
+    ProjectUpdate,
+    PromptImportItem,
+    PromptUpdate,
+    RunType,
+    StabilityReportCreate,
+)
 from app.repository import MemoryRepository, PostgreSQLRepository, SQLiteRepository
 from app.services import OpenGeoBotService
 
@@ -307,9 +324,29 @@ def generate_prompts(project_id: str, payload: PromptGenerateRequest):
 
 
 @app.get("/projects/{project_id}/prompts")
-def list_prompts(project_id: str, include_disabled: bool = False):
+def list_prompts(
+    project_id: str,
+    include_disabled: bool = False,
+    language: str | None = None,
+    region: str | None = None,
+    topic: str | None = None,
+    stage: str | None = None,
+    enabled: bool | None = None,
+    min_priority: int | None = Query(default=None, ge=1, le=5),
+    max_priority: int | None = Query(default=None, ge=1, le=5),
+):
     _require_project(project_id)
-    return service.list_prompts(project_id, include_disabled=include_disabled)
+    return service.list_prompts(
+        project_id,
+        include_disabled=include_disabled,
+        language=language,
+        region=region,
+        topic=topic,
+        stage=stage,
+        enabled=enabled,
+        min_priority=min_priority,
+        max_priority=max_priority,
+    )
 
 
 @app.get("/projects/{project_id}/prompts/{prompt_id}")
@@ -405,6 +442,30 @@ def monitor(project_id: str, run_id: str, language: str = "zh-CN"):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@app.get("/projects/{project_id}/alerts")
+def list_alerts(project_id: str, status: AlertStatus | None = None):
+    _require_project(project_id)
+    return service.list_alerts(project_id, status=status)
+
+
+@app.get("/projects/{project_id}/alerts/{alert_id}")
+def get_alert(project_id: str, alert_id: str):
+    _require_project(project_id)
+    try:
+        return service.get_alert(project_id, alert_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.patch("/projects/{project_id}/alerts/{alert_id}")
+def update_alert(project_id: str, alert_id: str, payload: AlertUpdate):
+    _require_project(project_id)
+    try:
+        return service.update_alert(project_id, alert_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.post("/projects/{project_id}/strategy-memory")
 def strategy_memory(project_id: str, payload: StrategyMemoryRequest):
     _require_project(project_id)
@@ -414,10 +475,91 @@ def strategy_memory(project_id: str, payload: StrategyMemoryRequest):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@app.get("/projects/{project_id}/strategy-memories")
+def list_strategy_memories(project_id: str):
+    _require_project(project_id)
+    return repository.list_project_memories(project_id)
+
+
 @app.get("/projects/{project_id}/overview")
 def overview(project_id: str):
     _require_project(project_id)
     return service.project_overview(project_id)
+
+
+@app.get("/projects/{project_id}/citations/sources", response_model=List[CitationSource])
+def citation_sources(project_id: str, run_id: str | None = None, limit: int = Query(default=50, ge=1, le=500)):
+    _require_project(project_id)
+    try:
+        return service.list_citation_sources(project_id, run_id=run_id, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/projects/{project_id}/github/pr-drafts")
+def create_github_pr_draft(project_id: str, payload: GitHubPRDraftCreate):
+    _require_project(project_id)
+    try:
+        return service.create_github_pr_draft(project_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/projects/{project_id}/github/pr-drafts")
+def list_github_pr_drafts(project_id: str, status: GitHubPRDraftStatus | None = None):
+    _require_project(project_id)
+    return service.list_github_pr_drafts(project_id, status=status)
+
+
+@app.get("/projects/{project_id}/github/pr-drafts/{draft_id}")
+def get_github_pr_draft(project_id: str, draft_id: str):
+    _require_project(project_id)
+    try:
+        return service.get_github_pr_draft(project_id, draft_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/projects/{project_id}/github/pr-drafts/{draft_id}/approve")
+def approve_github_pr_draft(project_id: str, draft_id: str, payload: GitHubPRDraftApprove):
+    _require_project(project_id)
+    try:
+        return service.approve_github_pr_draft(project_id, draft_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/projects/{project_id}/github/pr-drafts/{draft_id}/reject")
+def reject_github_pr_draft(project_id: str, draft_id: str, payload: GitHubPRDraftApprove):
+    _require_project(project_id)
+    try:
+        return service.reject_github_pr_draft(project_id, draft_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/projects/{project_id}/stability-reports")
+def create_stability_report(project_id: str, payload: StabilityReportCreate):
+    _require_project(project_id)
+    try:
+        return service.create_stability_report(project_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/projects/{project_id}/stability-reports")
+def list_stability_reports(project_id: str):
+    _require_project(project_id)
+    return service.list_stability_reports(project_id)
+
+
+@app.get("/projects/{project_id}/stability-reports/{report_id}")
+def get_stability_report(project_id: str, report_id: str):
+    _require_project(project_id)
+    try:
+        return service.get_stability_report(project_id, report_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/projects/{project_id}/weekly-report")

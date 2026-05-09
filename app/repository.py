@@ -14,9 +14,11 @@ from typing import Dict, Generic, List, Optional, Protocol, Type, TypeVar
 from pydantic import BaseModel
 
 from app.models import (
+    Alert,
     Asset,
     AssetChange,
     AuditLog,
+    GitHubPRDraft,
     Insight,
     MonitorReport,
     Playbook,
@@ -24,6 +26,7 @@ from app.models import (
     ProjectConfig,
     Prompt,
     Run,
+    StabilityReport,
     StrategyMemory,
     VerificationReport,
 )
@@ -62,6 +65,15 @@ class Repository(Protocol):
     def get_verification_report(self, report_id: str) -> Optional[VerificationReport]: ...
     def has_verification_report(self, report_id: str) -> bool: ...
     def save_monitor_report(self, report: MonitorReport) -> None: ...
+    def save_alert(self, alert: Alert) -> None: ...
+    def get_alert(self, alert_id: str) -> Optional[Alert]: ...
+    def list_project_alerts(self, project_id: str) -> List[Alert]: ...
+    def save_github_pr_draft(self, draft: GitHubPRDraft) -> None: ...
+    def get_github_pr_draft(self, draft_id: str) -> Optional[GitHubPRDraft]: ...
+    def list_project_github_pr_drafts(self, project_id: str) -> List[GitHubPRDraft]: ...
+    def save_stability_report(self, report: StabilityReport) -> None: ...
+    def get_stability_report(self, report_id: str) -> Optional[StabilityReport]: ...
+    def list_project_stability_reports(self, project_id: str) -> List[StabilityReport]: ...
     def save_strategy_memory(self, memory: StrategyMemory) -> None: ...
     def list_project_memories(self, project_id: str) -> List[StrategyMemory]: ...
     def save_audit_log(self, audit_log: AuditLog) -> None: ...
@@ -104,6 +116,9 @@ class MemoryRepository:
         self.playbooks = _MemoryTable[Playbook]()
         self.verification_reports = _MemoryTable[VerificationReport]()
         self.monitor_reports = _MemoryTable[MonitorReport]()
+        self.alerts = _MemoryTable[Alert]()
+        self.github_pr_drafts = _MemoryTable[GitHubPRDraft]()
+        self.stability_reports = _MemoryTable[StabilityReport]()
         self.strategy_memories = _MemoryTable[StrategyMemory]()
         self.audit_logs = _MemoryTable[AuditLog]()
 
@@ -199,6 +214,33 @@ class MemoryRepository:
 
     def save_monitor_report(self, report: MonitorReport) -> None:
         self.monitor_reports.save(report.report_id, report)
+
+    def save_alert(self, alert: Alert) -> None:
+        self.alerts.save(alert.alert_id, alert)
+
+    def get_alert(self, alert_id: str) -> Optional[Alert]:
+        return self.alerts.get(alert_id)
+
+    def list_project_alerts(self, project_id: str) -> List[Alert]:
+        return [item for item in self.alerts.list() if item.project_id == project_id]
+
+    def save_github_pr_draft(self, draft: GitHubPRDraft) -> None:
+        self.github_pr_drafts.save(draft.draft_id, draft)
+
+    def get_github_pr_draft(self, draft_id: str) -> Optional[GitHubPRDraft]:
+        return self.github_pr_drafts.get(draft_id)
+
+    def list_project_github_pr_drafts(self, project_id: str) -> List[GitHubPRDraft]:
+        return [item for item in self.github_pr_drafts.list() if item.project_id == project_id]
+
+    def save_stability_report(self, report: StabilityReport) -> None:
+        self.stability_reports.save(report.report_id, report)
+
+    def get_stability_report(self, report_id: str) -> Optional[StabilityReport]:
+        return self.stability_reports.get(report_id)
+
+    def list_project_stability_reports(self, project_id: str) -> List[StabilityReport]:
+        return [item for item in self.stability_reports.list() if item.project_id == project_id]
 
     def save_strategy_memory(self, memory: StrategyMemory) -> None:
         self.strategy_memories.save(memory.memory_id, memory)
@@ -384,6 +426,33 @@ class SQLiteRepository:
 
     def save_monitor_report(self, report: MonitorReport) -> None:
         self._save("monitor_reports", report.report_id, report, report.project_id)
+
+    def save_alert(self, alert: Alert) -> None:
+        self._save("alerts", alert.alert_id, alert, alert.project_id)
+
+    def get_alert(self, alert_id: str) -> Optional[Alert]:
+        return self._get("alerts", alert_id, Alert)
+
+    def list_project_alerts(self, project_id: str) -> List[Alert]:
+        return self._list("alerts", Alert, project_id)
+
+    def save_github_pr_draft(self, draft: GitHubPRDraft) -> None:
+        self._save("github_pr_drafts", draft.draft_id, draft, draft.project_id)
+
+    def get_github_pr_draft(self, draft_id: str) -> Optional[GitHubPRDraft]:
+        return self._get("github_pr_drafts", draft_id, GitHubPRDraft)
+
+    def list_project_github_pr_drafts(self, project_id: str) -> List[GitHubPRDraft]:
+        return self._list("github_pr_drafts", GitHubPRDraft, project_id)
+
+    def save_stability_report(self, report: StabilityReport) -> None:
+        self._save("stability_reports", report.report_id, report, report.project_id)
+
+    def get_stability_report(self, report_id: str) -> Optional[StabilityReport]:
+        return self._get("stability_reports", report_id, StabilityReport)
+
+    def list_project_stability_reports(self, project_id: str) -> List[StabilityReport]:
+        return self._list("stability_reports", StabilityReport, project_id)
 
     def save_strategy_memory(self, memory: StrategyMemory) -> None:
         self._save("strategy_memories", memory.memory_id, memory, memory.project_id)
@@ -588,6 +657,33 @@ class PostgreSQLRepository:
 
     def save_monitor_report(self, report: MonitorReport) -> None:
         self._save("monitor_reports", report.report_id, report, report.project_id)
+
+    def save_alert(self, alert: Alert) -> None:
+        self._save("alerts", alert.alert_id, alert, alert.project_id)
+
+    def get_alert(self, alert_id: str) -> Optional[Alert]:
+        return self._get("alerts", alert_id, Alert)
+
+    def list_project_alerts(self, project_id: str) -> List[Alert]:
+        return self._list("alerts", Alert, project_id)
+
+    def save_github_pr_draft(self, draft: GitHubPRDraft) -> None:
+        self._save("github_pr_drafts", draft.draft_id, draft, draft.project_id)
+
+    def get_github_pr_draft(self, draft_id: str) -> Optional[GitHubPRDraft]:
+        return self._get("github_pr_drafts", draft_id, GitHubPRDraft)
+
+    def list_project_github_pr_drafts(self, project_id: str) -> List[GitHubPRDraft]:
+        return self._list("github_pr_drafts", GitHubPRDraft, project_id)
+
+    def save_stability_report(self, report: StabilityReport) -> None:
+        self._save("stability_reports", report.report_id, report, report.project_id)
+
+    def get_stability_report(self, report_id: str) -> Optional[StabilityReport]:
+        return self._get("stability_reports", report_id, StabilityReport)
+
+    def list_project_stability_reports(self, project_id: str) -> List[StabilityReport]:
+        return self._list("stability_reports", StabilityReport, project_id)
 
     def save_strategy_memory(self, memory: StrategyMemory) -> None:
         self._save("strategy_memories", memory.memory_id, memory, memory.project_id)

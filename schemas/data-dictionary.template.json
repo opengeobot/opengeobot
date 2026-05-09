@@ -25,10 +25,24 @@
         "en-US": "Citation Rate"
       },
       "description": {
-        "zh-CN": "提示词集合中 AI 回答引用目标来源的比例",
-        "en-US": "Percentage of responses citing target sources"
+        "zh-CN": "提示词集合中 AI 回答包含任意引用链接的比例",
+        "en-US": "Percentage of responses containing any citation links"
       },
       "formula": "citedPromptCount / totalPromptCount",
+      "unit": "percentage",
+      "precision": 4
+    },
+    {
+      "key": "officialCitationRate",
+      "displayName": {
+        "zh-CN": "官方引用率",
+        "en-US": "Official Citation Rate"
+      },
+      "description": {
+        "zh-CN": "提示词集合中 AI 回答引用官方资产或官方仓库文档的比例",
+        "en-US": "Percentage of responses citing official assets or official repository docs"
+      },
+      "formula": "officialCitedPromptCount / totalPromptCount",
       "unit": "percentage",
       "precision": 4
     }
