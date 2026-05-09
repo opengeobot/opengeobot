@@ -1,9 +1,10 @@
 services:
   opengeobot:
-    build: .
     container_name: opengeobot-api
     ports:
       - "8010:8000"
+    build:
+      context: .
     environment:
       - OPEN_GEOBOT_STORAGE=postgres
       - OPEN_GEOBOT_POSTGRES_DSN=postgresql://opengeo:opengeo_pass@db:5432/opengeobot

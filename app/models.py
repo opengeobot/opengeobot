@@ -39,6 +39,53 @@ class Sentiment(str, Enum):
     negative = "negative"
 
 
+class AssetType(str, Enum):
+    website = "website"
+    repository = "repository"
+
+
+class AssetStatus(str, Enum):
+    pending = "pending"
+    success = "success"
+    failed = "failed"
+
+
+class Asset(BaseModel):
+    asset_id: str
+    project_id: str
+    asset_type: AssetType
+    source_url: str
+    title: str = ""
+    summary: str = ""
+    discovered_urls: List[str] = Field(default_factory=list)
+    status: AssetStatus = AssetStatus.pending
+    last_crawled_at: Optional[datetime] = None
+    content_version: str = "0"
+    error_message: Optional[str] = None
+    deleted: bool = False
+    deleted_at: Optional[datetime] = None
+
+
+class AssetCreate(BaseModel):
+    asset_type: AssetType
+    source_url: str
+
+
+class AssetUpdate(BaseModel):
+    source_url: Optional[str] = None
+    deleted: Optional[bool] = None
+
+
+class AssetChange(BaseModel):
+    change_id: str
+    project_id: str
+    asset_id: str
+    detected_at: datetime
+    previous_version: str
+    new_version: str
+    summary: str
+
+
 class ProjectCreate(BaseModel):
     project_name: str
     project_type: ProjectType
@@ -148,6 +195,7 @@ class Run(BaseModel):
     prompt_results: List[PromptRunResult] = Field(default_factory=list)
     metrics: Metrics = Field(default_factory=Metrics)
     parser_rule_version: str = "1.0.0"
+    asset_versions: Dict[str, str] = Field(default_factory=dict)
 
 
 class Insight(BaseModel):
@@ -158,6 +206,7 @@ class Insight(BaseModel):
     priority_score: float
     affected_prompt_ids: List[str]
     evidence_run_id: str
+    evidence: Dict[str, Any] = Field(default_factory=dict)
 
 
 class Playbook(BaseModel):
@@ -168,6 +217,7 @@ class Playbook(BaseModel):
     estimated_impact: Dict[str, float]
     risk_level: str
     created_at: datetime
+    evidence: Dict[str, Any] = Field(default_factory=dict)
 
 
 class VerificationReport(BaseModel):

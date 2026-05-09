@@ -13,7 +13,20 @@ from typing import Dict, Generic, List, Optional, Protocol, Type, TypeVar
 
 from pydantic import BaseModel
 
-from app.models import AuditLog, Insight, MonitorReport, Playbook, Project, ProjectConfig, Prompt, Run, StrategyMemory, VerificationReport
+from app.models import (
+    Asset,
+    AssetChange,
+    AuditLog,
+    Insight,
+    MonitorReport,
+    Playbook,
+    Project,
+    ProjectConfig,
+    Prompt,
+    Run,
+    StrategyMemory,
+    VerificationReport,
+)
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -23,6 +36,11 @@ class Repository(Protocol):
     def get_project(self, project_id: str) -> Optional[Project]: ...
     def has_project(self, project_id: str) -> bool: ...
     def list_projects(self) -> List[Project]: ...
+    def save_asset(self, asset: Asset) -> None: ...
+    def get_asset(self, asset_id: str) -> Optional[Asset]: ...
+    def list_project_assets(self, project_id: str) -> List[Asset]: ...
+    def save_asset_change(self, change: AssetChange) -> None: ...
+    def list_project_asset_changes(self, project_id: str) -> List[AssetChange]: ...
     def save_project_config(self, config: ProjectConfig) -> None: ...
     def get_project_config(self, project_id: str) -> Optional[ProjectConfig]: ...
     def save_prompt(self, prompt: Prompt) -> None: ...
@@ -77,6 +95,8 @@ class _MemoryTable(Generic[ModelT]):
 class MemoryRepository:
     def __init__(self) -> None:
         self.projects = _MemoryTable[Project]()
+        self.assets = _MemoryTable[Asset]()
+        self.asset_changes = _MemoryTable[AssetChange]()
         self.project_configs = _MemoryTable[ProjectConfig]()
         self.prompts = _MemoryTable[Prompt]()
         self.runs = _MemoryTable[Run]()
@@ -98,6 +118,21 @@ class MemoryRepository:
 
     def list_projects(self) -> List[Project]:
         return self.projects.list()
+
+    def save_asset(self, asset: Asset) -> None:
+        self.assets.save(asset.asset_id, asset)
+
+    def get_asset(self, asset_id: str) -> Optional[Asset]:
+        return self.assets.get(asset_id)
+
+    def list_project_assets(self, project_id: str) -> List[Asset]:
+        return [item for item in self.assets.list() if item.project_id == project_id]
+
+    def save_asset_change(self, change: AssetChange) -> None:
+        self.asset_changes.save(change.change_id, change)
+
+    def list_project_asset_changes(self, project_id: str) -> List[AssetChange]:
+        return [item for item in self.asset_changes.list() if item.project_id == project_id]
 
     def save_project_config(self, config: ProjectConfig) -> None:
         self.project_configs.save(config.project_id, config)
@@ -268,6 +303,21 @@ class SQLiteRepository:
 
     def list_projects(self) -> List[Project]:
         return self._list("projects", Project)
+
+    def save_asset(self, asset: Asset) -> None:
+        self._save("assets", asset.asset_id, asset, asset.project_id)
+
+    def get_asset(self, asset_id: str) -> Optional[Asset]:
+        return self._get("assets", asset_id, Asset)
+
+    def list_project_assets(self, project_id: str) -> List[Asset]:
+        return self._list("assets", Asset, project_id)
+
+    def save_asset_change(self, change: AssetChange) -> None:
+        self._save("asset_changes", change.change_id, change, change.project_id)
+
+    def list_project_asset_changes(self, project_id: str) -> List[AssetChange]:
+        return self._list("asset_changes", AssetChange, project_id)
 
     def save_project_config(self, config: ProjectConfig) -> None:
         self._save("project_configs", config.project_id, config, config.project_id)
@@ -457,6 +507,21 @@ class PostgreSQLRepository:
 
     def list_projects(self) -> List[Project]:
         return self._list("projects", Project)
+
+    def save_asset(self, asset: Asset) -> None:
+        self._save("assets", asset.asset_id, asset, asset.project_id)
+
+    def get_asset(self, asset_id: str) -> Optional[Asset]:
+        return self._get("assets", asset_id, Asset)
+
+    def list_project_assets(self, project_id: str) -> List[Asset]:
+        return self._list("assets", Asset, project_id)
+
+    def save_asset_change(self, change: AssetChange) -> None:
+        self._save("asset_changes", change.change_id, change, change.project_id)
+
+    def list_project_asset_changes(self, project_id: str) -> List[AssetChange]:
+        return self._list("asset_changes", AssetChange, project_id)
 
     def save_project_config(self, config: ProjectConfig) -> None:
         self._save("project_configs", config.project_id, config, config.project_id)

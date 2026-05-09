@@ -26,7 +26,7 @@ from app.foundation import (
     set_operator,
     set_trace_id,
 )
-from app.models import AuditLog, ProjectConfig, ProjectCreate, ProjectUpdate, PromptImportItem, PromptUpdate, RunType
+from app.models import AssetCreate, AssetUpdate, AuditLog, ProjectConfig, ProjectCreate, ProjectUpdate, PromptImportItem, PromptUpdate, RunType
 from app.repository import MemoryRepository, PostgreSQLRepository, SQLiteRepository
 from app.services import OpenGeoBotService
 
@@ -112,6 +112,11 @@ class StrategyMemoryRequest(BaseModel):
 
 class ProjectConfigUpdateRequest(BaseModel):
     config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AssetSyncRequest(BaseModel):
+    force: bool = False
+    asset_ids: List[str] = Field(default_factory=list)
 
 
 def _require_project(project_id: str):
@@ -202,6 +207,73 @@ def delete_project(project_id: str):
 @app.get("/engines")
 def list_engines():
     return {"engines": service.supported_engines}
+
+
+@app.get("/projects/{project_id}/assets")
+def list_assets(project_id: str, include_deleted: bool = False):
+    _require_project(project_id)
+    return service.list_assets(project_id, include_deleted=include_deleted)
+
+
+@app.post("/projects/{project_id}/assets")
+def create_asset(project_id: str, payload: AssetCreate):
+    _require_project(project_id)
+    try:
+        return service.create_asset(project_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/projects/{project_id}/assets/{asset_id}")
+def get_asset(project_id: str, asset_id: str):
+    _require_project(project_id)
+    try:
+        return service.get_asset(project_id, asset_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.patch("/projects/{project_id}/assets/{asset_id}")
+def update_asset(project_id: str, asset_id: str, payload: AssetUpdate):
+    _require_project(project_id)
+    try:
+        return service.update_asset(project_id, asset_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/projects/{project_id}/assets/{asset_id}")
+def delete_asset(project_id: str, asset_id: str):
+    _require_project(project_id)
+    try:
+        return service.delete_asset(project_id, asset_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/projects/{project_id}/asset-changes")
+def list_asset_changes(project_id: str, asset_id: str | None = None):
+    _require_project(project_id)
+    return service.list_asset_changes(project_id, asset_id=asset_id)
+
+
+@app.post("/projects/{project_id}/assets/sync")
+def sync_assets(project_id: str, payload: AssetSyncRequest):
+    _require_project(project_id)
+    try:
+        asset_ids = [item for item in payload.asset_ids if item]
+        return service.sync_assets(project_id, force=payload.force, asset_ids=asset_ids or None)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/projects/{project_id}/assets/{asset_id}/sync")
+def sync_asset(project_id: str, asset_id: str, payload: AssetSyncRequest):
+    _require_project(project_id)
+    try:
+        return service.sync_assets(project_id, force=payload.force, asset_ids=[asset_id])
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/projects/{project_id}/config", response_model=ProjectConfig)

@@ -214,6 +214,61 @@ def _smoke_backend(storage: str) -> None:
             _require(isinstance(project, dict) and isinstance(project.get("project_id"), str), "project create failed")
             project_id = project["project_id"]
 
+            _, _, assets_before = _http_json("GET", f"{base_url}/projects/{project_id}/assets", headers=headers)
+            _require(isinstance(assets_before, list) and assets_before, "assets missing after project create")
+
+            _, _, extra_asset = _http_json(
+                "POST",
+                f"{base_url}/projects/{project_id}/assets",
+                headers=headers,
+                body={"asset_type": "website", "source_url": "https://example.com/?asset=2"},
+            )
+            _require(isinstance(extra_asset, dict) and isinstance(extra_asset.get("asset_id"), str), "asset create failed")
+            extra_asset_id = extra_asset["asset_id"]
+
+            _, _, assets_before_sync = _http_json("GET", f"{base_url}/projects/{project_id}/assets", headers=headers)
+            _require(isinstance(assets_before_sync, list) and len(assets_before_sync) >= 2, "multi assets missing")
+
+            _, _, assets_after = _http_json(
+                "POST",
+                f"{base_url}/projects/{project_id}/assets/sync",
+                headers=headers,
+                body={"force": True},
+                timeout_s=40,
+            )
+            _require(isinstance(assets_after, list) and assets_after, "assets sync failed")
+
+            _, _, _ = _http_json(
+                "POST",
+                f"{base_url}/projects/{project_id}/assets/{extra_asset_id}/sync",
+                headers=headers,
+                body={"force": True},
+                timeout_s=40,
+            )
+            _, _, extra_asset_detail = _http_json(
+                "GET",
+                f"{base_url}/projects/{project_id}/assets/{extra_asset_id}",
+                headers=headers,
+            )
+            _require(isinstance(extra_asset_detail, dict) and extra_asset_detail.get("asset_id") == extra_asset_id, "asset detail failed")
+
+            _, _, changes = _http_json("GET", f"{base_url}/projects/{project_id}/asset-changes", headers=headers)
+            _require(isinstance(changes, list), "asset changes query failed")
+            _, _, extra_changes = _http_json(
+                "GET",
+                f"{base_url}/projects/{project_id}/asset-changes?{urlencode({'asset_id': extra_asset_id})}",
+                headers=headers,
+            )
+            _require(isinstance(extra_changes, list), "asset changes filter failed")
+
+            _, _, _ = _http_json("DELETE", f"{base_url}/projects/{project_id}/assets/{extra_asset_id}", headers=headers)
+            _, _, assets_after_delete = _http_json(
+                "GET",
+                f"{base_url}/projects/{project_id}/assets?{urlencode({'include_deleted': True})}",
+                headers=headers,
+            )
+            _require(isinstance(assets_after_delete, list) and any(item.get("asset_id") == extra_asset_id for item in assets_after_delete), "asset delete not reflected")
+
             _, _, effective_before = _http_json("GET", f"{base_url}/projects/{project_id}/config/effective", headers=headers)
             _require(isinstance(effective_before, dict), "effective config invalid")
             _require(
@@ -381,6 +436,8 @@ def _smoke_backend(storage: str) -> None:
                 "weekly_subject": weekly.get("subject"),
                 "audit_log_count": len(audit_logs),
                 "dictionary_version": foundation.get("dictionary_version"),
+                "asset_count": len(assets_after),
+                "asset_change_count": len(changes),
                 "trace_id": trace_id,
             }
             print(json.dumps(result, ensure_ascii=False, indent=2))

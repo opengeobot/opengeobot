@@ -6,14 +6,24 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
 from datetime import datetime
+from html.parser import HTMLParser
 from typing import Any, Dict, List
+from urllib.parse import urljoin, urlparse
+from urllib.request import Request, urlopen
 
 from app.engines import EngineContext, EngineManager, EngineRequest, MockEngineAdapter, TemplateEngineAdapter
 from app.foundation import ConfigCenter, DataDictionary, I18N, deep_merge_config, get_operator, get_trace_id, log_with_context
 from app.models import (
+    Asset,
+    AssetChange,
+    AssetCreate,
+    AssetStatus,
+    AssetType,
+    AssetUpdate,
     AuditLog,
     EngineResult,
     Insight,
@@ -37,6 +47,44 @@ from app.models import (
 )
 from app.parser import PARSER_RULE_VERSION, build_engine_result
 from app.repository import Repository
+
+
+class _HtmlExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.title: str = ""
+        self._in_title = False
+        self.links: List[str] = []
+        self.text_chunks: List[str] = []
+
+    def handle_starttag(self, tag: str, attrs):
+        tag_lower = (tag or "").lower()
+        if tag_lower == "title":
+            self._in_title = True
+            return
+        if tag_lower == "a":
+            href = None
+            for k, v in attrs:
+                if (k or "").lower() == "href":
+                    href = v
+                    break
+            if href:
+                self.links.append(str(href))
+
+    def handle_endtag(self, tag: str):
+        if (tag or "").lower() == "title":
+            self._in_title = False
+
+    def handle_data(self, data: str):
+        if not data:
+            return
+        if self._in_title:
+            if not self.title:
+                self.title = data.strip()
+        else:
+            value = data.strip()
+            if value:
+                self.text_chunks.append(value)
 
 
 def _is_sensitive_key(key: str) -> bool:
@@ -171,6 +219,15 @@ class OpenGeoBotService:
             created_at=datetime.utcnow(),
         )
         self.repository.save_project(project)
+        asset = Asset(
+            asset_id=uuid.uuid4().hex,
+            project_id=project_id,
+            asset_type=AssetType.website if payload.project_type.value == "website" else AssetType.repository,
+            source_url=payload.source_url,
+            status=AssetStatus.pending,
+            content_version="0",
+        )
+        self.repository.save_asset(asset)
         self._write_audit_log(
             project_id=project_id,
             module="project",
@@ -190,6 +247,13 @@ class OpenGeoBotService:
             project_id=project_id,
             module="project",
             event="project.created",
+        )
+        self._write_audit_log(
+            project_id=project_id,
+            module="asset",
+            event="asset.created",
+            message="default asset created",
+            attributes={"assetId": asset.asset_id, "assetType": asset.asset_type.value, "sourceUrl": asset.source_url},
         )
         return project
 
@@ -253,6 +317,147 @@ class OpenGeoBotService:
             attributes={"deletedAt": project.deleted_at.isoformat()},
         )
         return project
+
+    def create_asset(self, project_id: str, payload: AssetCreate) -> Asset:
+        project = self.get_project(project_id)
+        source_url = payload.source_url.strip()
+        if not source_url:
+            raise ValueError("invalid source_url")
+        for existing in self.repository.list_project_assets(project_id):
+            if not existing.deleted and existing.source_url == source_url and existing.asset_type == payload.asset_type:
+                return existing
+        asset = Asset(
+            asset_id=uuid.uuid4().hex,
+            project_id=project_id,
+            asset_type=payload.asset_type,
+            source_url=source_url,
+            status=AssetStatus.pending,
+            content_version="0",
+        )
+        self.repository.save_asset(asset)
+        self._write_audit_log(
+            project_id=project_id,
+            module="asset",
+            event="asset.created",
+            message="asset created",
+            attributes={"assetId": asset.asset_id, "assetType": asset.asset_type.value, "sourceUrl": asset.source_url},
+        )
+        if project.project_type.value == "website" and payload.asset_type != AssetType.website:
+            self._write_audit_log(
+                project_id=project_id,
+                module="asset",
+                event="asset.type.mismatch",
+                message="asset type differs from project type",
+                attributes={"projectType": project.project_type.value, "assetType": payload.asset_type.value},
+            )
+        return asset
+
+    def get_asset(self, project_id: str, asset_id: str) -> Asset:
+        asset = self.repository.get_asset(asset_id)
+        if asset is None or asset.project_id != project_id or asset.deleted:
+            raise ValueError("asset not found")
+        return asset
+
+    def update_asset(self, project_id: str, asset_id: str, payload: AssetUpdate) -> Asset:
+        asset = self.get_asset(project_id, asset_id)
+        changed = False
+        if payload.source_url is not None:
+            source_url = payload.source_url.strip()
+            if not source_url:
+                raise ValueError("invalid source_url")
+            if asset.source_url != source_url:
+                asset.source_url = source_url
+                asset.status = AssetStatus.pending
+                asset.error_message = None
+                changed = True
+        if payload.deleted is not None:
+            if payload.deleted and not asset.deleted:
+                asset.deleted = True
+                asset.deleted_at = datetime.utcnow()
+                changed = True
+            if not payload.deleted and asset.deleted:
+                asset.deleted = False
+                asset.deleted_at = None
+                changed = True
+        if changed:
+            self.repository.save_asset(asset)
+            self._write_audit_log(
+                project_id=project_id,
+                module="asset",
+                event="asset.updated",
+                message="asset updated",
+                attributes={"assetId": asset.asset_id, "deleted": asset.deleted, "sourceUrl": asset.source_url},
+            )
+        return asset
+
+    def delete_asset(self, project_id: str, asset_id: str) -> Asset:
+        asset = self.get_asset(project_id, asset_id)
+        asset.deleted = True
+        asset.deleted_at = datetime.utcnow()
+        self.repository.save_asset(asset)
+        self._write_audit_log(
+            project_id=project_id,
+            module="asset",
+            event="asset.deleted",
+            message="asset deleted",
+            attributes={"assetId": asset.asset_id, "deletedAt": asset.deleted_at.isoformat()},
+        )
+        return asset
+
+    def list_assets(self, project_id: str, *, include_deleted: bool = False) -> List[Asset]:
+        items = self.repository.list_project_assets(project_id)
+        if not include_deleted:
+            items = [item for item in items if not item.deleted]
+        items.sort(key=lambda item: (item.last_crawled_at or datetime.min), reverse=True)
+        return items
+
+    def list_asset_changes(self, project_id: str, *, asset_id: str | None = None) -> List[AssetChange]:
+        items = self.repository.list_project_asset_changes(project_id)
+        if asset_id:
+            items = [item for item in items if item.asset_id == asset_id]
+        items.sort(key=lambda item: item.detected_at, reverse=True)
+        return items
+
+    def sync_assets(self, project_id: str, *, force: bool = False, asset_ids: List[str] | None = None) -> List[Asset]:
+        project = self.get_project(project_id)
+        candidates = self.repository.list_project_assets(project_id)
+        candidates = [item for item in candidates if not item.deleted]
+
+        if asset_ids:
+            selected: List[Asset] = []
+            for asset_id in asset_ids:
+                for item in candidates:
+                    if item.asset_id == asset_id:
+                        selected.append(item)
+                        break
+            if not selected:
+                raise ValueError("asset not found")
+            candidates = selected
+
+        if not candidates and not asset_ids:
+            assets = [
+                Asset(
+                    asset_id=uuid.uuid4().hex,
+                    project_id=project_id,
+                    asset_type=AssetType.website if project.project_type.value == "website" else AssetType.repository,
+                    source_url=project.source_url,
+                )
+            ]
+            for asset in assets:
+                self.repository.save_asset(asset)
+            candidates = assets
+
+        updated: List[Asset] = []
+        for asset in candidates:
+            updated.append(self._sync_one_asset(project, asset, force=force))
+        self._write_audit_log(
+            project_id=project_id,
+            module="asset",
+            event="asset.synced",
+            message=f"assets synced count={len(updated)}",
+            attributes={"count": len(updated), "force": bool(force), "assetIds": [item.asset_id for item in updated]},
+        )
+        return updated
 
     def get_project_config(self, project_id: str) -> ProjectConfig:
         config = self.repository.get_project_config(project_id)
@@ -411,6 +616,7 @@ class OpenGeoBotService:
             raise ValueError(f"unsupported engines: {invalid_engines}")
 
         prompts = self.repository.list_project_prompts(project_id)
+        asset_versions = {item.asset_id: item.content_version for item in self.repository.list_project_assets(project_id)}
         run_id = uuid.uuid4().hex
         run = Run(
             run_id=run_id,
@@ -421,6 +627,7 @@ class OpenGeoBotService:
             engines=engines,
             started_at=datetime.utcnow(),
             parser_rule_version=PARSER_RULE_VERSION,
+            asset_versions=asset_versions,
         )
         self.repository.save_run(run)
         self._write_audit_log(
@@ -591,6 +798,7 @@ class OpenGeoBotService:
             if mention_ratio >= 0.6 and citation_ratio >= 0.5:
                 continue
             priority = round((1 - mention_ratio) * 0.6 + (1 - citation_ratio) * 0.4, 4)
+            evidence = _build_prompt_evidence(run, prompt_result, mention_ratio=mention_ratio, citation_ratio=citation_ratio)
             insight = Insight(
                 insight_id=uuid.uuid4().hex,
                 project_id=project_id,
@@ -599,11 +807,18 @@ class OpenGeoBotService:
                 priority_score=priority,
                 affected_prompt_ids=[prompt_result.prompt_id],
                 evidence_run_id=run_id,
+                evidence=evidence,
             )
             self.repository.save_insight(insight)
             insights.append(insight)
         if not insights and run.prompt_results:
             fallback_target = run.prompt_results[0]
+            evidence = _build_prompt_evidence(
+                run,
+                fallback_target,
+                mention_ratio=0.0,
+                citation_ratio=0.0,
+            )
             fallback = Insight(
                 insight_id=uuid.uuid4().hex,
                 project_id=project_id,
@@ -612,6 +827,7 @@ class OpenGeoBotService:
                 priority_score=0.25,
                 affected_prompt_ids=[fallback_target.prompt_id],
                 evidence_run_id=run_id,
+                evidence=evidence,
             )
             self.repository.save_insight(fallback)
             insights.append(fallback)
@@ -631,8 +847,12 @@ class OpenGeoBotService:
         insight = self.repository.get_insight(insight_id)
         if insight is None:
             raise ValueError("insight not found")
+        evidence = insight.evidence or {}
+        evidence_lines = _render_evidence_markdown(evidence)
         markdown = (
             f"# {insight.title}\n\n"
+            "## 证据\n"
+            f"{evidence_lines}\n\n"
             "## 优化目标\n"
             "- 提高 Mention Rate 与 Citation Rate\n"
             "- 补齐 FAQ、对比与关键事实块\n\n"
@@ -651,6 +871,7 @@ class OpenGeoBotService:
             estimated_impact={"mention_rate": 0.08, "citation_rate": 0.1},
             risk_level="medium",
             created_at=datetime.utcnow(),
+            evidence=evidence,
         )
         self.repository.save_playbook(playbook)
         self._write_audit_log(
@@ -772,8 +993,12 @@ class OpenGeoBotService:
             }
         insights = self.repository.list_project_insights(project_id)
         memories = self.repository.list_project_memories(project_id)
+        assets = self.repository.list_project_assets(project_id)
+        assets = [item for item in assets if not item.deleted]
+        assets.sort(key=lambda item: (item.last_crawled_at or datetime.min), reverse=True)
         return {
             "project": project,
+            "assets": assets,
             "latest_metrics": latest.metrics if latest else Metrics(),
             "trend": trend,
             "top_opportunities": sorted(insights, key=lambda item: item.priority_score, reverse=True)[:20],
@@ -784,12 +1009,28 @@ class OpenGeoBotService:
     def build_weekly_email_report(self, project_id: str, language: str = "zh-CN") -> Dict[str, object]:
         overview = self.project_overview(project_id)
         latest_metrics = overview["latest_metrics"]
+        assets = overview.get("assets") or []
+        asset_summaries = []
+        if isinstance(assets, list):
+            for asset in assets[:3]:
+                if not isinstance(asset, Asset):
+                    continue
+                asset_summaries.append(
+                    {
+                        "asset_id": asset.asset_id,
+                        "asset_type": asset.asset_type.value,
+                        "status": asset.status.value,
+                        "last_crawled_at": asset.last_crawled_at,
+                        "content_version": asset.content_version,
+                    }
+                )
         title = self.i18n.t("report.section.summary", language)
         body = {
             "mention_rate": latest_metrics.mention_rate,
             "citation_rate": latest_metrics.citation_rate,
             "average_position": latest_metrics.average_position,
             "sentiment_score": latest_metrics.sentiment_score,
+            "assets": asset_summaries,
             "top_opportunities": [
                 {
                     "title": insight.title,
@@ -805,3 +1046,239 @@ class OpenGeoBotService:
             "language": language,
             "body": body,
         }
+
+    def _sync_one_asset(self, project: Project, asset: Asset, *, force: bool) -> Asset:
+        now = datetime.utcnow()
+        try:
+            content, title, summary, discovered = _fetch_asset_content(asset)
+            content_version = _hash_version(content)
+            previous_version = asset.content_version or "0"
+            changed = force or (content_version != previous_version)
+
+            asset.title = title or asset.title
+            asset.summary = summary or asset.summary
+            asset.discovered_urls = discovered
+            asset.last_crawled_at = now
+            asset.status = AssetStatus.success
+            asset.error_message = None
+
+            if changed:
+                asset.content_version = content_version
+                change = AssetChange(
+                    change_id=uuid.uuid4().hex,
+                    project_id=project.project_id,
+                    asset_id=asset.asset_id,
+                    detected_at=now,
+                    previous_version=previous_version,
+                    new_version=content_version,
+                    summary=f"content_version changed {previous_version} -> {content_version}",
+                )
+                self.repository.save_asset_change(change)
+
+            self.repository.save_asset(asset)
+            self._write_audit_log(
+                project_id=project.project_id,
+                module="asset",
+                event="asset.crawled",
+                message="asset crawled",
+                attributes={
+                    "assetId": asset.asset_id,
+                    "assetType": asset.asset_type.value,
+                    "status": asset.status.value,
+                    "contentVersion": asset.content_version,
+                    "changed": bool(changed),
+                    "discoveredUrlCount": len(discovered),
+                },
+            )
+            return asset
+        except Exception as exc:
+            asset.last_crawled_at = now
+            asset.status = AssetStatus.failed
+            asset.error_message = str(exc)
+            self.repository.save_asset(asset)
+            self._write_audit_log(
+                project_id=project.project_id,
+                module="asset",
+                event="asset.crawled",
+                message="asset crawl failed",
+                error_code="asset_crawl_failed",
+                attributes={
+                    "assetId": asset.asset_id,
+                    "assetType": asset.asset_type.value,
+                    "status": asset.status.value,
+                    "error": asset.error_message,
+                },
+            )
+            return asset
+
+
+_README_CANDIDATES = (
+    "README.md",
+    "Readme.md",
+    "readme.md",
+)
+
+
+def _fetch_asset_content(asset: Asset) -> tuple[str, str, str, List[str]]:
+    if asset.asset_type == AssetType.repository:
+        return _fetch_repository(asset.source_url)
+    return _fetch_website(asset.source_url)
+
+
+def _fetch_website(url: str) -> tuple[str, str, str, List[str]]:
+    req = Request(url=url, headers={"User-Agent": "opengeobot/1.0"})
+    with urlopen(req, timeout=12) as resp:
+        raw = resp.read()
+    text = raw.decode("utf-8", errors="replace")
+    parser = _HtmlExtractor()
+    parser.feed(text)
+    title = (parser.title or "").strip()
+    summary = " ".join(parser.text_chunks[:80]).strip()
+    if len(summary) > 400:
+        summary = summary[:400].rstrip() + "..."
+    base = url
+    discovered = _normalize_links(base, parser.links)
+    return text, title, summary, discovered
+
+
+def _fetch_repository(url: str) -> tuple[str, str, str, List[str]]:
+    parsed = urlparse(url)
+    if parsed.netloc.lower() != "github.com":
+        raise ValueError("only github.com repository url is supported in MVP")
+    parts = [p for p in parsed.path.split("/") if p]
+    if len(parts) < 2:
+        raise ValueError("invalid github repository url")
+    owner, repo = parts[0], parts[1]
+
+    last_error: str | None = None
+    for branch in ("HEAD", "main", "master"):
+        for name in _README_CANDIDATES:
+            raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{name}"
+            try:
+                req = Request(url=raw_url, headers={"User-Agent": "opengeobot/1.0"})
+                with urlopen(req, timeout=12) as resp:
+                    content = resp.read().decode("utf-8", errors="replace")
+                title = _markdown_title(content) or f"{owner}/{repo}"
+                summary = _markdown_summary(content)
+                discovered = [url]
+                return content, title, summary, discovered
+            except Exception as exc:
+                last_error = str(exc)
+                continue
+    raise RuntimeError(f"failed to fetch README from GitHub: {last_error or 'unknown'}")
+
+
+def _markdown_title(content: str) -> str:
+    for line in (content or "").splitlines():
+        value = line.strip()
+        if value.startswith("#"):
+            return value.lstrip("#").strip()
+    return ""
+
+
+def _markdown_summary(content: str) -> str:
+    lines = []
+    for line in (content or "").splitlines():
+        value = line.strip()
+        if not value:
+            continue
+        if value.startswith("#"):
+            continue
+        lines.append(value)
+        if len(lines) >= 5:
+            break
+    summary = " ".join(lines).strip()
+    if len(summary) > 400:
+        summary = summary[:400].rstrip() + "..."
+    return summary
+
+
+def _normalize_links(base_url: str, links: List[str]) -> List[str]:
+    base = urlparse(base_url)
+    normalized: List[str] = []
+    seen = set()
+    for href in links:
+        value = (href or "").strip()
+        if not value or value.startswith("#"):
+            continue
+        if value.startswith("javascript:") or value.startswith("mailto:"):
+            continue
+        absolute = urljoin(base_url, value)
+        parsed = urlparse(absolute)
+        if parsed.scheme not in ("http", "https"):
+            continue
+        if parsed.netloc and parsed.netloc != base.netloc:
+            continue
+        cleaned = parsed._replace(fragment="").geturl()
+        if cleaned not in seen:
+            normalized.append(cleaned)
+            seen.add(cleaned)
+        if len(normalized) >= 50:
+            break
+    return normalized
+
+
+def _hash_version(content: str) -> str:
+    digest = hashlib.sha256((content or "").encode("utf-8", errors="ignore")).hexdigest()
+    return digest[:12]
+
+
+def _build_prompt_evidence(run: Run, prompt_result: PromptRunResult, *, mention_ratio: float, citation_ratio: float) -> Dict[str, Any]:
+    per_engine = []
+    domains = []
+    for result in prompt_result.results:
+        per_engine.append(
+            {
+                "engine": result.engine,
+                "status": result.status,
+                "mention": result.mention,
+                "position": result.position,
+                "sentiment": result.sentiment.value,
+                "risk_tags": result.risk_tags,
+                "citation_count": len(result.citations),
+                "citations": result.citations[:5],
+                "answer_snippet": (result.raw_answer or "")[:220],
+            }
+        )
+        for c in result.citations:
+            try:
+                domains.append(urlparse(c).netloc)
+            except Exception:
+                continue
+    top_domains: List[str] = []
+    for d in domains:
+        if d and d not in top_domains:
+            top_domains.append(d)
+        if len(top_domains) >= 5:
+            break
+    return {
+        "run_id": run.run_id,
+        "run_type": run.run_type.value,
+        "parser_rule_version": run.parser_rule_version,
+        "asset_versions": run.asset_versions,
+        "prompt": {"prompt_id": prompt_result.prompt_id, "content": prompt_result.prompt_content},
+        "signals": {
+            "mention_ratio": round(float(mention_ratio), 4),
+            "citation_ratio": round(float(citation_ratio), 4),
+            "top_citation_domains": top_domains,
+        },
+        "per_engine": per_engine,
+    }
+
+
+def _render_evidence_markdown(evidence: Dict[str, Any]) -> str:
+    if not evidence:
+        return "- 无（未找到可用证据）"
+    prompt = evidence.get("prompt") if isinstance(evidence.get("prompt"), dict) else {}
+    signals = evidence.get("signals") if isinstance(evidence.get("signals"), dict) else {}
+    domains = signals.get("top_citation_domains") if isinstance(signals.get("top_citation_domains"), list) else []
+    mention_ratio = signals.get("mention_ratio")
+    citation_ratio = signals.get("citation_ratio")
+    lines = [
+        f"- 关联 Run: {evidence.get('run_id')}",
+        f"- 提示词: {prompt.get('content')}",
+        f"- Mention/Citation 比例: {mention_ratio}/{citation_ratio}",
+    ]
+    if domains:
+        lines.append(f"- Top 引用域名: {', '.join([str(d) for d in domains])}")
+    return "\n".join(lines)

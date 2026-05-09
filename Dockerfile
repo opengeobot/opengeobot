@@ -3,18 +3,20 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN set -eux; \
-    unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY; \
-    printf '%s\n' 'Acquire::http::Proxy "false";' 'Acquire::https::Proxy "false";' > /etc/apt/apt.conf.d/99no-proxy; \
-    (test -f /etc/apt/sources.list && sed -i 's|http://deb.debian.org|https://deb.debian.org|g; s|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list) || true; \
-    (test -f /etc/apt/sources.list.d/debian.sources && sed -i 's|http://deb.debian.org|https://deb.debian.org|g; s|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list.d/debian.sources) || true; \
+    if [ -f /etc/apt/sources.list ]; then \
+      sed -i 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g; s|https://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g; s|https://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list; \
+    fi; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g; s|https://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g; s|https://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources; \
+    fi; \
     apt-get update; \
     apt-get install -y gcc; \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN set -eux; \
-    unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY; \
-    pip install --no-cache-dir -r requirements.txt
+    python -m pip install --no-cache-dir --upgrade pip -i https://mirrors.aliyun.com/pypi/simple; \
+    pip install --no-cache-dir --retries 10 --timeout 30 -i https://mirrors.aliyun.com/pypi/simple -r requirements.txt
 
 COPY app ./app
 COPY configs ./configs
