@@ -24,6 +24,7 @@ COPY i18n ./i18n
 COPY schemas ./schemas
 COPY observability ./observability
 COPY docs ./docs
+COPY static ./static
 
 RUN mkdir -p data
 

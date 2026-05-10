@@ -109,7 +109,9 @@ class TenantManager:
             return tenant
         return None
     
-    def list_tenants(self) -> List[Tenant]:
+    def list_tenants(self, include_deleted: bool = False) -> List[Tenant]:
+        if include_deleted:
+            return list(self._tenants.values())
         return [t for t in self._tenants.values() if not t.deleted]
     
     def update_tenant(self, tenant_id: str, payload: TenantUpdate) -> Optional[Tenant]:
