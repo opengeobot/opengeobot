@@ -236,7 +236,9 @@ onMounted(async () => {
         getRuns(projectStore.currentProjectId),
       ])
       alerts.value = (alertsRes || []).slice(0, 5)
-      opportunities.value = (insightsRes || []).slice(0, 10)
+      // getInsights returns paginated response {items: [...], total, ...}
+      const insightsItems = insightsRes?.items || insightsRes || []
+      opportunities.value = insightsItems.slice(0, 10)
       recentRuns.value = (runsRes || []).slice(0, 5)
     } catch (error) {
       console.error('Failed to load overview data:', error)
