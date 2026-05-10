@@ -131,6 +131,8 @@
           </ul>
         </div>
       </div>
+
+      <el-empty v-else description="暂无 Benchmark 数据，请先运行分析" :image-size="80" />
     </el-card>
 
     <!-- 创建/编辑模板对话框 -->
@@ -294,7 +296,11 @@ const loadBenchmark = async () => {
     if (!projectId) return
     benchmark.value = await getProjectBenchmark(projectId)
   } catch (e) {
-    // Error handled by interceptor
+    // 404 表示 benchmark 数据不存在，这是正常情况，不显示错误
+    if (e.response?.status !== 404) {
+      console.error('Failed to load benchmark:', e)
+    }
+    benchmark.value = null
   }
 }
 
