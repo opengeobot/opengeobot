@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import time
@@ -47,6 +48,8 @@ class EngineAdapter(Protocol):
 
     def run(self, request: EngineRequest, context: EngineContext, *, timeout_ms: int) -> RawEngineResponse: ...
 
+    async def run_async(self, request: EngineRequest, context: EngineContext, *, timeout_ms: int) -> RawEngineResponse: ...
+
 
 class MockEngineAdapter:
     def __init__(self, engine_id: str) -> None:
@@ -77,6 +80,9 @@ class MockEngineAdapter:
                 "timeoutMs": timeout_ms,
             },
         )
+
+    async def run_async(self, request: EngineRequest, context: EngineContext, *, timeout_ms: int) -> RawEngineResponse:
+        return await asyncio.to_thread(self.run, request, context, timeout_ms=timeout_ms)
 
 
 class TemplateEngineAdapter:
@@ -126,6 +132,9 @@ class TemplateEngineAdapter:
                 "timeoutMs": timeout_ms,
             },
         )
+
+    async def run_async(self, request: EngineRequest, context: EngineContext, *, timeout_ms: int) -> RawEngineResponse:
+        return await asyncio.to_thread(self.run, request, context, timeout_ms=timeout_ms)
 
 
 @dataclass
@@ -250,6 +259,92 @@ class EngineManager:
             response_metadata={},
         )
         return response, {"cacheHit": False, "retryCount": self._max_retries}
+
+    async def execute_async(
+        self,
+        engine_id: str,
+        request: EngineRequest,
+        context: EngineContext,
+    ) -> Tuple[RawEngineResponse, Dict[str, Any]]:
+        adapter = self._adapters.get(engine_id)
+        if adapter is None:
+            response = RawEngineResponse(
+                engine=engine_id,
+                raw_answer="",
+                citations=[],
+                duration_ms=0,
+                status="failed",
+                failure_reason="unsupported_engine",
+                response_metadata={},
+            )
+            return response, {"cacheHit": False, "retryCount": 0}
+
+        cache_key = _cache_key(engine_id, request, context)
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached, {"cacheHit": True, "retryCount": 0}
+
+        limiter = self._rate_limiters.get(engine_id)
+        if limiter is not None:
+            limiter.acquire()
+
+        last_exc: Optional[BaseException] = None
+        for attempt in range(self._max_retries + 1):
+            try:
+                result = await adapter.run_async(request, context, timeout_ms=self._timeout_ms)
+                if result.status == "success":
+                    self._cache.set(cache_key, result, ttl_seconds=self._cache_ttl_seconds)
+                return result, {"cacheHit": False, "retryCount": attempt}
+            except BaseException as exc:
+                last_exc = exc
+                if attempt >= self._max_retries:
+                    break
+                if self._retry_backoff_ms > 0:
+                    await asyncio.sleep(self._retry_backoff_ms / 1000.0)
+
+        failure_reason = str(last_exc) if last_exc is not None else "unknown_error"
+        response = RawEngineResponse(
+            engine=engine_id,
+            raw_answer="",
+            citations=[],
+            duration_ms=0,
+            status="failed",
+            failure_reason=failure_reason,
+            response_metadata={},
+        )
+        return response, {"cacheHit": False, "retryCount": self._max_retries}
+
+    async def execute_all_async(
+        self,
+        engine_ids: List[str],
+        request: EngineRequest,
+        context: EngineContext,
+    ) -> List[Tuple[RawEngineResponse, Dict[str, Any]]]:
+        tasks = [
+            self.execute_async(engine_id, request, context)
+            for engine_id in engine_ids
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        processed_results: List[Tuple[RawEngineResponse, Dict[str, Any]]] = []
+        for i, result in enumerate(results):
+            if isinstance(result, BaseException):
+                processed_results.append((
+                    RawEngineResponse(
+                        engine=engine_ids[i],
+                        raw_answer="",
+                        citations=[],
+                        duration_ms=0,
+                        status="failed",
+                        failure_reason=str(result),
+                        response_metadata={},
+                    ),
+                    {"cacheHit": False, "retryCount": 0},
+                ))
+            else:
+                processed_results.append(result)
+        
+        return processed_results
 
 
 def _stable_seed(*parts: str) -> int:

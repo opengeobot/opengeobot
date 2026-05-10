@@ -45,6 +45,62 @@
       "formula": "officialCitedPromptCount / totalPromptCount",
       "unit": "percentage",
       "precision": 4
+    },
+    {
+      "key": "averagePosition",
+      "displayName": {
+        "zh-CN": "平均位置",
+        "en-US": "Average Position"
+      },
+      "description": {
+        "zh-CN": "目标对象在 AI 推荐列表中出现的平均位置",
+        "en-US": "Mean position where the target appears in AI recommendations"
+      },
+      "formula": "sum(positions) / totalMentionCount",
+      "unit": "number",
+      "precision": 2
+    },
+    {
+      "key": "sentimentScore",
+      "displayName": {
+        "zh-CN": "情感分",
+        "en-US": "Sentiment Score"
+      },
+      "description": {
+        "zh-CN": "正面与负面情感倾向的净比例",
+        "en-US": "Net positive vs negative sentiment ratio"
+      },
+      "formula": "(positiveCount - negativeCount) / totalPromptCount",
+      "unit": "ratio",
+      "precision": 4
+    },
+    {
+      "key": "shareOfVoice",
+      "displayName": {
+        "zh-CN": "声量份额",
+        "en-US": "Share of Voice"
+      },
+      "description": {
+        "zh-CN": "目标对象在竞争对手中的提及份额占比",
+        "en-US": "Target's mention share vs competitors"
+      },
+      "formula": "targetMentionCount / (targetMentionCount + competitorMentionCount)",
+      "unit": "percentage",
+      "precision": 4
+    },
+    {
+      "key": "citationQuality",
+      "displayName": {
+        "zh-CN": "引用质量",
+        "en-US": "Citation Quality"
+      },
+      "description": {
+        "zh-CN": "引用质量加权评分",
+        "en-US": "Weighted citation quality score"
+      },
+      "formula": "citationRate * 0.7 + max(0, sentimentScore) * 0.3",
+      "unit": "ratio",
+      "precision": 4
     }
   ],
   "fieldDefinitions": [
@@ -54,6 +110,13 @@
       "required": true,
       "scope": "global",
       "comment": "链路追踪唯一标识"
+    },
+    {
+      "fieldKey": "spanId",
+      "type": "string",
+      "required": false,
+      "scope": "global",
+      "comment": "单个操作或请求的追踪标识"
     },
     {
       "fieldKey": "runStatus",
@@ -132,6 +195,12 @@
     }
   ],
   "changeLog": [
+    {
+      "version": "1.1.0",
+      "date": "2026-05-10",
+      "author": "AxeXie",
+      "summary": "补充4个缺失指标定义(averagePosition, sentimentScore, shareOfVoice, citationQuality)和spanId字段"
+    },
     {
       "version": "1.0.0",
       "date": "2026-05-08",

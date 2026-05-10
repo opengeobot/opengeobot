@@ -162,6 +162,21 @@ class OpenGeoBotService:
         for engine_id in engine_ids:
             if engine_id in ("engine_beta", "template"):
                 adapters[engine_id] = TemplateEngineAdapter(engine_id)
+            elif engine_id == "deepseek":
+                # 尝试加载 DeepSeek 适配器
+                deepseek_api_key = os.environ.get("DEEPSEEK_API_KEY")
+                if deepseek_api_key:
+                    from app.engines_deepseek import DeepSeekEngineAdapter
+                    adapters[engine_id] = DeepSeekEngineAdapter(
+                        engine_id=engine_id,
+                        api_key=deepseek_api_key,
+                    )
+                    self.logger.info(f"DeepSeek engine adapter loaded for {engine_id}")
+                else:
+                    self.logger.warning(
+                        "DEEPSEEK_API_KEY not set, skipping DeepSeek adapter. "
+                        "API key must be provided via environment variable."
+                    )
             else:
                 adapters[engine_id] = MockEngineAdapter(engine_id)
 
@@ -871,6 +886,124 @@ class OpenGeoBotService:
         )
         return run
 
+    async def create_run_async(self, project_id: str, run_type: RunType, engines: List[str]) -> Run:
+        """异步执行引擎调用，使用并行执行提升性能"""
+        import asyncio
+        
+        if not engines:
+            engines = self.supported_engines[:]
+        project = self.repository.get_project(project_id)
+        if project is None:
+            raise ValueError("project not found")
+        invalid_engines = [engine for engine in engines if engine not in self.supported_engines]
+        if invalid_engines:
+            raise ValueError(f"unsupported engines: {invalid_engines}")
+
+        prompts = self.repository.list_project_prompts(project_id)
+        assets = self.repository.list_project_assets(project_id)
+        asset_versions = {item.asset_id: item.content_version for item in assets}
+        run_id = uuid.uuid4().hex
+        run = Run(
+            run_id=run_id,
+            project_id=project_id,
+            run_type=run_type,
+            status=RunStatus.running,
+            prompt_count=len(prompts),
+            engines=engines,
+            started_at=datetime.utcnow(),
+            parser_rule_version=PARSER_RULE_VERSION,
+            asset_versions=asset_versions,
+        )
+        self.repository.save_run(run)
+        self._write_audit_log(
+            project_id=project_id,
+            module="run",
+            event="run.created",
+            message="run created (async)",
+            run_id=run_id,
+            attributes={
+                "runType": run_type.value,
+                "engineCount": len(engines),
+                "promptCount": len(prompts),
+            },
+        )
+        trace_id = log_with_context(
+            self.logger,
+            logging.INFO,
+            "run started (async)",
+            project_id=project_id,
+            run_id=run_id,
+            module="run",
+            event="run.started",
+        )
+
+        prompt_results: List[PromptRunResult] = []
+        total_engine_calls = 0
+        success_engine_calls = 0
+        
+        # 并行执行所有 prompt + engine 组合
+        async def _execute_prompt_engine(prompt: Prompt, engine: str) -> EngineResult:
+            nonlocal total_engine_calls, success_engine_calls
+            total_engine_calls += 1
+            result = await self._execute_engine_async(project, prompt, engine, run_id=run_id)
+            if result.status == "success":
+                success_engine_calls += 1
+            return result
+        
+        for prompt in prompts:
+            # 对同一个 prompt 的多个 engine 并行执行
+            engine_tasks = [_execute_prompt_engine(prompt, engine) for engine in engines]
+            engine_results = await asyncio.gather(*engine_tasks, return_exceptions=True)
+            
+            # 处理可能的异常
+            processed_results: List[EngineResult] = []
+            for i, result in enumerate(engine_results):
+                if isinstance(result, BaseException):
+                    processed_results.append(EngineResult(
+                        engine=engines[i],
+                        raw_answer="",
+                        citations=[],
+                        duration_ms=0,
+                        status="failed",
+                        failure_reason=str(result),
+                    ))
+                    total_engine_calls += 1
+                else:
+                    processed_results.append(result)
+            
+            prompt_results.append(
+                PromptRunResult(
+                    prompt_id=prompt.prompt_id,
+                    prompt_content=prompt.content,
+                    results=processed_results,
+                )
+            )
+
+        run.prompt_results = prompt_results
+        run.metrics = self._calculate_metrics(project, assets, prompt_results)
+        if total_engine_calls == 0:
+            run.status = RunStatus.success
+        elif success_engine_calls == 0:
+            run.status = RunStatus.failed
+        elif success_engine_calls < total_engine_calls:
+            run.status = RunStatus.partial_success
+        else:
+            run.status = RunStatus.success
+        run.finished_at = datetime.utcnow()
+        self.repository.save_run(run)
+
+        log_with_context(
+            self.logger,
+            logging.INFO,
+            "run finished (async)",
+            trace_id=trace_id,
+            project_id=project_id,
+            run_id=run_id,
+            module="run",
+            event="run.finished",
+        )
+        return run
+
     def create_stability_report(self, project_id: str, payload: StabilityReportCreate) -> StabilityReport:
         if payload.repeats < 2:
             raise ValueError("repeats must be >= 2")
@@ -1029,6 +1162,62 @@ class OpenGeoBotService:
             module="engine",
             event="engine.call",
             message="engine executed",
+            prompt_id=prompt.prompt_id,
+            engine=engine,
+            region=prompt.region,
+            language=prompt.language,
+            duration_ms=result.duration_ms,
+            error_code="engine_failed" if result.status != "success" else None,
+            retry_count=int(meta.get("retryCount") or 0),
+            attributes=attributes,
+        )
+        return result
+
+    async def _execute_engine_async(self, project: Project, prompt: Prompt, engine: str, *, run_id: str) -> EngineResult:
+        """异步执行单个引擎调用"""
+        request = EngineRequest(
+            prompt=prompt.content,
+            language=prompt.language,
+            region=prompt.region,
+        )
+        context = EngineContext(
+            project_id=project.project_id,
+            brand_name=project.brand_name,
+            aliases=project.aliases,
+            competitors=project.competitors,
+            source_url=project.source_url,
+        )
+        raw, meta = await self.engine_manager.execute_async(engine, request, context)
+        result = build_engine_result(
+            project=project,
+            prompt=prompt,
+            engine=engine,
+            raw_answer=raw.raw_answer,
+            citations=raw.citations,
+            duration_ms=raw.duration_ms,
+            status=raw.status,
+            failure_reason=raw.failure_reason,
+            response_metadata=raw.response_metadata,
+        )
+
+        prompt_hash = uuid.uuid5(uuid.NAMESPACE_URL, f"{project.project_id}:{prompt.prompt_id}").hex
+        attributes = {
+            "cacheHit": bool(meta.get("cacheHit")),
+            "retryCount": int(meta.get("retryCount") or 0),
+            "promptHash": prompt_hash,
+            "citationCount": len(result.citations),
+            "riskTags": result.risk_tags,
+            "status": result.status,
+        }
+        if result.failure_reason:
+            attributes["failureReason"] = result.failure_reason
+
+        self._write_audit_log(
+            project_id=project.project_id,
+            run_id=run_id,
+            module="engine",
+            event="engine.call",
+            message="engine executed (async)",
             prompt_id=prompt.prompt_id,
             engine=engine,
             region=prompt.region,
