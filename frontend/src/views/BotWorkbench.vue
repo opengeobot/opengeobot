@@ -85,7 +85,8 @@ const loadData = async () => {
   if (!projectStore.currentProjectId) return
   loading.value = true
   try {
-    opportunities.value = await getInsights(projectStore.currentProjectId)
+    const res = await getInsights(projectStore.currentProjectId)
+    opportunities.value = res.items || []
     prDrafts.value = await getPRDrafts(projectStore.currentProjectId)
   } finally {
     loading.value = false

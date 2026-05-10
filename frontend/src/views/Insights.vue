@@ -77,7 +77,8 @@ const loadInsights = async () => {
   if (!projectStore.currentProjectId) return
   loading.value = true
   try {
-    insights.value = await getInsights(projectStore.currentProjectId)
+    const res = await getInsights(projectStore.currentProjectId)
+    insights.value = res.items || []
     citationSources.value = await getCitationSources(projectStore.currentProjectId)
   } finally {
     loading.value = false
