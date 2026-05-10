@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/store/project'
@@ -103,6 +103,11 @@ import {
 const { locale } = useI18n()
 const router = useRouter()
 const projectStore = useProjectStore()
+
+// 加载项目列表
+onMounted(async () => {
+  await projectStore.loadProjects()
+})
 
 const sidebarCollapsed = ref(false)
 const selectedProjectId = computed({
