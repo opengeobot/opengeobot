@@ -1657,7 +1657,13 @@ def list_industry_insights(industry: Industry | None = Query(default=None)):
 import os as _os
 static_dir = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "static")
 if _os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    # 挂载 /assets 目录（Vite 构建产物）
+    assets_dir = _os.path.join(static_dir, "assets")
+    if _os.path.exists(assets_dir):
+        from fastapi.staticfiles import StaticFiles as _StaticFiles
+        app.mount("/assets", _StaticFiles(directory=assets_dir), name="assets")
+    # 挂载 /static 目录（其他静态资源）
+    app.mount("/static", _StaticFiles(directory=static_dir), name="static")
 
 
 @app.get("/{full_path:path}")
