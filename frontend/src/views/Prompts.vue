@@ -63,6 +63,10 @@ const loadPrompts = async () => {
 }
 
 const importPrompts = async () => {
+  if (!projectStore.currentProjectId) {
+    ElMessage.warning('请先选择项目')
+    return
+  }
   const items = importText.value.split('\n').filter(Boolean).map(content => ({
     content,
     language: 'zh-CN',
@@ -82,6 +86,10 @@ const importPrompts = async () => {
 }
 
 const generatePrompts = async () => {
+  if (!projectStore.currentProjectId) {
+    ElMessage.warning('请先选择项目')
+    return
+  }
   try {
     await generatePromptsApi(projectStore.currentProjectId, { count: 20 })
     await loadPrompts()

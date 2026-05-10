@@ -87,6 +87,10 @@ const loadAssets = async () => {
 }
 
 const createAsset = async () => {
+  if (!projectStore.currentProjectId) {
+    ElMessage.warning('请先选择项目')
+    return
+  }
   try {
     await createAssetApi(projectStore.currentProjectId, newAsset.value)
     showCreateDialog.value = false
@@ -98,6 +102,10 @@ const createAsset = async () => {
 }
 
 const deleteAsset = async (assetId) => {
+  if (!projectStore.currentProjectId) {
+    ElMessage.warning('请先选择项目')
+    return
+  }
   try {
     await deleteAssetApi(projectStore.currentProjectId, assetId)
     await loadAssets()
@@ -108,6 +116,10 @@ const deleteAsset = async (assetId) => {
 }
 
 const syncAssets = async () => {
+  if (!projectStore.currentProjectId) {
+    ElMessage.warning('请先选择项目')
+    return
+  }
   try {
     await syncAssetsApi(projectStore.currentProjectId, { force: false })
     await loadAssets()
