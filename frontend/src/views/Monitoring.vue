@@ -65,8 +65,11 @@ const loadData = async () => {
   if (!projectStore.currentProjectId) return
   loading.value = true
   try {
-    alerts.value = await getAlerts(projectStore.currentProjectId)
-    schedules.value = await getSchedules()
+    const alertsRes = await getAlerts(projectStore.currentProjectId)
+    const schedulesRes = await getSchedules()
+    // getSchedules returns {schedules: [...], total: 0}
+    alerts.value = Array.isArray(alertsRes) ? alertsRes : []
+    schedules.value = schedulesRes?.schedules || schedulesRes?.items || []
   } finally {
     loading.value = false
   }
