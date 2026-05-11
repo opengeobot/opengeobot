@@ -320,6 +320,12 @@ def _smoke_backend(storage: str) -> None:
                 headers=headers,
                 body={"count": 20},
             )
+            _, _, prompts_filtered = _http_json(
+                "GET",
+                f"{base_url}/projects/{project_id}/prompts?{urlencode({'language': 'zh-CN', 'topic': 'generated', 'stage': 'awareness', 'min_priority': 1, 'max_priority': 5})}",
+                headers=headers,
+            )
+            _require(isinstance(prompts_filtered, list) and prompts_filtered, "prompt filters failed")
             _, _, baseline = _http_json(
                 "POST",
                 f"{base_url}/projects/{project_id}/runs",
@@ -327,8 +333,24 @@ def _smoke_backend(storage: str) -> None:
                 body={"run_type": RunType.baseline.value, "engines": ["engine_alpha", "engine_beta"]},
             )
             _require(isinstance(baseline, dict) and isinstance(baseline.get("run_id"), str), "baseline run failed")
+            baseline_metrics = baseline.get("metrics")
+            _require(isinstance(baseline_metrics, dict), "baseline metrics invalid")
+            _require("official_citation_rate" in baseline_metrics, "official_citation_rate missing")
+            _require(
+                0.0 <= float(baseline_metrics.get("official_citation_rate") or 0.0) <= float(baseline_metrics.get("citation_rate") or 1.0),
+                "official_citation_rate out of range",
+            )
             baseline_run_id = baseline["run_id"]
 
+
+            _, _, citation_sources = _http_json(
+                "GET",
+                f"{base_url}/projects/{project_id}/citations/sources?{urlencode({'run_id': baseline_run_id, 'limit': 50})}",
+                headers=headers,
+            )
+            _require(isinstance(citation_sources, list), "citation sources failed")
+            for item in citation_sources[:3]:
+                _require(isinstance(item, dict) and "is_official" in item and "matched_asset_ids" in item, "citation source fields missing")
             _, _, insights = _http_json(
                 "POST",
                 f"{base_url}/projects/{project_id}/insights",
@@ -359,6 +381,44 @@ def _smoke_backend(storage: str) -> None:
             )
             _require(isinstance(playbook, dict) and isinstance(playbook.get("playbook_id"), str), "playbook failed")
 
+            _, _, pr_draft = _http_json(
+                "POST",
+                f"{base_url}/projects/{project_id}/github/pr-drafts",
+                headers=headers,
+                body={"playbook_id": playbook["playbook_id"], "repo_url": "https://github.com/opengeobot/opengeobot"},
+            )
+            _require(isinstance(pr_draft, dict) and isinstance(pr_draft.get("draft_id"), str), "github pr draft failed")
+            _require(pr_draft.get("status") == "pending_approval", "github pr draft status invalid")
+            draft_id = pr_draft["draft_id"]
+
+            _, _, approved = _http_json(
+                "POST",
+                f"{base_url}/projects/{project_id}/github/pr-drafts/{draft_id}/approve",
+                headers=headers,
+                body={"comment": "approve by smoke"},
+            )
+            _require(isinstance(approved, dict) and approved.get("status") == "approved", "github pr draft approve failed")
+
+            _, _, draft_list = _http_json(
+                "GET",
+                f"{base_url}/projects/{project_id}/github/pr-drafts?{urlencode({'status': 'approved'})}",
+                headers=headers,
+            )
+            _require(isinstance(draft_list, list) and draft_list, "github pr draft list failed")
+
+            _, _, stability = _http_json(
+                "POST",
+                f"{base_url}/projects/{project_id}/stability-reports",
+                headers=headers,
+                body={"run_type": RunType.on_demand.value, "engines": ["engine_alpha"], "repeats": 3},
+                timeout_s=60,
+            )
+            _require(isinstance(stability, dict) and isinstance(stability.get("report_id"), str), "stability report failed")
+            _require(isinstance(stability.get("run_ids"), list) and len(stability.get("run_ids")) == 3, "stability run_ids invalid")
+            metrics = stability.get("metrics")
+            _require(isinstance(metrics, dict) and "mention_rate" in metrics, "stability metrics missing")
+            _require("official_citation_rate" in metrics, "stability official_citation_rate missing")
+
             _, _, after = _http_json(
                 "POST",
                 f"{base_url}/projects/{project_id}/runs",
@@ -374,6 +434,8 @@ def _smoke_backend(storage: str) -> None:
                 body={"baseline_run_id": baseline_run_id, "after_run_id": after["run_id"]},
             )
             _require(isinstance(verification, dict) and isinstance(verification.get("report_id"), str), "verification failed")
+            deltas = verification.get("metric_deltas")
+            _require(isinstance(deltas, dict) and "official_citation_rate" in deltas, "verification official_citation_rate missing")
 
             _, _, memory = _http_json(
                 "POST",
@@ -389,6 +451,25 @@ def _smoke_backend(storage: str) -> None:
                 headers=headers,
             )
             _require(isinstance(monitor, dict) and isinstance(monitor.get("alerts"), list), "monitor report failed")
+            alert_ids = monitor.get("alert_ids") or []
+            _require(isinstance(alert_ids, list), "monitor alert_ids invalid")
+            _require(alert_ids, "monitor did not upsert alerts")
+
+            _, _, alerts = _http_json(
+                "GET",
+                f"{base_url}/projects/{project_id}/alerts",
+                headers=headers,
+            )
+            _require(isinstance(alerts, list) and alerts, "alerts list failed")
+            target_alert_id = alerts[0].get("alert_id")
+            _require(isinstance(target_alert_id, str) and target_alert_id, "alert_id missing")
+            _, _, updated_alert = _http_json(
+                "PATCH",
+                f"{base_url}/projects/{project_id}/alerts/{target_alert_id}",
+                headers=headers,
+                body={"status": "acknowledged", "assignee": "smoke", "note": "ack by smoke"},
+            )
+            _require(isinstance(updated_alert, dict) and updated_alert.get("status") == "acknowledged", "alert update failed")
 
             _, _, overview = _http_json("GET", f"{base_url}/projects/{project_id}/overview", headers=headers)
             _require(isinstance(overview, dict), "overview failed")

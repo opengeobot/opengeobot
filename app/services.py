@@ -18,6 +18,11 @@ from urllib.request import Request, urlopen
 from app.engines import EngineContext, EngineManager, EngineRequest, MockEngineAdapter, TemplateEngineAdapter
 from app.foundation import ConfigCenter, DataDictionary, I18N, deep_merge_config, get_operator, get_trace_id, log_with_context
 from app.models import (
+    Alert,
+    AlertStatus,
+    AlertUpdate,
+    ApprovalDecision,
+    ApprovalEvent,
     Asset,
     AssetChange,
     AssetCreate,
@@ -25,9 +30,15 @@ from app.models import (
     AssetType,
     AssetUpdate,
     AuditLog,
+    CitationSource,
     EngineResult,
+    GitHubPRDraft,
+    GitHubPRDraftApprove,
+    GitHubPRDraftCreate,
+    GitHubPRDraftStatus,
     Insight,
     Metrics,
+    MetricDistribution,
     MonitorReport,
     Playbook,
     Project,
@@ -42,6 +53,8 @@ from app.models import (
     RunStatus,
     RunType,
     Sentiment,
+    StabilityReport,
+    StabilityReportCreate,
     StrategyMemory,
     VerificationReport,
 )
@@ -149,6 +162,21 @@ class OpenGeoBotService:
         for engine_id in engine_ids:
             if engine_id in ("engine_beta", "template"):
                 adapters[engine_id] = TemplateEngineAdapter(engine_id)
+            elif engine_id == "deepseek":
+                # 尝试加载 DeepSeek 适配器
+                deepseek_api_key = os.environ.get("DEEPSEEK_API_KEY")
+                if deepseek_api_key:
+                    from app.engines_deepseek import DeepSeekEngineAdapter
+                    adapters[engine_id] = DeepSeekEngineAdapter(
+                        engine_id=engine_id,
+                        api_key=deepseek_api_key,
+                    )
+                    self.logger.info(f"DeepSeek engine adapter loaded for {engine_id}")
+                else:
+                    self.logger.warning(
+                        "DEEPSEEK_API_KEY not set, skipping DeepSeek adapter. "
+                        "API key must be provided via environment variable."
+                    )
             else:
                 adapters[engine_id] = MockEngineAdapter(engine_id)
 
@@ -511,8 +539,36 @@ class OpenGeoBotService:
         )
         return prompts
 
-    def list_prompts(self, project_id: str, *, include_disabled: bool = False) -> List[Prompt]:
-        return self.repository.list_project_prompts(project_id, include_disabled=include_disabled)
+    def list_prompts(
+        self,
+        project_id: str,
+        *,
+        include_disabled: bool = False,
+        language: str | None = None,
+        region: str | None = None,
+        topic: str | None = None,
+        stage: str | None = None,
+        enabled: bool | None = None,
+        min_priority: int | None = None,
+        max_priority: int | None = None,
+    ) -> List[Prompt]:
+        items = self.repository.list_project_prompts(project_id, include_disabled=include_disabled)
+        if language is not None:
+            items = [item for item in items if item.language == language]
+        if region is not None:
+            items = [item for item in items if item.region == region]
+        if topic is not None:
+            items = [item for item in items if item.topic == topic]
+        if stage is not None:
+            items = [item for item in items if item.stage == stage]
+        if enabled is not None:
+            items = [item for item in items if item.enabled == enabled]
+        if min_priority is not None:
+            items = [item for item in items if item.priority >= min_priority]
+        if max_priority is not None:
+            items = [item for item in items if item.priority <= max_priority]
+        items.sort(key=lambda item: (item.priority, item.prompt_id))
+        return items
 
     def get_prompt(self, project_id: str, prompt_id: str) -> Prompt:
         prompt = self.repository.get_prompt(prompt_id)
@@ -568,6 +624,139 @@ class OpenGeoBotService:
             raise ValueError("run not found")
         return run
 
+    def list_citation_sources(self, project_id: str, *, run_id: str | None = None, limit: int = 50) -> List[CitationSource]:
+        project = self.repository.get_project(project_id)
+        if project is None:
+            raise ValueError("project not found")
+
+        target_run: Run | None = None
+        if run_id is not None:
+            target_run = self.repository.get_run(run_id)
+            if target_run is None or target_run.project_id != project_id:
+                raise ValueError("run not found")
+        else:
+            runs = self.repository.list_project_runs(project_id)
+            runs.sort(key=lambda item: item.started_at, reverse=True)
+            target_run = runs[0] if runs else None
+
+        if target_run is None:
+            return []
+
+        def _normalize_host(raw_url: str) -> str:
+            try:
+                host = urlparse(raw_url).netloc or ""
+            except Exception:
+                host = ""
+            host = host.split("@")[-1]
+            host = host.split(":")[0].lower()
+            if host.startswith("www."):
+                host = host[4:]
+            return host
+
+        def _normalize_prefix(raw_url: str) -> str:
+            raw_url = (raw_url or "").strip()
+            if not raw_url:
+                return ""
+            parsed = urlparse(raw_url)
+            if not parsed.scheme or not parsed.netloc:
+                return ""
+            prefix = f"{parsed.scheme.lower()}://{parsed.netloc}{parsed.path}"
+            if not prefix.endswith("/"):
+                prefix += "/"
+            return prefix
+
+        official_prefixes: Dict[str, str] = {}
+        project_prefix = _normalize_prefix(project.source_url)
+        if project_prefix:
+            official_prefixes[project_prefix] = "project"
+
+        assets = self.repository.list_project_assets(project_id)
+        for asset in assets:
+            if asset.deleted:
+                continue
+            prefix = _normalize_prefix(asset.source_url)
+            if prefix:
+                official_prefixes[prefix] = asset.asset_id
+
+        if "github.com" in (urlparse(project.source_url).netloc or "") and project_prefix:
+            github_prefix = project_prefix.rstrip("/")
+            official_prefixes[f"{github_prefix}/blob/"] = "project"
+            official_prefixes[f"{github_prefix}/tree/"] = "project"
+
+        per_domain: Dict[str, Dict[str, Any]] = {}
+        now = datetime.utcnow()
+        last_seen_at = target_run.finished_at or now
+
+        def _match_asset_ids(citation_url: str) -> List[str]:
+            normalized = _normalize_prefix(citation_url)
+            if not normalized:
+                return []
+            matched: List[str] = []
+            for prefix, asset_id in official_prefixes.items():
+                if normalized.startswith(prefix):
+                    if asset_id != "project":
+                        matched.append(asset_id)
+            return matched
+
+        def _is_official(citation_url: str) -> bool:
+            normalized = _normalize_prefix(citation_url)
+            if not normalized:
+                return False
+            return any(normalized.startswith(prefix) for prefix in official_prefixes.keys())
+
+        for pr in target_run.prompt_results:
+            prompt_id = pr.prompt_id
+            for er in pr.results:
+                for c in er.citations:
+                    domain = _normalize_host(c)
+                    if not domain:
+                        continue
+                    bucket = per_domain.get(domain)
+                    if bucket is None:
+                        bucket = {
+                            "count": 0,
+                            "example_url": c,
+                            "prompt_ids": set(),
+                            "last_seen_at": last_seen_at,
+                            "matched_asset_ids": set(),
+                            "is_official": False,
+                        }
+                        per_domain[domain] = bucket
+                    bucket["count"] += 1
+                    bucket["prompt_ids"].add(prompt_id)
+                    for asset_id in _match_asset_ids(c):
+                        bucket["matched_asset_ids"].add(asset_id)
+                    if _is_official(c):
+                        bucket["is_official"] = True
+
+        def _quality_score(domain: str, is_official: bool) -> float:
+            if is_official:
+                return 1.0
+            if domain.endswith("github.com") or domain.endswith("readthedocs.io"):
+                return 0.75
+            if domain.endswith("wikipedia.org") or domain.endswith("stackoverflow.com"):
+                return 0.6
+            return 0.4
+
+        sources: List[CitationSource] = []
+        for domain, bucket in per_domain.items():
+            is_official = bool(bucket.get("is_official"))
+            sources.append(
+                CitationSource(
+                    domain=domain,
+                    example_url=bucket["example_url"],
+                    count=int(bucket["count"]),
+                    prompt_count=len(bucket["prompt_ids"]),
+                    last_seen_at=bucket["last_seen_at"],
+                    is_official=is_official,
+                    quality_score=_quality_score(domain, is_official),
+                    matched_asset_ids=sorted(list(bucket.get("matched_asset_ids") or [])),
+                )
+            )
+
+        sources.sort(key=lambda item: (not item.is_official, -item.count, item.domain))
+        return sources[: max(limit, 0)]
+
     def list_insights(self, project_id: str) -> List[Insight]:
         items = self.repository.list_project_insights(project_id)
         items.sort(key=lambda item: item.priority_score, reverse=True)
@@ -616,7 +805,8 @@ class OpenGeoBotService:
             raise ValueError(f"unsupported engines: {invalid_engines}")
 
         prompts = self.repository.list_project_prompts(project_id)
-        asset_versions = {item.asset_id: item.content_version for item in self.repository.list_project_assets(project_id)}
+        assets = self.repository.list_project_assets(project_id)
+        asset_versions = {item.asset_id: item.content_version for item in assets}
         run_id = uuid.uuid4().hex
         run = Run(
             run_id=run_id,
@@ -672,7 +862,7 @@ class OpenGeoBotService:
             )
 
         run.prompt_results = prompt_results
-        run.metrics = self._calculate_metrics(prompt_results)
+        run.metrics = self._calculate_metrics(project, assets, prompt_results)
         if total_engine_calls == 0:
             run.status = RunStatus.success
         elif success_engine_calls == 0:
@@ -695,6 +885,238 @@ class OpenGeoBotService:
             event="run.finished",
         )
         return run
+
+    async def create_run_async(self, project_id: str, run_type: RunType, engines: List[str]) -> Run:
+        """异步执行引擎调用，使用并行执行提升性能"""
+        import asyncio
+        
+        if not engines:
+            engines = self.supported_engines[:]
+        project = self.repository.get_project(project_id)
+        if project is None:
+            raise ValueError("project not found")
+        invalid_engines = [engine for engine in engines if engine not in self.supported_engines]
+        if invalid_engines:
+            raise ValueError(f"unsupported engines: {invalid_engines}")
+
+        prompts = self.repository.list_project_prompts(project_id)
+        assets = self.repository.list_project_assets(project_id)
+        asset_versions = {item.asset_id: item.content_version for item in assets}
+        run_id = uuid.uuid4().hex
+        run = Run(
+            run_id=run_id,
+            project_id=project_id,
+            run_type=run_type,
+            status=RunStatus.running,
+            prompt_count=len(prompts),
+            engines=engines,
+            started_at=datetime.utcnow(),
+            parser_rule_version=PARSER_RULE_VERSION,
+            asset_versions=asset_versions,
+        )
+        self.repository.save_run(run)
+        self._write_audit_log(
+            project_id=project_id,
+            module="run",
+            event="run.created",
+            message="run created (async)",
+            run_id=run_id,
+            attributes={
+                "runType": run_type.value,
+                "engineCount": len(engines),
+                "promptCount": len(prompts),
+            },
+        )
+        trace_id = log_with_context(
+            self.logger,
+            logging.INFO,
+            "run started (async)",
+            project_id=project_id,
+            run_id=run_id,
+            module="run",
+            event="run.started",
+        )
+
+        prompt_results: List[PromptRunResult] = []
+        total_engine_calls = 0
+        success_engine_calls = 0
+        
+        # 并行执行所有 prompt + engine 组合
+        async def _execute_prompt_engine(prompt: Prompt, engine: str) -> EngineResult:
+            nonlocal total_engine_calls, success_engine_calls
+            total_engine_calls += 1
+            result = await self._execute_engine_async(project, prompt, engine, run_id=run_id)
+            if result.status == "success":
+                success_engine_calls += 1
+            return result
+        
+        for prompt in prompts:
+            # 对同一个 prompt 的多个 engine 并行执行
+            engine_tasks = [_execute_prompt_engine(prompt, engine) for engine in engines]
+            engine_results = await asyncio.gather(*engine_tasks, return_exceptions=True)
+            
+            # 处理可能的异常
+            processed_results: List[EngineResult] = []
+            for i, result in enumerate(engine_results):
+                if isinstance(result, BaseException):
+                    processed_results.append(EngineResult(
+                        engine=engines[i],
+                        raw_answer="",
+                        citations=[],
+                        duration_ms=0,
+                        status="failed",
+                        failure_reason=str(result),
+                    ))
+                    total_engine_calls += 1
+                else:
+                    processed_results.append(result)
+            
+            prompt_results.append(
+                PromptRunResult(
+                    prompt_id=prompt.prompt_id,
+                    prompt_content=prompt.content,
+                    results=processed_results,
+                )
+            )
+
+        run.prompt_results = prompt_results
+        run.metrics = self._calculate_metrics(project, assets, prompt_results)
+        if total_engine_calls == 0:
+            run.status = RunStatus.success
+        elif success_engine_calls == 0:
+            run.status = RunStatus.failed
+        elif success_engine_calls < total_engine_calls:
+            run.status = RunStatus.partial_success
+        else:
+            run.status = RunStatus.success
+        run.finished_at = datetime.utcnow()
+        self.repository.save_run(run)
+
+        log_with_context(
+            self.logger,
+            logging.INFO,
+            "run finished (async)",
+            trace_id=trace_id,
+            project_id=project_id,
+            run_id=run_id,
+            module="run",
+            event="run.finished",
+        )
+        return run
+
+    def create_stability_report(self, project_id: str, payload: StabilityReportCreate) -> StabilityReport:
+        if payload.repeats < 2:
+            raise ValueError("repeats must be >= 2")
+        engines = payload.engines[:]
+        if not engines:
+            engines = self.supported_engines[:]
+
+        runs: List[Run] = []
+        for _ in range(payload.repeats):
+            runs.append(self.create_run(project_id, payload.run_type, engines))
+
+        def _t_critical_95(df: int) -> float:
+            table = {
+                1: 12.706,
+                2: 4.303,
+                3: 3.182,
+                4: 2.776,
+                5: 2.571,
+                6: 2.447,
+                7: 2.365,
+                8: 2.306,
+                9: 2.262,
+                10: 2.228,
+                11: 2.201,
+                12: 2.179,
+                13: 2.160,
+                14: 2.145,
+                15: 2.131,
+                16: 2.120,
+                17: 2.110,
+                18: 2.101,
+                19: 2.093,
+                20: 2.086,
+                21: 2.080,
+                22: 2.074,
+                23: 2.069,
+                24: 2.064,
+                25: 2.060,
+                26: 2.056,
+                27: 2.052,
+                28: 2.048,
+                29: 2.045,
+                30: 2.042,
+            }
+            if df <= 0:
+                return 0.0
+            if df >= 30:
+                return 1.96
+            return table.get(df, 2.0)
+
+        metric_keys = [
+            "mention_rate",
+            "citation_rate",
+            "official_citation_rate",
+            "average_position",
+            "sentiment_score",
+            "share_of_voice",
+            "citation_quality",
+        ]
+        distributions: Dict[str, MetricDistribution] = {}
+        n = len(runs)
+        df = n - 1
+        t95 = _t_critical_95(df)
+        for key in metric_keys:
+            values = [float(getattr(r.metrics, key, 0.0)) for r in runs]
+            mean = sum(values) / max(n, 1)
+            if n < 2:
+                stdev = 0.0
+            else:
+                var = sum((v - mean) ** 2 for v in values) / df
+                stdev = var ** 0.5
+            se = (stdev / (n ** 0.5)) if n > 0 else 0.0
+            half = t95 * se
+            distributions[key] = MetricDistribution(
+                metric=key,
+                values=[round(v, 4) for v in values],
+                mean=round(mean, 4),
+                stdev=round(stdev, 4),
+                ci95_low=round(mean - half, 4),
+                ci95_high=round(mean + half, 4),
+            )
+
+        now = datetime.utcnow()
+        report = StabilityReport(
+            report_id=uuid.uuid4().hex,
+            project_id=project_id,
+            run_type=payload.run_type,
+            engines=engines,
+            repeats=payload.repeats,
+            run_ids=[r.run_id for r in runs],
+            metrics=distributions,
+            created_at=now,
+        )
+        self.repository.save_stability_report(report)
+        self._write_audit_log(
+            project_id=project_id,
+            module="stability",
+            event="stability_report.created",
+            message="stability report created",
+            attributes={"reportId": report.report_id, "repeats": payload.repeats, "runIds": report.run_ids},
+        )
+        return report
+
+    def list_stability_reports(self, project_id: str) -> List[StabilityReport]:
+        items = self.repository.list_project_stability_reports(project_id)
+        items.sort(key=lambda item: item.created_at, reverse=True)
+        return items
+
+    def get_stability_report(self, project_id: str, report_id: str) -> StabilityReport:
+        report = self.repository.get_stability_report(report_id)
+        if report is None or report.project_id != project_id:
+            raise ValueError("report not found")
+        return report
 
     def _execute_engine(self, project: Project, prompt: Prompt, engine: str, *, run_id: str) -> EngineResult:
         request = EngineRequest(
@@ -751,10 +1173,95 @@ class OpenGeoBotService:
         )
         return result
 
-    def _calculate_metrics(self, prompt_results: List[PromptRunResult]) -> Metrics:
+    async def _execute_engine_async(self, project: Project, prompt: Prompt, engine: str, *, run_id: str) -> EngineResult:
+        """异步执行单个引擎调用"""
+        request = EngineRequest(
+            prompt=prompt.content,
+            language=prompt.language,
+            region=prompt.region,
+        )
+        context = EngineContext(
+            project_id=project.project_id,
+            brand_name=project.brand_name,
+            aliases=project.aliases,
+            competitors=project.competitors,
+            source_url=project.source_url,
+        )
+        raw, meta = await self.engine_manager.execute_async(engine, request, context)
+        result = build_engine_result(
+            project=project,
+            prompt=prompt,
+            engine=engine,
+            raw_answer=raw.raw_answer,
+            citations=raw.citations,
+            duration_ms=raw.duration_ms,
+            status=raw.status,
+            failure_reason=raw.failure_reason,
+            response_metadata=raw.response_metadata,
+        )
+
+        prompt_hash = uuid.uuid5(uuid.NAMESPACE_URL, f"{project.project_id}:{prompt.prompt_id}").hex
+        attributes = {
+            "cacheHit": bool(meta.get("cacheHit")),
+            "retryCount": int(meta.get("retryCount") or 0),
+            "promptHash": prompt_hash,
+            "citationCount": len(result.citations),
+            "riskTags": result.risk_tags,
+            "status": result.status,
+        }
+        if result.failure_reason:
+            attributes["failureReason"] = result.failure_reason
+
+        self._write_audit_log(
+            project_id=project.project_id,
+            run_id=run_id,
+            module="engine",
+            event="engine.call",
+            message="engine executed (async)",
+            prompt_id=prompt.prompt_id,
+            engine=engine,
+            region=prompt.region,
+            language=prompt.language,
+            duration_ms=result.duration_ms,
+            error_code="engine_failed" if result.status != "success" else None,
+            retry_count=int(meta.get("retryCount") or 0),
+            attributes=attributes,
+        )
+        return result
+
+    def _calculate_metrics(self, project: Project, assets: List[Asset], prompt_results: List[PromptRunResult]) -> Metrics:
+        def _normalize_prefix(raw_url: str) -> str:
+            raw_url = (raw_url or "").strip()
+            if not raw_url:
+                return ""
+            parsed = urlparse(raw_url)
+            if not parsed.scheme or not parsed.netloc:
+                return ""
+            prefix = f"{parsed.scheme.lower()}://{parsed.netloc}{parsed.path}"
+            if not prefix.endswith("/"):
+                prefix += "/"
+            return prefix
+
+        official_prefixes: List[str] = []
+        project_prefix = _normalize_prefix(project.source_url)
+        if project_prefix:
+            official_prefixes.append(project_prefix)
+            if "github.com" in (urlparse(project.source_url).netloc or ""):
+                github_prefix = project_prefix.rstrip("/")
+                official_prefixes.append(f"{github_prefix}/blob/")
+                official_prefixes.append(f"{github_prefix}/tree/")
+
+        for asset in assets:
+            if asset.deleted:
+                continue
+            prefix = _normalize_prefix(asset.source_url)
+            if prefix:
+                official_prefixes.append(prefix)
+
         total = 0
         mention_count = 0
         citation_count = 0
+        official_citation_count = 0
         position_sum = 0
         positive_count = 0
         negative_count = 0
@@ -765,6 +1272,12 @@ class OpenGeoBotService:
                     mention_count += 1
                 if result.citations:
                     citation_count += 1
+                    if official_prefixes:
+                        for c in result.citations:
+                            normalized = _normalize_prefix(c)
+                            if normalized and any(normalized.startswith(prefix) for prefix in official_prefixes):
+                                official_citation_count += 1
+                                break
                 position_sum += result.position
                 if result.sentiment == Sentiment.positive:
                     positive_count += 1
@@ -774,6 +1287,7 @@ class OpenGeoBotService:
             return Metrics()
         mention_rate = mention_count / total
         citation_rate = citation_count / total
+        official_citation_rate = official_citation_count / total
         sentiment_score = (positive_count - negative_count) / total
         average_position = position_sum / total
         share_of_voice = mention_rate
@@ -781,6 +1295,7 @@ class OpenGeoBotService:
         return Metrics(
             mention_rate=round(mention_rate, 4),
             citation_rate=round(citation_rate, 4),
+            official_citation_rate=round(official_citation_rate, 4),
             average_position=round(average_position, 4),
             sentiment_score=round(sentiment_score, 4),
             share_of_voice=round(share_of_voice, 4),
@@ -797,13 +1312,29 @@ class OpenGeoBotService:
             citation_ratio = sum(1 for result in prompt_result.results if result.citations) / max(len(prompt_result.results), 1)
             if mention_ratio >= 0.6 and citation_ratio >= 0.5:
                 continue
+            has_reputation_risk = any(
+                (result.sentiment == Sentiment.negative) or bool(result.risk_tags) for result in prompt_result.results
+            )
+            if has_reputation_risk:
+                category = "reputation_risk"
+                description = "该提示词存在负面情感或风险标签，建议进行口碑修复与错误信息治理，并补齐权威引用来源。"
+            elif mention_ratio < 0.6 and citation_ratio >= 0.5:
+                category = "mention_gap"
+                description = "该提示词提及偏低，建议补充定义、对比与关键事实块，提升被稳定提及的概率。"
+            elif citation_ratio < 0.5 and mention_ratio >= 0.6:
+                category = "citation_gap"
+                description = "该提示词引用偏低，建议补充可被 AI 引用的官方来源与第三方权威来源，并增强可抽取结构。"
+            else:
+                category = "mixed_gap"
+                description = "该提示词在提及或引用表现偏低，建议补充定义、FAQ 与权威引用来源。"
             priority = round((1 - mention_ratio) * 0.6 + (1 - citation_ratio) * 0.4, 4)
             evidence = _build_prompt_evidence(run, prompt_result, mention_ratio=mention_ratio, citation_ratio=citation_ratio)
             insight = Insight(
                 insight_id=uuid.uuid4().hex,
                 project_id=project_id,
                 title=f"优化提示词：{prompt_result.prompt_content[:24]}",
-                description="该提示词在提及或引用表现偏低，建议补充定义、FAQ 与权威引用来源。",
+                description=description,
+                category=category,
                 priority_score=priority,
                 affected_prompt_ids=[prompt_result.prompt_id],
                 evidence_run_id=run_id,
@@ -824,6 +1355,7 @@ class OpenGeoBotService:
                 project_id=project_id,
                 title=f"优化提示词：{fallback_target.prompt_content[:24]}",
                 description="该提示词需补充结构化段落与可引用来源以提升稳定性。",
+                category="mixed_gap",
                 priority_score=0.25,
                 affected_prompt_ids=[fallback_target.prompt_id],
                 evidence_run_id=run_id,
@@ -867,9 +1399,10 @@ class OpenGeoBotService:
             playbook_id=uuid.uuid4().hex,
             project_id=project_id,
             insight_id=insight_id,
+            playbook_type=insight.category,
             markdown_draft=markdown,
             estimated_impact={"mention_rate": 0.08, "citation_rate": 0.1},
-            risk_level="medium",
+            risk_level="high" if insight.category == "reputation_risk" else "medium",
             created_at=datetime.utcnow(),
             evidence=evidence,
         )
@@ -891,6 +1424,7 @@ class OpenGeoBotService:
         deltas = {
             "mention_rate": round(after.metrics.mention_rate - baseline.metrics.mention_rate, 4),
             "citation_rate": round(after.metrics.citation_rate - baseline.metrics.citation_rate, 4),
+            "official_citation_rate": round(after.metrics.official_citation_rate - baseline.metrics.official_citation_rate, 4),
             "average_position": round(after.metrics.average_position - baseline.metrics.average_position, 4),
             "sentiment_score": round(after.metrics.sentiment_score - baseline.metrics.sentiment_score, 4),
         }
@@ -935,16 +1469,237 @@ class OpenGeoBotService:
         else:
             summary = self.i18n.t("notification.run.finished", language)
 
+        now = datetime.utcnow()
+        report_id = uuid.uuid4().hex
+        alert_ids: List[str] = []
+        if alerts:
+            existing = self.repository.list_project_alerts(project_id)
+            active = [item for item in existing if item.status not in (AlertStatus.resolved, AlertStatus.closed)]
+            for alert_type in alerts:
+                fingerprint = f"{project_id}:{alert_type}"
+                matched: Alert | None = None
+                for item in active:
+                    if item.fingerprint == fingerprint:
+                        matched = item
+                        break
+                if matched is None:
+                    created = Alert(
+                        alert_id=uuid.uuid4().hex,
+                        project_id=project_id,
+                        report_id=report_id,
+                        run_id=run_id,
+                        alert_type=alert_type,
+                        fingerprint=fingerprint,
+                        status=AlertStatus.open,
+                        created_at=now,
+                        updated_at=now,
+                        last_seen_at=now,
+                    )
+                    self.repository.save_alert(created)
+                    alert_ids.append(created.alert_id)
+                else:
+                    matched.report_id = report_id
+                    matched.run_id = run_id
+                    matched.last_seen_at = now
+                    matched.updated_at = now
+                    self.repository.save_alert(matched)
+                    alert_ids.append(matched.alert_id)
+
         report = MonitorReport(
-            report_id=uuid.uuid4().hex,
+            report_id=report_id,
             project_id=project_id,
             run_id=run_id,
             alerts=alerts,
+            alert_ids=alert_ids,
             summary=summary,
-            created_at=datetime.utcnow(),
+            created_at=now,
         )
         self.repository.save_monitor_report(report)
+        if alert_ids:
+            self._write_audit_log(
+                project_id=project_id,
+                module="monitor",
+                event="alert.upserted",
+                message=f"alerts upserted count={len(alert_ids)}",
+                run_id=run_id,
+                attributes={"count": len(alert_ids), "alertIds": alert_ids, "alertTypes": alerts},
+            )
         return report
+
+    def list_alerts(self, project_id: str, *, status: AlertStatus | None = None) -> List[Alert]:
+        items = self.repository.list_project_alerts(project_id)
+        if status is not None:
+            items = [item for item in items if item.status == status]
+        items.sort(key=lambda item: (item.status.value, item.last_seen_at), reverse=True)
+        return items
+
+    def get_alert(self, project_id: str, alert_id: str) -> Alert:
+        alert = self.repository.get_alert(alert_id)
+        if alert is None or alert.project_id != project_id:
+            raise ValueError("alert not found")
+        return alert
+
+    def update_alert(self, project_id: str, alert_id: str, payload: AlertUpdate) -> Alert:
+        alert = self.get_alert(project_id, alert_id)
+        changed = False
+        if payload.status is not None and alert.status != payload.status:
+            alert.status = payload.status
+            changed = True
+        if payload.assignee is not None and alert.assignee != payload.assignee:
+            alert.assignee = payload.assignee
+            changed = True
+        if payload.note is not None:
+            note = payload.note.strip()
+            if note:
+                alert.notes.append(note)
+                changed = True
+        if payload.closed_reason is not None and alert.closed_reason != payload.closed_reason:
+            alert.closed_reason = payload.closed_reason
+            changed = True
+        if changed:
+            alert.updated_at = datetime.utcnow()
+            self.repository.save_alert(alert)
+            self._write_audit_log(
+                project_id=project_id,
+                module="monitor",
+                event="alert.updated",
+                message="alert updated",
+                attributes={"alertId": alert.alert_id, "status": alert.status.value, "assignee": alert.assignee},
+            )
+        return alert
+
+    def create_github_pr_draft(self, project_id: str, payload: GitHubPRDraftCreate) -> GitHubPRDraft:
+        project = self.repository.get_project(project_id)
+        if project is None:
+            raise ValueError("project not found")
+        playbook = self.repository.get_playbook(payload.playbook_id)
+        if playbook is None or playbook.project_id != project_id:
+            raise ValueError("playbook not found")
+
+        repo_url = (payload.repo_url or project.source_url or "").strip()
+        if not repo_url:
+            raise ValueError("repo_url required")
+        if "github.com" not in repo_url:
+            raise ValueError("repo_url must be a GitHub repository URL")
+
+        base_branch = (payload.base_branch or "main").strip() or "main"
+        head_branch = (payload.head_branch or f"opengeobot/{playbook.playbook_id[:8]}").strip()
+        if not head_branch:
+            head_branch = f"opengeobot/{playbook.playbook_id[:8]}"
+
+        title = (payload.title or "").strip()
+        if not title:
+            insight = self.repository.get_insight(playbook.insight_id)
+            if insight is not None:
+                title = insight.title
+            else:
+                title = f"OpenGEO: Playbook {playbook.playbook_id[:8]}"
+
+        body = (
+            f"{playbook.markdown_draft}\n\n"
+            "## 审批说明\n"
+            "- 该 PR 为草稿，仅用于评审与协作\n"
+            "- 需完成审批后方可执行后续自动化提交/发布\n\n"
+            "## 追踪信息\n"
+            f"- projectId: {project_id}\n"
+            f"- playbookId: {playbook.playbook_id}\n"
+            f"- playbookType: {playbook.playbook_type}\n"
+        )
+
+        now = datetime.utcnow()
+        draft = GitHubPRDraft(
+            draft_id=uuid.uuid4().hex,
+            project_id=project_id,
+            playbook_id=playbook.playbook_id,
+            repo_url=repo_url,
+            base_branch=base_branch,
+            head_branch=head_branch,
+            title=title,
+            body_markdown=body,
+            status=GitHubPRDraftStatus.pending_approval,
+            created_at=now,
+            updated_at=now,
+        )
+        self.repository.save_github_pr_draft(draft)
+        self._write_audit_log(
+            project_id=project_id,
+            module="github",
+            event="pr_draft.created",
+            message="github pr draft created",
+            attributes={
+                "draftId": draft.draft_id,
+                "playbookId": playbook.playbook_id,
+                "repoUrl": repo_url,
+                "baseBranch": base_branch,
+                "headBranch": head_branch,
+            },
+        )
+        return draft
+
+    def list_github_pr_drafts(self, project_id: str, *, status: GitHubPRDraftStatus | None = None) -> List[GitHubPRDraft]:
+        items = self.repository.list_project_github_pr_drafts(project_id)
+        if status is not None:
+            items = [item for item in items if item.status == status]
+        items.sort(key=lambda item: item.created_at, reverse=True)
+        return items
+
+    def get_github_pr_draft(self, project_id: str, draft_id: str) -> GitHubPRDraft:
+        draft = self.repository.get_github_pr_draft(draft_id)
+        if draft is None or draft.project_id != project_id:
+            raise ValueError("draft not found")
+        return draft
+
+    def approve_github_pr_draft(self, project_id: str, draft_id: str, payload: GitHubPRDraftApprove) -> GitHubPRDraft:
+        draft = self.get_github_pr_draft(project_id, draft_id)
+        if draft.status != GitHubPRDraftStatus.pending_approval:
+            raise ValueError("draft not pending approval")
+        now = datetime.utcnow()
+        operator = get_operator()
+        event = ApprovalEvent(
+            event_id=uuid.uuid4().hex,
+            operator=operator,
+            decision=ApprovalDecision.approve,
+            comment=(payload.comment or "").strip(),
+            decided_at=now,
+        )
+        draft.status = GitHubPRDraftStatus.approved
+        draft.approvals.append(event)
+        draft.updated_at = now
+        self.repository.save_github_pr_draft(draft)
+        self._write_audit_log(
+            project_id=project_id,
+            module="github",
+            event="pr_draft.approved",
+            message="github pr draft approved",
+            attributes={"draftId": draft.draft_id, "operator": operator},
+        )
+        return draft
+
+    def reject_github_pr_draft(self, project_id: str, draft_id: str, payload: GitHubPRDraftApprove) -> GitHubPRDraft:
+        draft = self.get_github_pr_draft(project_id, draft_id)
+        if draft.status != GitHubPRDraftStatus.pending_approval:
+            raise ValueError("draft not pending approval")
+        now = datetime.utcnow()
+        operator = get_operator()
+        event = ApprovalEvent(
+            event_id=uuid.uuid4().hex,
+            operator=operator,
+            decision=ApprovalDecision.reject,
+            comment=(payload.comment or "").strip(),
+            decided_at=now,
+        )
+        draft.status = GitHubPRDraftStatus.rejected
+        draft.approvals.append(event)
+        draft.updated_at = now
+        self.repository.save_github_pr_draft(draft)
+        self._write_audit_log(
+            project_id=project_id,
+            module="github",
+            event="pr_draft.rejected",
+            message="github pr draft rejected",
+            attributes={"draftId": draft.draft_id, "operator": operator},
+        )
+        return draft
 
     def save_strategy_memory(self, project_id: str, playbook_id: str, verification_report_id: str) -> StrategyMemory:
         playbook = self.repository.get_playbook(playbook_id)
@@ -958,6 +1713,7 @@ class OpenGeoBotService:
             memory_id=uuid.uuid4().hex,
             project_id=project_id,
             playbook_id=playbook_id,
+            playbook_type=playbook.playbook_type,
             impact_metrics=report.metric_deltas,
             success=success,
             created_at=datetime.utcnow(),
@@ -993,15 +1749,35 @@ class OpenGeoBotService:
             }
         insights = self.repository.list_project_insights(project_id)
         memories = self.repository.list_project_memories(project_id)
+        type_stats: Dict[str, List[bool]] = {}
+        for memory in memories:
+            stats = type_stats.get(memory.playbook_type)
+            if stats is None:
+                stats = []
+                type_stats[memory.playbook_type] = stats
+            stats.append(bool(memory.success))
+        type_success_rate: Dict[str, float] = {}
+        for key, stats in type_stats.items():
+            if not stats:
+                continue
+            type_success_rate[key] = sum(1 for s in stats if s) / len(stats)
+        overall_success_rate = 0.0
+        if memories:
+            overall_success_rate = sum(1 for m in memories if m.success) / len(memories)
         assets = self.repository.list_project_assets(project_id)
         assets = [item for item in assets if not item.deleted]
         assets.sort(key=lambda item: (item.last_crawled_at or datetime.min), reverse=True)
+
+        def _opportunity_score(item: Insight) -> float:
+            rate = type_success_rate.get(item.category, overall_success_rate)
+            return item.priority_score * (1.0 + 0.5 * rate)
+
         return {
             "project": project,
             "assets": assets,
             "latest_metrics": latest.metrics if latest else Metrics(),
             "trend": trend,
-            "top_opportunities": sorted(insights, key=lambda item: item.priority_score, reverse=True)[:20],
+            "top_opportunities": sorted(insights, key=_opportunity_score, reverse=True)[:20],
             "strategy_memory_count": len(memories),
             "supported_metrics": self.dictionary.metric_keys(),
         }

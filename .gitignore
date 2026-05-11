@@ -1,4 +1,6 @@
 .qoder/
+.venv/
+venv/
 .DS_Store
 .idea/
 .trae/

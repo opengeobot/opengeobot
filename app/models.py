@@ -142,6 +142,8 @@ class Prompt(BaseModel):
     priority: int
     enabled: bool = True
     version: int = 1
+    canonical_prompt_id: Optional[str] = None
+    similarity_group_id: Optional[str] = None
 
 
 class PromptUpdate(BaseModel):
@@ -177,6 +179,7 @@ class PromptRunResult(BaseModel):
 class Metrics(BaseModel):
     mention_rate: float = 0.0
     citation_rate: float = 0.0
+    official_citation_rate: float = 0.0
     average_position: float = 0.0
     sentiment_score: float = 0.0
     share_of_voice: float = 0.0
@@ -203,6 +206,7 @@ class Insight(BaseModel):
     project_id: str
     title: str
     description: str
+    category: str = "general"
     priority_score: float
     affected_prompt_ids: List[str]
     evidence_run_id: str
@@ -213,6 +217,7 @@ class Playbook(BaseModel):
     playbook_id: str
     project_id: str
     insight_id: str
+    playbook_type: str = "general"
     markdown_draft: str
     estimated_impact: Dict[str, float]
     risk_level: str
@@ -235,17 +240,134 @@ class MonitorReport(BaseModel):
     project_id: str
     run_id: str
     alerts: List[str]
+    alert_ids: List[str] = Field(default_factory=list)
     summary: str
     created_at: datetime
+
+
+class AlertStatus(str, Enum):
+    open = "open"
+    acknowledged = "acknowledged"
+    in_progress = "in_progress"
+    resolved = "resolved"
+    closed = "closed"
+
+
+class Alert(BaseModel):
+    alert_id: str
+    project_id: str
+    report_id: str
+    run_id: str
+    alert_type: str
+    fingerprint: str
+    status: AlertStatus = AlertStatus.open
+    assignee: Optional[str] = None
+    notes: List[str] = Field(default_factory=list)
+    closed_reason: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    last_seen_at: datetime
+
+
+class AlertUpdate(BaseModel):
+    status: Optional[AlertStatus] = None
+    assignee: Optional[str] = None
+    note: Optional[str] = None
+    closed_reason: Optional[str] = None
 
 
 class StrategyMemory(BaseModel):
     memory_id: str
     project_id: str
     playbook_id: str
+    playbook_type: str = "general"
     impact_metrics: Dict[str, float]
     success: bool
     created_at: datetime
+
+
+class CitationSource(BaseModel):
+    domain: str
+    example_url: str
+    count: int
+    prompt_count: int
+    last_seen_at: datetime
+    is_official: bool
+    quality_score: float
+    matched_asset_ids: List[str] = Field(default_factory=list)
+
+
+class GitHubPRDraftStatus(str, Enum):
+    pending_approval = "pending_approval"
+    approved = "approved"
+    rejected = "rejected"
+
+
+class ApprovalDecision(str, Enum):
+    approve = "approve"
+    reject = "reject"
+
+
+class ApprovalEvent(BaseModel):
+    event_id: str
+    operator: str
+    decision: ApprovalDecision
+    comment: str = ""
+    decided_at: datetime
+
+
+class GitHubPRDraft(BaseModel):
+    draft_id: str
+    project_id: str
+    playbook_id: str
+    repo_url: str
+    base_branch: str
+    head_branch: str
+    title: str
+    body_markdown: str
+    files: List[str] = Field(default_factory=list)
+    status: GitHubPRDraftStatus = GitHubPRDraftStatus.pending_approval
+    approvals: List[ApprovalEvent] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class GitHubPRDraftCreate(BaseModel):
+    playbook_id: str
+    repo_url: Optional[str] = None
+    base_branch: str = "main"
+    head_branch: Optional[str] = None
+    title: Optional[str] = None
+
+
+class GitHubPRDraftApprove(BaseModel):
+    comment: str = ""
+
+
+class MetricDistribution(BaseModel):
+    metric: str
+    values: List[float] = Field(default_factory=list)
+    mean: float = 0.0
+    stdev: float = 0.0
+    ci95_low: float = 0.0
+    ci95_high: float = 0.0
+
+
+class StabilityReport(BaseModel):
+    report_id: str
+    project_id: str
+    run_type: RunType
+    engines: List[str]
+    repeats: int
+    run_ids: List[str] = Field(default_factory=list)
+    metrics: Dict[str, MetricDistribution] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class StabilityReportCreate(BaseModel):
+    run_type: RunType = RunType.on_demand
+    engines: List[str] = Field(default_factory=list)
+    repeats: int = Field(default=3, ge=2, le=20)
 
 
 class ProjectConfig(BaseModel):

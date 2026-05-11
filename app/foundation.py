@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 ROOT = Path(__file__).resolve().parent.parent
 
 trace_id_context: ContextVar[str | None] = ContextVar("trace_id_context", default=None)
+span_id_context: ContextVar[str | None] = ContextVar("span_id_context", default=None)
 operator_context: ContextVar[str | None] = ContextVar("operator_context", default=None)
 
 
@@ -33,6 +34,18 @@ def set_trace_id(trace_id: str | None):
 
 def reset_trace_id(token) -> None:
     trace_id_context.reset(token)
+
+
+def get_span_id() -> str | None:
+    return span_id_context.get()
+
+
+def set_span_id(span_id: str | None):
+    return span_id_context.set(span_id)
+
+
+def reset_span_id(token) -> None:
+    span_id_context.reset(token)
 
 
 def get_operator() -> str | None:
@@ -73,7 +86,7 @@ def deep_merge_config(base: Any, override: Any) -> Any:
 
 
 class ConfigCenter:
-    def __init__(self) -> None:
+    def __init__(self, tenant_id: str | None = None) -> None:
         default_path = ROOT / "configs" / "examples" / "system-config.default.yaml"
         base = _read_yaml(default_path)
         if not isinstance(base, dict):
@@ -96,14 +109,52 @@ class ConfigCenter:
                 override = {}
 
         self.config = deep_merge_config(base, override)
-
+        self.tenant_id = tenant_id
+    
+    def set_tenant_context(self, tenant_id: str | None) -> None:
+        """设置租户上下文"""
+        self.tenant_id = tenant_id
+    
     def get(self, key: str, default: Any = None) -> Any:
         current: Any = self.config
         for part in key.split("."):
             if not isinstance(current, dict) or part not in current:
                 return default
             current = current[part]
+        
+        # 检查是否启用租户覆盖
+        if self.tenant_id:
+            enable_override = self.config.get("featureFlags", {}).get(
+                "enableMultiTenantConfigOverride", False
+            )
+            if enable_override:
+                # 查找租户覆盖配置
+                tenant_override = self._get_tenant_override(self.tenant_id)
+                if tenant_override:
+                    # 应用租户覆盖
+                    tenant_value = tenant_override
+                    for part in key.split("."):
+                        if isinstance(tenant_value, dict) and part in tenant_value:
+                            tenant_value = tenant_value[part]
+                        else:
+                            tenant_value = None
+                            break
+                    if tenant_value is not None:
+                        return tenant_value
+        
         return current
+    
+    def _get_tenant_override(self, tenant_id: str) -> Dict[str, Any] | None:
+        """获取指定租户的覆盖配置"""
+        tenants = self.config.get("tenants", [])
+        if not isinstance(tenants, list):
+            return None
+        
+        for tenant in tenants:
+            if isinstance(tenant, dict) and tenant.get("tenantId") == tenant_id:
+                return tenant.get("overrides", {})
+        
+        return None
 
 
 class MetricDefinition(BaseModel):
@@ -193,7 +244,7 @@ def build_logger() -> logging.Logger:
     logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s traceId=%(traceId)s projectId=%(projectId)s "
+        "%(asctime)s %(levelname)s traceId=%(traceId)s spanId=%(spanId)s projectId=%(projectId)s "
         "runId=%(runId)s operator=%(operator)s module=%(logModule)s event=%(event)s %(message)s"
     )
     handler.setFormatter(formatter)
@@ -205,6 +256,7 @@ def build_logger() -> logging.Logger:
 class _ContextLogFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.traceId = getattr(record, "traceId", None) or get_trace_id() or "-"
+        record.spanId = getattr(record, "spanId", None) or get_span_id() or "-"
         record.projectId = getattr(record, "projectId", None) or "-"
         record.runId = getattr(record, "runId", None) or "-"
         record.operator = getattr(record, "operator", None) or get_operator() or "system"
@@ -219,6 +271,7 @@ def log_with_context(
     message: str,
     *,
     trace_id: str | None = None,
+    span_id: str | None = None,
     project_id: str = "-",
     run_id: str = "-",
     operator: str | None = None,
@@ -226,12 +279,14 @@ def log_with_context(
     event: str = "event",
 ) -> str:
     actual_trace_id = trace_id or get_trace_id() or uuid.uuid4().hex
+    actual_span_id = span_id or get_span_id() or "-"
     actual_operator = operator or get_operator() or "system"
     logger.log(
         level,
         message,
         extra={
             "traceId": actual_trace_id,
+            "spanId": actual_span_id,
             "projectId": project_id,
             "runId": run_id,
             "operator": actual_operator,

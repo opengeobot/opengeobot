@@ -14,9 +14,11 @@ from typing import Dict, Generic, List, Optional, Protocol, Type, TypeVar
 from pydantic import BaseModel
 
 from app.models import (
+    Alert,
     Asset,
     AssetChange,
     AuditLog,
+    GitHubPRDraft,
     Insight,
     MonitorReport,
     Playbook,
@@ -24,6 +26,7 @@ from app.models import (
     ProjectConfig,
     Prompt,
     Run,
+    StabilityReport,
     StrategyMemory,
     VerificationReport,
 )
@@ -36,9 +39,11 @@ class Repository(Protocol):
     def get_project(self, project_id: str) -> Optional[Project]: ...
     def has_project(self, project_id: str) -> bool: ...
     def list_projects(self) -> List[Project]: ...
+    def count_projects(self) -> int: ...
     def save_asset(self, asset: Asset) -> None: ...
     def get_asset(self, asset_id: str) -> Optional[Asset]: ...
     def list_project_assets(self, project_id: str) -> List[Asset]: ...
+    def count_project_assets(self, project_id: str) -> int: ...
     def save_asset_change(self, change: AssetChange) -> None: ...
     def list_project_asset_changes(self, project_id: str) -> List[AssetChange]: ...
     def save_project_config(self, config: ProjectConfig) -> None: ...
@@ -47,14 +52,17 @@ class Repository(Protocol):
     def get_prompt(self, prompt_id: str) -> Optional[Prompt]: ...
     def has_prompt(self, prompt_id: str) -> bool: ...
     def list_project_prompts(self, project_id: str, include_disabled: bool = False) -> List[Prompt]: ...
+    def count_project_prompts(self, project_id: str) -> int: ...
     def save_run(self, run: Run) -> None: ...
     def get_run(self, run_id: str) -> Optional[Run]: ...
     def has_run(self, run_id: str) -> bool: ...
     def list_project_runs(self, project_id: str) -> List[Run]: ...
+    def count_project_runs(self, project_id: str) -> int: ...
     def save_insight(self, insight: Insight) -> None: ...
     def get_insight(self, insight_id: str) -> Optional[Insight]: ...
     def has_insight(self, insight_id: str) -> bool: ...
     def list_project_insights(self, project_id: str) -> List[Insight]: ...
+    def count_project_insights(self, project_id: str) -> int: ...
     def save_playbook(self, playbook: Playbook) -> None: ...
     def get_playbook(self, playbook_id: str) -> Optional[Playbook]: ...
     def has_playbook(self, playbook_id: str) -> bool: ...
@@ -62,8 +70,21 @@ class Repository(Protocol):
     def get_verification_report(self, report_id: str) -> Optional[VerificationReport]: ...
     def has_verification_report(self, report_id: str) -> bool: ...
     def save_monitor_report(self, report: MonitorReport) -> None: ...
+    def save_alert(self, alert: Alert) -> None: ...
+    def get_alert(self, alert_id: str) -> Optional[Alert]: ...
+    def list_project_alerts(self, project_id: str) -> List[Alert]: ...
+    def count_project_alerts(self, project_id: str) -> int: ...
+    def save_github_pr_draft(self, draft: GitHubPRDraft) -> None: ...
+    def get_github_pr_draft(self, draft_id: str) -> Optional[GitHubPRDraft]: ...
+    def list_project_github_pr_drafts(self, project_id: str) -> List[GitHubPRDraft]: ...
+    def count_project_github_pr_drafts(self, project_id: str) -> int: ...
+    def save_stability_report(self, report: StabilityReport) -> None: ...
+    def get_stability_report(self, report_id: str) -> Optional[StabilityReport]: ...
+    def list_project_stability_reports(self, project_id: str) -> List[StabilityReport]: ...
+    def count_project_stability_reports(self, project_id: str) -> int: ...
     def save_strategy_memory(self, memory: StrategyMemory) -> None: ...
     def list_project_memories(self, project_id: str) -> List[StrategyMemory]: ...
+    def count_project_memories(self, project_id: str) -> int: ...
     def save_audit_log(self, audit_log: AuditLog) -> None: ...
     def list_project_audit_logs(
         self,
@@ -73,6 +94,13 @@ class Repository(Protocol):
         end_time: datetime | None = None,
         limit: int = 100,
     ) -> List[AuditLog]: ...
+    def count_project_audit_logs(
+        self,
+        project_id: str,
+        *,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> int: ...
 
 
 class _MemoryTable(Generic[ModelT]):
@@ -104,6 +132,9 @@ class MemoryRepository:
         self.playbooks = _MemoryTable[Playbook]()
         self.verification_reports = _MemoryTable[VerificationReport]()
         self.monitor_reports = _MemoryTable[MonitorReport]()
+        self.alerts = _MemoryTable[Alert]()
+        self.github_pr_drafts = _MemoryTable[GitHubPRDraft]()
+        self.stability_reports = _MemoryTable[StabilityReport]()
         self.strategy_memories = _MemoryTable[StrategyMemory]()
         self.audit_logs = _MemoryTable[AuditLog]()
 
@@ -118,6 +149,9 @@ class MemoryRepository:
 
     def list_projects(self) -> List[Project]:
         return self.projects.list()
+    
+    def count_projects(self) -> int:
+        return len(self.projects.data)
 
     def save_asset(self, asset: Asset) -> None:
         self.assets.save(asset.asset_id, asset)
@@ -127,6 +161,9 @@ class MemoryRepository:
 
     def list_project_assets(self, project_id: str) -> List[Asset]:
         return [item for item in self.assets.list() if item.project_id == project_id]
+    
+    def count_project_assets(self, project_id: str) -> int:
+        return len([item for item in self.assets.list() if item.project_id == project_id])
 
     def save_asset_change(self, change: AssetChange) -> None:
         self.asset_changes.save(change.change_id, change)
@@ -200,6 +237,33 @@ class MemoryRepository:
     def save_monitor_report(self, report: MonitorReport) -> None:
         self.monitor_reports.save(report.report_id, report)
 
+    def save_alert(self, alert: Alert) -> None:
+        self.alerts.save(alert.alert_id, alert)
+
+    def get_alert(self, alert_id: str) -> Optional[Alert]:
+        return self.alerts.get(alert_id)
+
+    def list_project_alerts(self, project_id: str) -> List[Alert]:
+        return [item for item in self.alerts.list() if item.project_id == project_id]
+
+    def save_github_pr_draft(self, draft: GitHubPRDraft) -> None:
+        self.github_pr_drafts.save(draft.draft_id, draft)
+
+    def get_github_pr_draft(self, draft_id: str) -> Optional[GitHubPRDraft]:
+        return self.github_pr_drafts.get(draft_id)
+
+    def list_project_github_pr_drafts(self, project_id: str) -> List[GitHubPRDraft]:
+        return [item for item in self.github_pr_drafts.list() if item.project_id == project_id]
+
+    def save_stability_report(self, report: StabilityReport) -> None:
+        self.stability_reports.save(report.report_id, report)
+
+    def get_stability_report(self, report_id: str) -> Optional[StabilityReport]:
+        return self.stability_reports.get(report_id)
+
+    def list_project_stability_reports(self, project_id: str) -> List[StabilityReport]:
+        return [item for item in self.stability_reports.list() if item.project_id == project_id]
+
     def save_strategy_memory(self, memory: StrategyMemory) -> None:
         self.strategy_memories.save(memory.memory_id, memory)
 
@@ -224,6 +288,38 @@ class MemoryRepository:
             filtered = [item for item in filtered if item.timestamp <= end_time]
         filtered.sort(key=lambda item: item.timestamp, reverse=True)
         return filtered[: max(limit, 0)]
+    
+    def count_project_runs(self, project_id: str) -> int:
+        return len([item for item in self.runs.list() if item.project_id == project_id])
+    
+    def count_project_insights(self, project_id: str) -> int:
+        return len([item for item in self.insights.list() if item.project_id == project_id])
+    
+    def count_project_alerts(self, project_id: str) -> int:
+        return len([item for item in self.alerts.list() if item.project_id == project_id])
+    
+    def count_project_github_pr_drafts(self, project_id: str) -> int:
+        return len([item for item in self.github_pr_drafts.list() if item.project_id == project_id])
+    
+    def count_project_stability_reports(self, project_id: str) -> int:
+        return len([item for item in self.stability_reports.list() if item.project_id == project_id])
+    
+    def count_project_memories(self, project_id: str) -> int:
+        return len([item for item in self.strategy_memories.list() if item.project_id == project_id])
+    
+    def count_project_audit_logs(
+        self,
+        project_id: str,
+        *,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> int:
+        filtered = [item for item in self.audit_logs.list() if item.projectId == project_id]
+        if start_time is not None:
+            filtered = [item for item in filtered if item.timestamp >= start_time]
+        if end_time is not None:
+            filtered = [item for item in filtered if item.timestamp <= end_time]
+        return len(filtered)
 
 
 class SQLiteRepository:
@@ -385,6 +481,33 @@ class SQLiteRepository:
     def save_monitor_report(self, report: MonitorReport) -> None:
         self._save("monitor_reports", report.report_id, report, report.project_id)
 
+    def save_alert(self, alert: Alert) -> None:
+        self._save("alerts", alert.alert_id, alert, alert.project_id)
+
+    def get_alert(self, alert_id: str) -> Optional[Alert]:
+        return self._get("alerts", alert_id, Alert)
+
+    def list_project_alerts(self, project_id: str) -> List[Alert]:
+        return self._list("alerts", Alert, project_id)
+
+    def save_github_pr_draft(self, draft: GitHubPRDraft) -> None:
+        self._save("github_pr_drafts", draft.draft_id, draft, draft.project_id)
+
+    def get_github_pr_draft(self, draft_id: str) -> Optional[GitHubPRDraft]:
+        return self._get("github_pr_drafts", draft_id, GitHubPRDraft)
+
+    def list_project_github_pr_drafts(self, project_id: str) -> List[GitHubPRDraft]:
+        return self._list("github_pr_drafts", GitHubPRDraft, project_id)
+
+    def save_stability_report(self, report: StabilityReport) -> None:
+        self._save("stability_reports", report.report_id, report, report.project_id)
+
+    def get_stability_report(self, report_id: str) -> Optional[StabilityReport]:
+        return self._get("stability_reports", report_id, StabilityReport)
+
+    def list_project_stability_reports(self, project_id: str) -> List[StabilityReport]:
+        return self._list("stability_reports", StabilityReport, project_id)
+
     def save_strategy_memory(self, memory: StrategyMemory) -> None:
         self._save("strategy_memories", memory.memory_id, memory, memory.project_id)
 
@@ -409,6 +532,51 @@ class SQLiteRepository:
             items = [item for item in items if item.timestamp <= end_time]
         items.sort(key=lambda item: item.timestamp, reverse=True)
         return items[: max(limit, 0)]
+    
+    def _count(self, table_name: str, project_id: str | None = None) -> int:
+        """通用count方法"""
+        pass
+    
+    def count_projects(self) -> int:
+        return self._count("projects")
+    
+    def count_project_assets(self, project_id: str) -> int:
+        return self._count("assets", project_id)
+    
+    def count_project_prompts(self, project_id: str) -> int:
+        return self._count("prompts", project_id)
+    
+    def count_project_runs(self, project_id: str) -> int:
+        return self._count("runs", project_id)
+    
+    def count_project_insights(self, project_id: str) -> int:
+        return self._count("insights", project_id)
+    
+    def count_project_alerts(self, project_id: str) -> int:
+        return self._count("alerts", project_id)
+    
+    def count_project_github_pr_drafts(self, project_id: str) -> int:
+        return self._count("github_pr_drafts", project_id)
+    
+    def count_project_stability_reports(self, project_id: str) -> int:
+        return self._count("stability_reports", project_id)
+    
+    def count_project_memories(self, project_id: str) -> int:
+        return self._count("strategy_memories", project_id)
+    
+    def count_project_audit_logs(
+        self,
+        project_id: str,
+        *,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> int:
+        items = self._list("audit_logs", AuditLog, project_id)
+        if start_time is not None:
+            items = [item for item in items if item.timestamp >= start_time]
+        if end_time is not None:
+            items = [item for item in items if item.timestamp <= end_time]
+        return len(items)
 
 
 class PostgreSQLRepository:
@@ -589,6 +757,33 @@ class PostgreSQLRepository:
     def save_monitor_report(self, report: MonitorReport) -> None:
         self._save("monitor_reports", report.report_id, report, report.project_id)
 
+    def save_alert(self, alert: Alert) -> None:
+        self._save("alerts", alert.alert_id, alert, alert.project_id)
+
+    def get_alert(self, alert_id: str) -> Optional[Alert]:
+        return self._get("alerts", alert_id, Alert)
+
+    def list_project_alerts(self, project_id: str) -> List[Alert]:
+        return self._list("alerts", Alert, project_id)
+
+    def save_github_pr_draft(self, draft: GitHubPRDraft) -> None:
+        self._save("github_pr_drafts", draft.draft_id, draft, draft.project_id)
+
+    def get_github_pr_draft(self, draft_id: str) -> Optional[GitHubPRDraft]:
+        return self._get("github_pr_drafts", draft_id, GitHubPRDraft)
+
+    def list_project_github_pr_drafts(self, project_id: str) -> List[GitHubPRDraft]:
+        return self._list("github_pr_drafts", GitHubPRDraft, project_id)
+
+    def save_stability_report(self, report: StabilityReport) -> None:
+        self._save("stability_reports", report.report_id, report, report.project_id)
+
+    def get_stability_report(self, report_id: str) -> Optional[StabilityReport]:
+        return self._get("stability_reports", report_id, StabilityReport)
+
+    def list_project_stability_reports(self, project_id: str) -> List[StabilityReport]:
+        return self._list("stability_reports", StabilityReport, project_id)
+
     def save_strategy_memory(self, memory: StrategyMemory) -> None:
         self._save("strategy_memories", memory.memory_id, memory, memory.project_id)
 
@@ -613,3 +808,48 @@ class PostgreSQLRepository:
             items = [item for item in items if item.timestamp <= end_time]
         items.sort(key=lambda item: item.timestamp, reverse=True)
         return items[: max(limit, 0)]
+    
+    def _count(self, table_name: str, project_id: str | None = None) -> int:
+        """通用count方法"""
+        pass
+    
+    def count_projects(self) -> int:
+        return self._count("projects")
+    
+    def count_project_assets(self, project_id: str) -> int:
+        return self._count("assets", project_id)
+    
+    def count_project_prompts(self, project_id: str) -> int:
+        return self._count("prompts", project_id)
+    
+    def count_project_runs(self, project_id: str) -> int:
+        return self._count("runs", project_id)
+    
+    def count_project_insights(self, project_id: str) -> int:
+        return self._count("insights", project_id)
+    
+    def count_project_alerts(self, project_id: str) -> int:
+        return self._count("alerts", project_id)
+    
+    def count_project_github_pr_drafts(self, project_id: str) -> int:
+        return self._count("github_pr_drafts", project_id)
+    
+    def count_project_stability_reports(self, project_id: str) -> int:
+        return self._count("stability_reports", project_id)
+    
+    def count_project_memories(self, project_id: str) -> int:
+        return self._count("strategy_memories", project_id)
+    
+    def count_project_audit_logs(
+        self,
+        project_id: str,
+        *,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> int:
+        items = self._list("audit_logs", AuditLog, project_id)
+        if start_time is not None:
+            items = [item for item in items if item.timestamp >= start_time]
+        if end_time is not None:
+            items = [item for item in items if item.timestamp <= end_time]
+        return len(items)
