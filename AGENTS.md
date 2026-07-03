@@ -5,9 +5,10 @@
 - `docs/AI开发约束与平台公共能力规范 V1.0.md`
 - `docs/平台功能与数据状态统一实施蓝图 V1.0.md`
 - `docs/implementation/platform-feature-manifest.yaml`
+- `docs/adr/ADR-0001-统一技术基线与前端主栈.md`
 - 上游业务设计：`docs/一脑多控平台详细设计说明书 V1.0.pdf`
 
-工程/安全以 AI 开发约束为准；页面、后端用例和数据状态以实施蓝图为准；端到端制品范围以机器清单为准。开始任务前必须读取对应功能 ID 的全部映射。冲突时停止并用 ADR 解决；涉及安全时先取更严格规则。
+工程/安全以 AI 开发约束为准；页面、后端用例和数据状态以实施蓝图为准；端到端制品范围以机器清单为准；PDF 的多候选技术已由 ADR-0001 收敛。开始任务前必须读取对应功能 ID、顶层架构、公共能力 profile、部署目标和外部契约。冲突时停止并用 ADR 解决；涉及安全时先取更严格规则。
 
 ## 当前阶段
 
@@ -18,7 +19,7 @@
 1. Agent/LLM 禁止直接调用 `/cmd_vel`、关节、电机、原始 UDP 或厂商 SDK。
 2. 所有物理动作必须是已注册 Skill/Capability，并经过权限、任务策略、调度和边缘 Safety Gateway。
 3. 边缘安全判定和本地急停优先；云端、QwenPaw 和管理员都不能绕过。
-4. QwenPaw、ROSClaw、ROS、Zenoh、设备 SDK 的 API 不得凭记忆编造；只使用仓库锁定版本的真实契约/官方文档。
+4. QwenPaw、ROSClaw、ROS、Zenoh、设备 SDK 的 API 不得凭记忆编造；只使用仓库锁定版本的真实契约/官方文档；关联 `external_contracts` 未 `PINNED` 时不得开始集成。
 5. 用户、组织、角色、权限、数据字典、国际化、配置、审计、错误、幂等、事件和对象元数据必须复用平台公共能力。
 6. 服务/模块不得直接读写其他领域的表；通过公开应用接口或版本化事件协作。
 7. REST、MCP、NATS、gRPC、Skill、Capability 必须契约先行。
@@ -30,23 +31,23 @@
 
 - 云端管理：Java 21 + Spring Boot 3.x + MyBatis-Plus，模块化单体优先。
 - Agent/适配：Python 3.12 + uv；QwenPaw 通过 `AgentRuntimeProvider` 接入。
-- 前端：Vue 3 + TypeScript + Vite + WebSocket，不并行建设 React 版本。
+- 前端：Vue 3 + TypeScript + Vite + WebSocket；React 只允许经 ADR 的隔离兼容例外，不并行建设同功能版本。
 - 工具：MCP 优先；HTTP/gRPC 辅助。
 - 边缘：ROSClaw Edge Runtime + Safety Gateway + Local Skill Executor。
 - ROS2 主路径；ROS1 仅隔离兼容；弱网使用 Zenoh。
 - PostgreSQL/可选 TimescaleDB、pgvector、MinIO/S3、NATS JetStream。
-- vmagent + VictoriaMetrics + Grafana；Vector + Loki + PostgreSQL 审计。
+- vmagent + VictoriaMetrics + Grafana；Vector + Loki + PostgreSQL 审计；Grafana Alerting/平台告警服务。
 
 ## 工作顺序
 
 1. 检查工作区和已有修改。
-2. 在机器清单中定位功能 ID，核对页面、用例、状态机、表、权限、契约、事件和验收。
+2. 在机器清单中定位功能 ID，核对页面、用例、状态机、表、权限、契约、事件、验收、公共能力 profile、部署目标和外部契约。
 3. 定位领域所有者、公共能力和安全级别，将功能标记为 `IN_PROGRESS`。
 4. 先写验收场景和契约，再写迁移、领域/应用、适配、前端。
 5. 同时实现权限、i18n、审计、幂等、错误和可观测性。
 6. 覆盖成功、失败、超时、取消、重复、乱序、断网和恢复。
 7. 运行实际可用的测试，明确未运行的 HIL/真实设备测试。
-8. 同步 README、Runbook、ADR 和证据；全部门禁通过后才标记 `DONE`。
+8. 同步 README、Runbook、ADR 和证据；测试、安全、部署、可观测和 Runbook 非空证据齐全后才标记 `DONE`。
 
 禁止为赶进度复制一套公共用户/权限/字典/i18n，禁止 Controller/MCP Handler 直接访问 Mapper/SDK，禁止修改已发布迁移。
 
@@ -69,4 +70,4 @@ pwsh ./scripts/dev.ps1 doctor|bootstrap|infra-up|migrate|dev|sim-up|test|e2e|dow
 
 ## 完成标准
 
-只有契约、实现、迁移、权限、i18n、审计、测试、部署和文档共同闭环，功能才算完成。整个平台完成必须同时满足：机器清单全部适用功能为 `DONE`，详细规范 C01-C24 全部有直接证据，实施蓝图中的页面/后端/状态映射无缺项，并且 `python scripts/validate_platform_manifest.py --require-complete` 通过。
+只有契约、实现、迁移、权限、i18n、审计、测试、安全报告、部署、可观测和 Runbook 共同闭环，功能才算完成。整个平台完成必须同时满足：机器清单全部适用功能为 `DONE`，详细规范 C01-C24 全部有直接证据，实施蓝图中的页面/后端/状态映射无缺项，并且 `python scripts/validate_platform_manifest.py --require-complete` 通过。

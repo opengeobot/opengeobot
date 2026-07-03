@@ -5,6 +5,7 @@
 - `docs/AI开发约束与平台公共能力规范 V1.0.md`：工程和安全规则。
 - `docs/平台功能与数据状态统一实施蓝图 V1.0.md`：页面、后端用例和数据状态。
 - `docs/implementation/platform-feature-manifest.yaml`：功能 ID 与端到端制品清单。
+- `docs/adr/ADR-0001-统一技术基线与前端主栈.md`：统一技术决策。
 - `docs/一脑多控平台详细设计说明书 V1.0.pdf`：业务来源。
 
 开始任务前定位功能 ID 并读取完整映射。冲突时停止并用 ADR 解决；安全采用更严格约束。
@@ -13,12 +14,12 @@
 
 - 云端管理使用 Java 21 + Spring Boot 3.x + MyBatis-Plus，优先模块化单体。
 - Agent/机器人适配使用 Python 3.12 + uv。QwenPaw 只能通过 `AgentRuntimeProvider` 适配。
-- 前端统一 Vue 3 + TypeScript + Vite + WebSocket，不复制 React 前端。
+- 前端统一 Vue 3 + TypeScript + Vite + WebSocket；React 只允许经 ADR 的隔离兼容例外，不复制同功能前端。
 - 工具协议 MCP 优先；HTTP/gRPC 辅助。
 - 边缘为 ROSClaw Edge Runtime + Safety Gateway + Local Skill Executor。
 - ROS2 是主路径；ROS1 仅隔离兼容；弱网/ROS2DDS 桥接使用 Zenoh。
 - 数据使用 PostgreSQL、可选 TimescaleDB、pgvector、MinIO/S3、NATS JetStream。
-- 监控使用 vmagent + VictoriaMetrics + Grafana；日志使用 Vector + Loki，关键审计进入 PostgreSQL。
+- 监控使用 vmagent + VictoriaMetrics + Grafana；日志使用 Vector + Loki，关键审计进入 PostgreSQL；告警使用 Grafana Alerting/平台告警服务。
 
 ## Safety red lines
 
@@ -41,13 +42,13 @@
 ## Development workflow
 
 1. 先检查工作区，保护已有修改。
-2. 在机器清单定位功能 ID，核对页面、用例、状态机、表、权限、契约、事件和验收，开始时标记 `IN_PROGRESS`。
+2. 在机器清单定位功能 ID，核对页面、用例、状态机、表、权限、契约、事件、验收、公共能力 profile、部署目标和外部契约；外部契约未 `PINNED` 时不得开始集成。
 3. 明确验收场景、领域所有者、风险、权限、契约和数据迁移。
 4. 按“契约/状态机 -> 安全分析 -> migration -> 领域/应用 -> 适配/事件 -> 前端 -> 测试/文档”实施。
 5. REST/OpenAPI、NATS/AsyncAPI、gRPC/protobuf、MCP/Skill/Capability JSON Schema 契约先行。
 6. 同时处理 i18n、审计、幂等、错误、日志、指标和 Trace。
 7. 测试成功、失败、超时、取消、重复、乱序、断网、重连和恢复。
-8. 如实报告已运行和未运行的测试；证据齐全后才标记 `DONE`。
+8. 如实报告已运行和未运行的测试；测试、安全、部署、可观测和 Runbook 非空证据齐全后才标记 `DONE`。
 
 禁止：
 
@@ -75,4 +76,4 @@ pwsh ./scripts/dev.ps1 doctor|bootstrap|infra-up|migrate|dev|sim-up|test|e2e|dow
 ./scripts/dev.sh doctor|bootstrap|infra-up|migrate|dev|sim-up|test|e2e|down
 ```
 
-功能完成必须同时包含契约、实现、迁移、权限、i18n、审计、测试、部署和文档。整个平台必须满足机器清单全部适用项 `DONE`、详细规范 C01-C24 全部通过、实施蓝图映射无缺项，并通过 `python scripts/validate_platform_manifest.py --require-complete`。
+功能完成必须同时包含契约、实现、迁移、权限、i18n、审计、测试、安全报告、部署、可观测和 Runbook。整个平台必须满足机器清单全部适用项 `DONE`、详细规范 C01-C24 全部通过、实施蓝图映射无缺项，并通过 `python scripts/validate_platform_manifest.py --require-complete`。

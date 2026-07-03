@@ -1,120 +1,109 @@
-# 设计覆盖审计
+# 设计闭环与架构一致性审计
 
 审计日期：2026-07-03
 
-## 1. 审计结论
+## 1. 结论
 
-当前仓库已经形成可供 Codex、TRAE 等 AI IDE 执行的三层设计事实源：
+审计结论为：**设计治理有条件通过，平台实现未开始。**
 
-1. `AI开发约束与平台公共能力规范 V1.0.md`：工程、安全、技术和质量门禁。
-2. `平台功能与数据状态统一实施蓝图 V1.0.md`：前端页面、后端用例、状态机和事务流程。
-3. `implementation/platform-feature-manifest.yaml`：机器可核查的端到端功能清单。
+修订后的事实源已经能够指导 AI 编程 IDE 从 M0 开始，按“需求/契约/数据/实现/测试/部署/运维/证据”完成纵向闭环，并通过机器门禁防止技术栈、公共能力、阶段和证据漂移。业务集成功能仍有一个有意保留的前置门禁：QwenPaw、ROSClaw、ROS/Zenoh 和厂商 SDK 的实际版本尚未锁定；对应 `external_contracts` 为 `UNPINNED`，其消费者不得进入 `IN_PROGRESS`。
 
-设计覆盖已通过机器校验：
+当前真实实施状态：
 
 ```text
-28 个功能
+29 个基线功能
 42 个页面 ID
 107 个后端用例 ID
 31 个状态机 ID
 C01-C24 全部覆盖
+29 个功能全部 NOT_STARTED
 ```
 
-这表示“实施所需的规范和追踪范围完整”，不表示平台代码已经实现。清单中 28 个功能当前均为 `NOT_STARTED`，完整平台门禁应当失败，直到存在真实代码和证据。
+因此，日常设计校验必须通过，完整实施门禁必须失败。不能把“文档可执行”表述为“平台已交付”。
 
-## 2. 用户目标覆盖
+## 2. 审计方法
 
-| 用户目标 | 设计证据 | 判定 |
+本次核查覆盖：
+
+1. 上游 PDF 32 页的章节、技术候选、业务流程和版式抽检。
+2. AI 开发规范的工程、安全、公共能力、测试、部署和运维要求。
+3. 实施蓝图的 42 个页面、107 个应用用例、31 个状态机、事务和断网恢复流程。
+4. 机器清单、JSON Schema 和校验器的双向追踪与完成证据规则。
+5. QwenPaw、ROSClaw、ROS2 和 Zenoh 的官方资料边界。
+
+PDF 抽检页面未发现裁切、重叠、乱码或不可读表格。PDF 第 4、15 节保留多候选技术，属于上游业务设计的历史选择空间，已由 ADR-0001 收敛，不直接作为工程选型事实源。
+
+## 3. 发现与修复
+
+| 原缺口 | 风险 | 修复 |
 | --- | --- | --- |
-| AI IDE 自动读取规范 | 根 `AGENTS.md`、`.trae/rules/project_rules.md` | 已覆盖 |
-| 完整环境搭建 | AI 规范第 13/18 节、F-ENGINEERING-001、F-DEPLOY-001 | 已覆盖 |
-| 前端完整功能设计 | 实施蓝图第 2-4 节，42 个页面 ID | 已覆盖 |
-| 后端业务逻辑统一 | 实施蓝图第 5/7 节，107 个 Command/Query 用例和事务流程 | 已覆盖 |
-| 数据与状态统一 | 实施蓝图第 6/8 节，31 个正交状态机及落库规则 | 已覆盖 |
-| 用户/角色/权限统一 | F-PLATFORM-001/002、UC-IAM-*、SM-IAM-001 | 已覆盖 |
-| 数据字典统一 | F-PLATFORM-003、UC-GOV-001 | 已覆盖 |
-| 国际化统一 | F-PLATFORM-003、UC-GOV-002 | 已覆盖 |
-| 前后端一致 | 功能清单的页面/用例/表/契约/事件映射 | 已覆盖 |
-| 开发、测试、运行闭环 | 统一脚本契约、测试门禁、Definition of Done | 已覆盖 |
-| 全平台功能闭环 | 28 功能与 C01-C24 映射、`--require-complete` 门禁 | 设计已覆盖，代码未实施 |
+| PDF 与规范存在多套候选技术，前端“Vue / React”含义不明确 | AI 可能自行选择 Go/React/Kafka 等并复制双栈 | 新增 ADR-0001；Vue 3 为唯一默认主栈，React 仅 ADR 例外 |
+| 技术基线只存在于自然语言 | 文档改一处即可静默漂移 | 清单新增机器可校验的 `architecture`，Schema 使用固定编码 |
+| 公共能力只有文字归属，没有功能复用声明 | 各领域容易复制用户、权限、字典、i18n、审计和幂等 | 新增 `platform_capabilities` 唯一所有者与 `platform_capability_profiles` |
+| 机器清单没有部署目标 | 功能可能只做到源码和接口 | 每个功能新增 `deployment_targets` |
+| `DONE` 只要求功能自选证据，部分功能没有 Runbook | 测试通过但不可部署、不可观察、不可运维 | 新增全局 `mandatory_done_evidence`：部署、可观测、安全、测试、Runbook |
+| 证据校验只判断路径存在 | 空文件、根目录或共享报告可伪造完成 | 校验器新增类别目录、非空文件、过宽路径禁用及功能 ID 范围检查 |
+| 页面/用例/状态机仅做“清单到蓝图”单向检查 | 蓝图新增功能可能未进入清单 | 改为双向精确 ID 校验，并拒绝 `UC-X-001-004` 形式的歧义范围 |
+| M2 仿真与 M3 硬件适配合并，且 Safety 被强制要求 HIL | M2 仿真闭环永远无法在无硬件环境完成 | 拆为 F-ADAPTER-001（M2 ROS2/仿真）与 F-ADAPTER-002（M3 兼容/HIL）；Safety M2 不强制 HIL |
+| 外部 API 只靠文字提醒不得猜测 | AI 仍可能在未锁版本时开始实现 | 新增 `external_contracts`；消费者活跃时必须 `PINNED` 且锁定参考非空 |
+| 后续阶段可提前标记进行中 | AI 可能绕过 M0/M1 横向铺空壳 | 校验器新增阶段门禁 |
 
-## 3. PDF 章节覆盖
+## 4. 统一技术架构判定
 
-| PDF 章节 | 规范/蓝图落点 | 功能清单 |
+| 层级 | 生效基线 | 判定 |
 | --- | --- | --- |
-| 1 项目定位 | AI 规范第 2 节 | 全局 |
-| 2 总体架构 | AI 规范第 4 节 | F-DEPLOY/F-EDGE/F-MISSION |
-| 3 设计原则 | AI 规范 2.3、8、11 | F-SAFETY/F-EDGE |
-| 4 技术选型 | AI 规范第 3 节 | F-ENGINEERING/F-DEPLOY |
-| 5.1 用户与指挥端 | 实施蓝图第 2-4 节 | 全部 `P-*` 页面 |
-| 5.2 Agent Runtime | AI 规范 7.3、蓝图 5.5 | F-MISSION-001/F-MCP-001 |
-| 5.3 Mission Planner | AI 规范 7.4、蓝图 5.5/6.5/7.3 | F-MISSION-* |
-| 5.4 Fleet Orchestrator | AI 规范 7.5、蓝图 5.6/6.18/7.10 | F-FLEET-001 |
-| 5.5 Robot Registry | AI 规范 7.1、蓝图 5.3/6.4 | F-ROBOT-* |
-| 5.6 Skill Registry | AI 规范 7.2、蓝图 5.4/6.8 | F-SKILL-001 |
-| 5.7 MCP Tool Registry | AI 规范 7.7、蓝图 5.4/6.10 | F-MCP-001 |
-| 5.8 Policy Center | AI 规范 7.6、蓝图 5.7/6.9 | F-POLICY-001 |
-| 5.9 Memory Center | AI 规范 7.8、蓝图 5.9/6.16/7.11 | F-MEMORY-001 |
-| 5.10 Trace Center | AI 规范 7.8、蓝图 3.6/5.9/6.16 | F-TRACE-001 |
-| 6 边缘机器人网关 | AI 规范第 8 节、蓝图 5.8/7.9 | F-EDGE-001/002 |
-| 6.2 ROSClaw | AI 规范 3/8、外部集成边界 | F-EDGE-002/F-ADAPTER-001 |
-| 6.3 Safety Gateway | AI 规范 8.2/11、蓝图 5.7/7.8 | F-SAFETY-001 |
-| 6.4-6.6 适配器 | AI 规范 8.4、蓝图 5.8 | F-ADAPTER-001 |
-| 6.7 Local Skill Executor | AI 规范 8.3、蓝图 6.11 | F-EDGE-002 |
-| 7 统一能力模型 | AI 规范 7.2、蓝图 3.4/5.4 | F-SKILL/F-ADAPTER |
-| 8 通信设计 | AI 规范第 10 节、蓝图第 9 节 | F-EDGE/F-MCP/F-MONITOR |
-| 9 核心业务流程 | 蓝图第 7 节 | F-MISSION/F-SAFETY/F-EDGE |
-| 10 数据库设计 | AI 规范第 9 节、蓝图第 8 节、清单 `data` | 全部数据功能 |
-| 11 接口设计 | AI 规范第 10 节、蓝图第 9 节、清单 `contracts` | 全部接口功能 |
-| 12 安全设计 | AI 规范第 11 节、蓝图 6/7.8 | F-SAFETY/F-POLICY |
-| 13 部署设计 | AI 规范第 13 节 | F-DEPLOY/F-OPS |
-| 14 MVP 路径 | AI 规范第 18 节、蓝图第 11 节 | M0-M6 |
-| 15 最终架构 | AI 规范第 3/4 节 | 全局 |
-| 16 关键结论 | AI 规范十二条红线 | 全局门禁 |
+| 云端后端 | Java 21 + Spring Boot 3.x + MyBatis-Plus；Agent/适配用 Python 3.12 | 已固化 |
+| 前端 | Vue 3 + TypeScript + Vite + WebSocket；React 仅隔离 ADR 例外 | 已固化 |
+| Agent Runtime | QwenPaw，经 `AgentRuntimeProvider` | 已固化，版本待 M0 锁定 |
+| 工具协议 | MCP 优先，HTTP/gRPC 辅助 | 已固化 |
+| 边缘运行时 | ROSClaw Edge Runtime + 平台 Safety/Executor | 已固化，版本待 M0 锁定 |
+| ROS2 / ROS1 | ROS2 主路径；ROS1 隔离兼容 | 已固化 |
+| 弱网 | Zenoh / ROS2DDS bridge | 已固化 |
+| 数据 | PostgreSQL；TimescaleDB 可选；pgvector | 已固化 |
+| 对象 | MinIO / S3 | 已固化 |
+| 消息 | NATS + JetStream | 已固化 |
+| 监控 | vmagent + VictoriaMetrics + Grafana | 已固化 |
+| 日志审计 | Vector + Loki + PostgreSQL 审计表 | 已固化 |
+| 告警 | Grafana Alerting / 平台告警服务 | 已固化 |
 
-## 4. 指定技术栈覆盖
+QwenPaw 官方文档将其定义为基于 AgentScope Runtime 的个人助理产品，并支持 stdio/HTTP/SSE MCP 客户端；这支持“平台向 QwenPaw 暴露受控 MCP Server”的集成方向，但不等于存在稳定的机器人控制 API。ROSClaw 官方 Runtime 页面把能力区分为 Stable、Experimental 和 Research；规范已要求后两类默认关闭。
 
-| 指定技术 | 规范落点 | 实施功能 |
+## 5. 开发到运维闭环
+
+| 生命周期 | AI 可执行输入 | 完成门禁 |
 | --- | --- | --- |
-| Java 21 + MyBatis-Plus / Python | AI 规范第 3/14 节 | F-ENGINEERING 和全部后端功能 |
-| Vue + WebSocket | AI 规范第 3/14 节、蓝图第 2-4/9 节 | 42 个页面、F-MONITOR |
-| QwenPaw | AI 规范 7.3、蓝图 5.5 | F-MISSION-001 |
-| MCP 优先，HTTP/gRPC 辅助 | AI 规范 7.7/10 | F-MCP/F-EDGE |
-| ROSClaw Edge Runtime | AI 规范第 8 节 | F-EDGE-002 |
-| ROS2 主路径 | AI 规范 8.4 | F-ADAPTER-001 |
-| ROS1 兼容路径 | AI 规范 8.4 | F-ADAPTER-001 |
-| Zenoh 弱网 | AI 规范 10.5、蓝图 7.9 | F-EDGE-002 |
-| PostgreSQL/TimescaleDB | AI 规范第 9 节 | 清单全部 `data` 映射 |
-| MinIO/S3 | AI 规范 9.5 | F-MEDIA-001 |
-| pgvector | AI 规范 9.4 | F-MEMORY-001 |
-| NATS + JetStream | AI 规范 10.3 | 全部 `events` |
-| VictoriaMetrics/vmagent/Grafana | AI 规范第 12 节 | F-OPS-001 |
-| Vector/Loki/PostgreSQL 审计 | AI 规范 6.6/12.3 | F-PLATFORM-004/F-OPS |
-| Grafana Alerting/告警服务 | AI 规范 12.4 | F-ALARM-001 |
+| 需求与设计 | 功能 ID、页面、用例、状态机、C01-C24 | 双向追踪无遗漏 |
+| 契约 | REST、WebSocket、MCP、NATS、gRPC、Skill/Capability | 契约先行与兼容检查 |
+| 数据 | 唯一 owner schema、表、约束、状态历史 | Flyway 空库/升级测试 |
+| 实现 | Java/Python/Vue/Edge 部署目标与依赖方向 | 禁止 Controller/Handler 直连 Mapper/SDK |
+| 公共能力 | profile 与唯一 owner | 架构测试禁止重复实现 |
+| 测试 | Unit/Contract/Integration/Component/Simulation/E2E/Security/Recovery/HIL | 适用层级全部有真实报告 |
+| 部署 | Compose/Kubernetes、配置、Secret、健康、迁移 | 部署/升级/回滚非空证据 |
+| 运维 | 指标、日志、Trace、告警、Runbook、备份恢复 | 可观测与恢复证据 |
+| 完成声明 | 功能证据 + 全局强制证据 | `--require-complete` 通过 |
 
-## 5. 状态一致性审计
+## 6. 平台公共能力一致性
 
-已避免以下常见错误：
+清单已固定以下唯一所有者：
 
-- Robot 没有单一模糊 `status`，拆分注册、连接、运行和安全四个状态机。
-- Edge 拆分身份、连接和运行时状态。
-- Mission、Step、Execution 使用独立状态机。
-- Approval 不使用一个可复用布尔值，快照变化会失效。
-- 发布生命周期和运行灰度状态正交。
-- Alarm 主状态与抑制状态正交。
-- 急停是锁存安全状态，复位不恢复原 Mission。
-- 页面视图状态与后端领域状态分离。
-- 当前状态、状态历史、查询投影和遥测事实分离。
+- F-ENGINEERING-001：契约治理、错误模型、事件信封、Trace 上下文、时间/ID 和可观测基础。
+- F-PLATFORM-001：身份。
+- F-PLATFORM-002：授权与数据范围。
+- F-PLATFORM-003：字典与国际化。
+- F-PLATFORM-004：配置、审计与幂等。
+- F-MEDIA-001：对象元数据。
+- F-SAFETY-001：边缘安全执行。
+- F-OPS-001：运维治理。
 
-机器清单中的 31 个状态机 ID 均能在实施蓝图中找到。
+所有功能必须选择一个公共能力 profile。任何 `requires_edge_safety: true` 的功能，其 profile 必须包含 `SAFETY_ENFORCEMENT`，并要求仿真和安全测试。这样既阻止复制公共模块，也阻止云端动作功能遗漏边缘安全依赖。
 
-## 6. 当前门禁结果
+## 7. 当前门禁结果
 
 日常设计校验：
 
 ```text
 python scripts/validate_platform_manifest.py
-PASS: features=28; pages=42; use_cases=107; state_machines=31; C01-C24 covered; NOT_STARTED=28
+PASS: features=29; pages=42; use_cases=107; state_machines=31; C01-C24 covered; NOT_STARTED=29
 ```
 
 完整实施门禁：
@@ -123,13 +112,14 @@ PASS: features=28; pages=42; use_cases=107; state_machines=31; C01-C24 covered; 
 python scripts/validate_platform_manifest.py --require-complete
 ```
 
-当前应失败 28 项，因为尚无平台实现和证据。该失败是诚实的当前状态，也是防止 AI 仅修改清单状态后宣称完成的必要保护。
+当前必须失败 29 项，因为没有任何平台代码、迁移、部署、测试、安全、可观测或 Runbook 完成证据。
 
-## 7. 实施期间必须保持的审计结论
+## 8. 仍需在实施阶段完成
 
-- 新增页面必须绑定功能 ID 和后端用例。
-- 新增用例必须绑定数据所有者、权限、契约和状态机。
-- 新增状态机必须同步数据库、事件、前端显示和测试。
-- 功能标记 `DONE` 时，Schema 要求 `evidence`，校验器检查证据路径真实存在。
-- C01-C24 任一失去覆盖，CI 必须失败。
-- 真实机器人/HIL 未执行时，涉及功能不得伪造 `HIL_REPORT`。
+1. M0 创建锁文件、统一开发脚本、Compose/Kubernetes、CI 和报告目录。
+2. 把所有外部契约从 `UNPINNED` 变为带非空锁定参考的 `PINNED`；不得预填虚假版本。
+3. 为 C01-C24 建立可执行测试计划与真实报告。
+4. 从 F-ENGINEERING-001 和 F-DEPLOY-001 开始，不得直接跳到业务页面或机器人接入。
+5. 真实设备/HIL 只在受控环境执行；未执行时不得生成 HIL 通过报告。
+
+最终判定：文档现在足以驱动诚实、分阶段、可验证的闭环开发；它不会也不应让 AI 在外部版本未锁定、代码未实现或真实测试未执行时宣称平台完成。

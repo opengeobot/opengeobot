@@ -6,6 +6,7 @@
 | 适用对象 | Codex、TRAE、其他 AI 编程 IDE、人工开发者、测试与运维人员 |
 | 基线日期 | 2026-07-03 |
 | 上游设计 | [一脑多控平台详细设计说明书 V1.0](./一脑多控平台详细设计说明书%20V1.0.pdf) |
+| 架构决策 | [ADR-0001：统一技术基线与前端主栈](./adr/ADR-0001-统一技术基线与前端主栈.md) |
 | 实施蓝图 | [平台功能与数据状态统一实施蓝图 V1.0](./平台功能与数据状态统一实施蓝图%20V1.0.md) |
 | 功能清单 | [`implementation/platform-feature-manifest.yaml`](./implementation/platform-feature-manifest.yaml) |
 | 目标 | 让任何开发主体都能按同一架构完成环境搭建、开发、测试、运行、部署和验收，并形成任务执行、审计、记忆与改进闭环 |
@@ -29,8 +30,9 @@
 4. 本文定义工程和安全规则；实施蓝图定义前端功能、后端用例和数据状态；机器清单定义功能制品映射。
 5. 本文和实施蓝图优先于模块 README 和代码中的历史做法。
 6. PDF 设计说明书描述业务目标；本文与实施蓝图负责把目标收敛为可执行规则。
-7. 代码与规范冲突时，不得默默迎合旧代码。应先判断是代码缺陷还是规范需要 ADR 变更。
-8. 根目录 `AGENTS.md` 和 `.trae/rules/project_rules.md` 是入口摘要，不是独立事实源。
+7. 已接受 ADR 负责解决事实源之间的显式冲突；ADR-0001 已取代 PDF 第 4、15 节的多候选技术组合。
+8. 代码与规范冲突时，不得默默迎合旧代码。应先判断是代码缺陷还是规范需要 ADR 变更。
+9. 根目录 `AGENTS.md` 和 `.trae/rules/project_rules.md` 是入口摘要，不是独立事实源。
 
 ### 1.3 AI 开始任务前的必读顺序
 
@@ -102,7 +104,7 @@
 
 ## 3. 统一技术基线
 
-用户指定的选型高于 PDF 中的候选项。项目不得继续把 Go、Kafka、RabbitMQ、Prometheus、Elasticsearch、Milvus 等候选项并列实现。
+用户指定的选型已由 [ADR-0001](./adr/ADR-0001-统一技术基线与前端主栈.md) 固化，并高于 PDF 中的候选项。项目不得继续把 Go、Kafka、RabbitMQ、Prometheus、Elasticsearch、Milvus 等候选项并列实现。机器可校验的编码值位于清单顶层 `architecture`；修改表格和清单编码必须与新 ADR 同一变更完成。
 
 | 层级 | 项目基线 | 强制约束 |
 | --- | --- | --- |
@@ -124,6 +126,8 @@
 | 告警 | Grafana Alerting；必要时自研告警服务 | 告警规则版本化；通知失败不能丢失原始告警事件 |
 | 可观测链路 | OpenTelemetry、统一 `trace_id` | HTTP、MCP、NATS、gRPC、WebSocket 和边缘事件传播上下文 |
 
+“Vue / React”在本项目中解释为 Vue 3 是唯一默认产品主栈，React 只允许作为有退出计划的隔离兼容例外；它不授权为同一页面、Store、路由或业务流程建设两套实现。
+
 ### 3.1 暂不作为基线的组件
 
 - Redis 不是默认必需依赖。只有存在已测量的缓存、分布式限流或短期状态需求时才可通过 ADR 引入。
@@ -138,6 +142,7 @@
 - Node 版本由 `.nvmrc` 或 `.node-version` 固定，包管理器和版本写入根 `package.json`，依赖使用 `pnpm-lock.yaml`。
 - 容器镜像固定版本，并在发布环境固定 digest；禁止 `latest`。
 - ROSClaw、QwenPaw、ROS bridge、设备 SDK 必须记录：版本、来源、许可证、校验值、已验证硬件/系统和升级回滚步骤。
+- 上述外部组件先在机器清单 `external_contracts` 登记；消费者功能进入 `IN_PROGRESS` 前必须改为 `PINNED`，并让 `locked_reference` 指向仓库内非空的官方契约快照/适配说明。
 - 版本号的唯一事实源是仓库清单和锁文件，本文不维护易过期的补丁版本。
 
 ## 4. 目标架构与部署单元
@@ -268,6 +273,8 @@ opengeobot/
 ## 6. 平台公共能力统一设计
 
 ### 6.1 公共能力边界
+
+机器清单顶层 `platform_capabilities` 是公共能力唯一归属的可执行索引，`platform_capability_profiles` 是功能复用集合。每个功能必须声明一个 profile；`requires_edge_safety: true` 的功能所用 profile 必须包含 `SAFETY_ENFORCEMENT`。业务模块不能通过修改 profile 名称规避公共能力。
 
 以下能力只允许由平台公共模块提供，业务域通过公共应用接口使用：
 
@@ -1312,11 +1319,12 @@ AI 必须先：
 
 1. 检查工作区和未提交修改，保护用户已有变更。
 2. 在机器清单定位功能 ID，并读取对应页面、用例、表、状态机、权限、事件和验收项。
-3. 定位需求对应的闭环、领域所有者、公共能力和现有契约。
-4. 判定是否涉及物理动作、权限、个人数据、迁移、外部协议或破坏性变更。
-5. 列出要修改的契约、迁移、后端、事件、前端、测试、文档。
-6. 对不确定的 QwenPaw/ROSClaw/ROS/SDK API 查看仓库锁定文档或官方版本文档；禁止猜测。
-7. 若脚手架尚不存在，先完成与任务相关的最小 M0 基础，不能用临时脚本绕开规范。
+3. 同时读取该功能的 `platform_capability_profile`、`deployment_targets` 和关联 `external_contracts`；外部契约未锁定时停止该集成并先完成锁定。
+4. 定位需求对应的闭环、领域所有者、公共能力和现有契约。
+5. 判定是否涉及物理动作、权限、个人数据、迁移、外部协议或破坏性变更。
+6. 列出要修改的契约、迁移、后端、事件、前端、部署、可观测、安全报告、测试和文档。
+7. 对不确定的 QwenPaw/ROSClaw/ROS/SDK API 查看仓库锁定文档或官方版本文档；禁止猜测。
+8. 若脚手架尚不存在，先完成与任务相关的最小 M0 基础，不能用临时脚本绕开规范。
 
 ### 15.2 实施顺序
 
@@ -1331,6 +1339,8 @@ AI 必须先：
 -> 协议适配/事件
 -> 前端
 -> 单元/契约/集成/仿真/E2E
+-> 部署/升级/回滚验证
+-> 指标/日志/告警和安全扫描
 -> 运行文档与验收证据
 ```
 
@@ -1423,6 +1433,9 @@ AI 必须先：
 - 契约、数据、权限、i18n、审计和可观测性已覆盖。
 - 成功、失败、超时、取消、重试/去重和恢复路径已实现。
 - 单元、契约、集成及适用的仿真/E2E 测试通过。
+- 目标部署单元完成配置、迁移、升级、回滚和健康验证。
+- 指标、日志、Trace、告警规则和 Runbook 可在目标环境使用。
+- 测试报告、安全报告、部署证据、可观测证据和 Runbook 均为非空直接证据。
 - 没有绕过公共能力和安全链。
 - README/Runbook/ADR 已同步。
 - 本地一键启动可复现，CI 通过。
@@ -1449,7 +1462,7 @@ AI 必须先：
 | C13 | 多机调度 | 能力匹配、评分解释、资源锁、路径冲突和任务分配可验证 |
 | C14 | 故障转移 | 原执行停止/租约失效后才重分配，物理副作用不重复 |
 | C15 | 弱网/离线 | Zenoh 弱网链路、本地缓存、断点续传、重复/乱序处理和重连补偿 |
-| C16 | 多适配器 | ROS2 主路径、ROS1 兼容、Unitree Mock/受控 HIL 使用同一 Capability 契约 |
+| C16 | 多适配器 | M2 的 ROS2/仿真主路径与 M3 的 ROS1、Unitree、Custom 受控 HIL 使用同一 Capability 契约 |
 | C17 | 地图/区域 | 坐标系、地图版本、禁区、区域权限和版本变化重评估 |
 | C18 | 媒体 | 拍照/视频资产上传、摘要、权限、任务/Trace 关联和生命周期 |
 | C19 | Trace 回放 | 可回答谁、为何、选哪台、执行什么、Safety 如何判定和结果如何 |
@@ -1488,10 +1501,10 @@ AI 必须先：
 
 ### M3：多型号接入
 
-- ROS2 完整主路径、ROS1 Gateway、Unitree Adapter、Custom Adapter。
+- 在 M2 已验证 ROS2/仿真主路径的基础上，增加 ROS1 Gateway、Unitree Adapter、Custom Adapter。
 - Capability Manifest 与兼容矩阵。
 
-退出条件：C16 通过；真实设备测试有受控证据，未测试设备明确标记。
+退出条件：C16 通过；F-ADAPTER-002 有受控 HIL 证据，未测试设备明确标记。M2 的 F-SAFETY-001 和 F-ADAPTER-001 不以真实硬件 HIL 作为仿真闭环完成前提。
 
 ### M4：多机器人调度
 
@@ -1525,6 +1538,7 @@ AI 或开发者创建任务时至少回答：
 ## 所属领域与唯一数据写入者
 
 ## 是否复用平台公共能力
+- platform_capability_profile：
 - 权限码：
 - 字典：
 - i18n key：
@@ -1545,16 +1559,21 @@ AI 或开发者创建任务时至少回答：
 
 ## 实现范围
 - Backend / Agent / Edge / Frontend：
+- deployment_targets：
 
 ## 测试
 - Unit / Contract / Integration / Simulation / E2E / HIL：
 
-## 运行与回滚
+## 部署、可观测与安全证据
+- Deployment / Upgrade / Rollback：
+- Metric / Log / Trace / Alarm：
+- Security report：
+- Runbook：
 ```
 
 ## 20. 外部项目集成边界
 
-- QwenPaw 当前官方能力包含 MCP 客户端和 Agent HTTP/SSE 入口，但本平台只通过锁定版本的 Provider 集成，不能把上游内部 API 当长期平台契约。
+- QwenPaw 官方定位是基于 AgentScope Runtime 的个人助理产品，并支持以 stdio/HTTP/SSE 配置 MCP 客户端。本平台优先向 QwenPaw 暴露受控 MCP Server；如需调用其服务 API，必须先锁定版本并通过 `AgentRuntimeProvider` 契约测试，不能把上游内部 API 当长期平台契约。
 - ROSClaw 官方将 Embodiment Grounding、Sandbox/Praxis 等能力按 Stable/Experimental/Research 标注；集成时以项目锁定版本的官方文档为准。
 - Zenoh 在 ROS2 场景优先使用面向 ROS2 graph、service、action 的 ROS2DDS bridge，而不是把通用 DDS bridge 当默认。
 - ROS 2 Jazzy/Ubuntu 24.04 是本项目兼容基线；采用更新 LTS 必须验证厂商 SDK、ROSClaw、仿真和桥接后通过 ADR。
@@ -1573,7 +1592,7 @@ AI 或开发者创建任务时至少回答：
 当且仅当以下条件全部满足，AI 才能声称“一脑多控平台功能闭环完成”：
 
 1. 第 17 节全部强制闭环有证据。
-2. 机器清单中的全部适用功能为 `DONE`，每项都有规定的直接证据，且 `python scripts/validate_platform_manifest.py --require-complete` 通过；不能只手工改状态。
+2. 机器清单中的全部适用功能为 `DONE`，每项都有功能特定证据和全局强制的部署、可观测、安全报告、测试报告、Runbook 非空直接证据，且 `python scripts/validate_platform_manifest.py --require-complete` 通过；不能只手工改状态。
 3. 前端页面、后端用例、数据表、状态机、权限和事件与实施蓝图一致。
 4. 云端不能绕过边缘安全，Agent 不能直接控制底层。
 5. 公共能力没有业务侧重复实现。

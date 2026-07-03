@@ -8,11 +8,17 @@
     "schema_version",
     "baseline",
     "sources",
+    "architecture_decisions",
+    "architecture",
+    "mandatory_done_evidence",
+    "platform_capabilities",
+    "platform_capability_profiles",
+    "external_contracts",
     "features"
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "const": "1.1"
     },
     "baseline": {
       "type": "string",
@@ -20,12 +26,130 @@
     },
     "sources": {
       "type": "array",
-      "minItems": 2,
+      "minItems": 4,
       "items": {
         "type": "string",
         "minLength": 1
       },
       "uniqueItems": true
+    },
+    "architecture_decisions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^docs/adr/ADR-[0-9]{4}-.+\\.md$"
+      },
+      "uniqueItems": true
+    },
+    "architecture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cloud_backend",
+        "frontend",
+        "agent_runtime",
+        "tool_protocol",
+        "edge_runtime",
+        "ros2",
+        "ros1",
+        "constrained_network",
+        "database",
+        "object_storage",
+        "vector_database",
+        "messaging",
+        "monitoring",
+        "logging",
+        "alerting"
+      ],
+      "properties": {
+        "cloud_backend": {
+          "const": "JAVA21_SPRING_BOOT3_MYBATIS_PLUS_AND_PYTHON312"
+        },
+        "frontend": {
+          "const": "VUE3_TYPESCRIPT_VITE_PRIMARY_REACT_ADR_ONLY_WEBSOCKET"
+        },
+        "agent_runtime": {
+          "const": "QWENPAW_VIA_AGENT_RUNTIME_PROVIDER"
+        },
+        "tool_protocol": {
+          "const": "MCP_PRIMARY_HTTP_GRPC_AUXILIARY"
+        },
+        "edge_runtime": {
+          "const": "ROSCLAW_EDGE_RUNTIME"
+        },
+        "ros2": {
+          "const": "ROS2_DDS_ROSBRIDGE_ZENOH_PRIMARY"
+        },
+        "ros1": {
+          "const": "ROS1_BRIDGE_ROSBRIDGE_SUITE_CUSTOM_GATEWAY_COMPATIBILITY"
+        },
+        "constrained_network": {
+          "const": "ZENOH"
+        },
+        "database": {
+          "const": "POSTGRESQL_TIMESCALEDB_OPTIONAL"
+        },
+        "object_storage": {
+          "const": "MINIO_S3"
+        },
+        "vector_database": {
+          "const": "PGVECTOR"
+        },
+        "messaging": {
+          "const": "NATS_JETSTREAM"
+        },
+        "monitoring": {
+          "const": "VMAGENT_VICTORIAMETRICS_GRAFANA"
+        },
+        "logging": {
+          "const": "VECTOR_LOKI_POSTGRESQL_AUDIT"
+        },
+        "alerting": {
+          "const": "GRAFANA_ALERTING_OR_PLATFORM_ALARM_SERVICE"
+        }
+      }
+    },
+    "mandatory_done_evidence": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "enum": [
+          "DEPLOYMENT",
+          "OBSERVABILITY",
+          "SECURITY_REPORTS",
+          "TEST_REPORTS",
+          "RUNBOOK"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "platform_capabilities": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9_]+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/featureId"
+      }
+    },
+    "platform_capability_profiles": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9_]+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/capabilitySet"
+      }
+    },
+    "external_contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/externalContract"
+      }
     },
     "features": {
       "type": "array",
@@ -36,6 +160,19 @@
     }
   },
   "$defs": {
+    "featureId": {
+      "type": "string",
+      "pattern": "^F-[A-Z]+-[0-9]{3}$"
+    },
+    "capabilitySet": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]+$"
+      },
+      "uniqueItems": true
+    },
     "stringSet": {
       "type": "array",
       "items": {
@@ -68,6 +205,64 @@
       },
       "uniqueItems": true
     },
+    "externalContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "official_source",
+        "pin_status",
+        "required_by"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^EXT-[A-Z0-9-]+$"
+        },
+        "official_source": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "pin_status": {
+          "enum": [
+            "UNPINNED",
+            "PINNED"
+          ]
+        },
+        "required_by": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/featureId"
+          },
+          "uniqueItems": true
+        },
+        "locked_reference": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "pin_status": {
+                "const": "PINNED"
+              }
+            },
+            "required": [
+              "pin_status"
+            ]
+          },
+          "then": {
+            "required": [
+              "locked_reference"
+            ]
+          }
+        }
+      ]
+    },
     "feature": {
       "type": "object",
       "additionalProperties": false,
@@ -77,6 +272,8 @@
         "phase",
         "implementation_status",
         "source_sections",
+        "platform_capability_profile",
+        "deployment_targets",
         "frontend",
         "backend",
         "data",
@@ -116,6 +313,28 @@
         },
         "source_sections": {
           "$ref": "#/$defs/stringSet"
+        },
+        "platform_capability_profile": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        },
+        "deployment_targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "BUILD",
+              "INFRA",
+              "CLOUD_JAVA",
+              "AGENT_PYTHON",
+              "WEB",
+              "EDGE",
+              "SIM",
+              "OBSERVABILITY",
+              "KUBERNETES"
+            ]
+          },
+          "uniqueItems": true
         },
         "frontend": {
           "type": "object",
@@ -279,6 +498,9 @@
                   "BACKEND",
                   "FRONTEND",
                   "EVENTS",
+                  "DEPLOYMENT",
+                  "OBSERVABILITY",
+                  "SECURITY_REPORTS",
                   "TEST_REPORTS",
                   "RUNBOOK",
                   "HIL_REPORT"
@@ -305,6 +527,15 @@
               "$ref": "#/$defs/stringSet"
             },
             "events": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "deployment": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "observability": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "security_reports": {
               "$ref": "#/$defs/stringSet"
             },
             "test_reports": {

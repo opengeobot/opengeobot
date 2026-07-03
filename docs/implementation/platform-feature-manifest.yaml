@@ -1,9 +1,85 @@
-schema_version: "1.0"
+schema_version: "1.1"
 baseline: "2026-07-03"
 sources:
   - "docs/AI开发约束与平台公共能力规范 V1.0.md"
   - "docs/平台功能与数据状态统一实施蓝图 V1.0.md"
   - "docs/一脑多控平台详细设计说明书 V1.0.pdf"
+  - "docs/adr/ADR-0001-统一技术基线与前端主栈.md"
+
+architecture_decisions:
+  - "docs/adr/ADR-0001-统一技术基线与前端主栈.md"
+
+architecture:
+  cloud_backend: JAVA21_SPRING_BOOT3_MYBATIS_PLUS_AND_PYTHON312
+  frontend: VUE3_TYPESCRIPT_VITE_PRIMARY_REACT_ADR_ONLY_WEBSOCKET
+  agent_runtime: QWENPAW_VIA_AGENT_RUNTIME_PROVIDER
+  tool_protocol: MCP_PRIMARY_HTTP_GRPC_AUXILIARY
+  edge_runtime: ROSCLAW_EDGE_RUNTIME
+  ros2: ROS2_DDS_ROSBRIDGE_ZENOH_PRIMARY
+  ros1: ROS1_BRIDGE_ROSBRIDGE_SUITE_CUSTOM_GATEWAY_COMPATIBILITY
+  constrained_network: ZENOH
+  database: POSTGRESQL_TIMESCALEDB_OPTIONAL
+  object_storage: MINIO_S3
+  vector_database: PGVECTOR
+  messaging: NATS_JETSTREAM
+  monitoring: VMAGENT_VICTORIAMETRICS_GRAFANA
+  logging: VECTOR_LOKI_POSTGRESQL_AUDIT
+  alerting: GRAFANA_ALERTING_OR_PLATFORM_ALARM_SERVICE
+
+mandatory_done_evidence: [DEPLOYMENT, OBSERVABILITY, SECURITY_REPORTS, TEST_REPORTS, RUNBOOK]
+
+platform_capabilities:
+  CONTRACT_GOVERNANCE: F-ENGINEERING-001
+  ERROR_MODEL: F-ENGINEERING-001
+  EVENT_ENVELOPE: F-ENGINEERING-001
+  OBSERVABILITY: F-ENGINEERING-001
+  TIME_ID: F-ENGINEERING-001
+  TRACE_CONTEXT: F-ENGINEERING-001
+  IDENTITY: F-PLATFORM-001
+  AUTHORIZATION: F-PLATFORM-002
+  DATA_SCOPE: F-PLATFORM-002
+  DICTIONARY: F-PLATFORM-003
+  I18N: F-PLATFORM-003
+  CONFIGURATION: F-PLATFORM-004
+  AUDIT: F-PLATFORM-004
+  IDEMPOTENCY: F-PLATFORM-004
+  OBJECT_METADATA: F-MEDIA-001
+  SAFETY_ENFORCEMENT: F-SAFETY-001
+  OPERATIONS_GOVERNANCE: F-OPS-001
+
+platform_capability_profiles:
+  ENGINEERING_CORE: [CONTRACT_GOVERNANCE, ERROR_MODEL, EVENT_ENVELOPE, OBSERVABILITY, TIME_ID, TRACE_CONTEXT]
+  PLATFORM_PROVIDER: [CONTRACT_GOVERNANCE, ERROR_MODEL, EVENT_ENVELOPE, OBSERVABILITY, TIME_ID, TRACE_CONTEXT, IDENTITY, AUTHORIZATION, DATA_SCOPE, DICTIONARY, I18N, CONFIGURATION, AUDIT, IDEMPOTENCY]
+  BUSINESS_STANDARD: [CONTRACT_GOVERNANCE, ERROR_MODEL, EVENT_ENVELOPE, OBSERVABILITY, TIME_ID, TRACE_CONTEXT, IDENTITY, AUTHORIZATION, DATA_SCOPE, DICTIONARY, I18N, CONFIGURATION, AUDIT, IDEMPOTENCY, OBJECT_METADATA]
+  PHYSICAL_EXECUTION: [CONTRACT_GOVERNANCE, ERROR_MODEL, EVENT_ENVELOPE, OBSERVABILITY, TIME_ID, TRACE_CONTEXT, IDENTITY, AUTHORIZATION, DATA_SCOPE, DICTIONARY, I18N, CONFIGURATION, AUDIT, IDEMPOTENCY, OBJECT_METADATA, SAFETY_ENFORCEMENT]
+  OPERATIONS: [CONTRACT_GOVERNANCE, ERROR_MODEL, EVENT_ENVELOPE, OBSERVABILITY, TIME_ID, TRACE_CONTEXT, IDENTITY, AUTHORIZATION, DATA_SCOPE, DICTIONARY, I18N, CONFIGURATION, AUDIT, IDEMPOTENCY, OBJECT_METADATA, OPERATIONS_GOVERNANCE]
+  PHYSICAL_OPERATIONS: [CONTRACT_GOVERNANCE, ERROR_MODEL, EVENT_ENVELOPE, OBSERVABILITY, TIME_ID, TRACE_CONTEXT, IDENTITY, AUTHORIZATION, DATA_SCOPE, DICTIONARY, I18N, CONFIGURATION, AUDIT, IDEMPOTENCY, OBJECT_METADATA, SAFETY_ENFORCEMENT, OPERATIONS_GOVERNANCE]
+
+external_contracts:
+  - id: EXT-QWENPAW
+    official_source: "https://qwenpaw.agentscope.io/docs/"
+    pin_status: UNPINNED
+    required_by: [F-MCP-001, F-MISSION-001]
+  - id: EXT-ROSCLAW
+    official_source: "https://www.rosclaw.io/runtime"
+    pin_status: UNPINNED
+    required_by: [F-EDGE-002, F-ADAPTER-001]
+  - id: EXT-ROS2-JAZZY
+    official_source: "https://docs.ros.org/en/jazzy/"
+    pin_status: UNPINNED
+    required_by: [F-EDGE-002, F-ADAPTER-001]
+  - id: EXT-ZENOH-ROS2DDS
+    official_source: "https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds"
+    pin_status: UNPINNED
+    required_by: [F-EDGE-002, F-ADAPTER-001]
+  - id: EXT-ROS1-BRIDGE
+    official_source: "https://github.com/ros2/ros1_bridge"
+    pin_status: UNPINNED
+    required_by: [F-ADAPTER-002]
+  - id: EXT-UNITREE-SDK
+    official_source: "https://github.com/unitreerobotics/unitree_sdk2"
+    pin_status: UNPINNED
+    required_by: [F-ADAPTER-002]
 
 features:
   - id: F-ENGINEERING-001
@@ -11,6 +87,8 @@ features:
     phase: M0
     implementation_status: NOT_STARTED
     source_sections: ["AI规范 5/13/16/18", "实施蓝图 11/12"]
+    platform_capability_profile: ENGINEERING_CORE
+    deployment_targets: [BUILD]
     frontend:
       page_ids: []
       required_view_states: []
@@ -38,6 +116,8 @@ features:
     phase: M0
     implementation_status: NOT_STARTED
     source_sections: ["PDF 13", "AI规范 13/18", "实施蓝图 12"]
+    platform_capability_profile: ENGINEERING_CORE
+    deployment_targets: [INFRA, OBSERVABILITY, KUBERNETES]
     frontend:
       page_ids: []
       required_view_states: []
@@ -65,6 +145,8 @@ features:
     phase: M1
     implementation_status: NOT_STARTED
     source_sections: ["PDF 12.1", "AI规范 6.2", "实施蓝图 3.1/5.2/7.1"]
+    platform_capability_profile: PLATFORM_PROVIDER
+    deployment_targets: [CLOUD_JAVA, WEB]
     frontend:
       page_ids: [P-AUTH-001, P-AUTH-002]
       required_view_states: [INITIAL, LOADING, READY, FORBIDDEN, ERROR]
@@ -92,6 +174,8 @@ features:
     phase: M1
     implementation_status: NOT_STARTED
     source_sections: ["PDF 10.1/12.1", "AI规范 6.2", "实施蓝图 3.9/5.2"]
+    platform_capability_profile: PLATFORM_PROVIDER
+    deployment_targets: [CLOUD_JAVA, WEB]
     frontend:
       page_ids: [P-SYS-USER, P-SYS-ORG, P-SYS-ROLE, P-SYS-PERM]
       required_view_states: [LOADING, READY, EMPTY, FORBIDDEN, ERROR]
@@ -119,6 +203,8 @@ features:
     phase: M1
     implementation_status: NOT_STARTED
     source_sections: ["AI规范 6.3/6.4", "实施蓝图 3.9/5.2"]
+    platform_capability_profile: PLATFORM_PROVIDER
+    deployment_targets: [CLOUD_JAVA, WEB]
     frontend:
       page_ids: [P-SYS-DICT, P-SYS-I18N]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
@@ -146,6 +232,8 @@ features:
     phase: M1
     implementation_status: NOT_STARTED
     source_sections: ["AI规范 6.5/6.6", "实施蓝图 3.9/5.2"]
+    platform_capability_profile: PLATFORM_PROVIDER
+    deployment_targets: [CLOUD_JAVA, WEB]
     frontend:
       page_ids: [P-SYS-CONFIG, P-SYS-AUDIT]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
@@ -173,6 +261,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 6.1/9.1/11.1", "AI规范 7.1/8.1", "实施蓝图 3.2/5.3/7.2"]
+    platform_capability_profile: BUSINESS_STANDARD
+    deployment_targets: [CLOUD_JAVA, EDGE, WEB]
     frontend:
       page_ids: [P-EDGE-001, P-EDGE-002]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
@@ -200,6 +290,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.5/7/9.1/10.2", "AI规范 7.1", "实施蓝图 3.2/5.3/6.4"]
+    platform_capability_profile: BUSINESS_STANDARD
+    deployment_targets: [CLOUD_JAVA, WEB]
     frontend:
       page_ids: [P-ROBOT-001, P-ROBOT-002]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, OFFLINE, FORBIDDEN, ERROR]
@@ -227,6 +319,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.5/7.2", "AI规范 7.1", "实施蓝图 3.2/5.3"]
+    platform_capability_profile: BUSINESS_STANDARD
+    deployment_targets: [CLOUD_JAVA, WEB]
     frontend:
       page_ids: [P-ROBOT-003, P-ROBOT-004, P-ROBOT-002]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
@@ -254,6 +348,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.6/7", "AI规范 7.2", "实施蓝图 3.4/5.4/6.8"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, EDGE, WEB]
     frontend:
       page_ids: [P-CAP-001, P-SKILL-001, P-SKILL-002]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
@@ -281,6 +377,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.7", "AI规范 7.7", "实施蓝图 3.4/5.4/9.4"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, AGENT_PYTHON, WEB]
     frontend:
       page_ids: [P-MCP-001]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
@@ -308,6 +406,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.2/5.3/9.2/11.2", "AI规范 7.3/7.4", "实施蓝图 3.3/5.5/7.3"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, AGENT_PYTHON, WEB]
     frontend:
       page_ids: [P-MISSION-001, P-MISSION-002, P-MISSION-003]
       required_view_states: [INITIAL, LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
@@ -335,6 +435,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.1/5.3/5.8/12.2", "AI规范 7.4/7.6", "实施蓝图 3.3/5.5/5.7/7.4"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, WEB]
     frontend:
       page_ids: [P-MISSION-004, P-MISSION-005]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
@@ -362,6 +464,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.3/6.7/9", "AI规范 7.4/8.3", "实施蓝图 3.3/5.5/7.5-7.8"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, WEB]
     frontend:
       page_ids: [P-MISSION-003]
       required_view_states: [LOADING, READY, PARTIAL, STALE, OFFLINE, FORBIDDEN, ERROR]
@@ -389,6 +493,8 @@ features:
     phase: M4
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.4/14", "AI规范 7.5", "实施蓝图 3.3/5.6/7.5/7.10"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, WEB]
     frontend:
       page_ids: [P-MISSION-006]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
@@ -416,6 +522,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.8/12", "AI规范 7.6", "实施蓝图 5.7/6.9"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, EDGE, WEB]
     frontend:
       page_ids: [P-MISSION-005, P-SYS-CONFIG]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
@@ -443,6 +551,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 3/6.3/9.3/12", "AI规范 8.2/11", "实施蓝图 5.7/6.4/7.8"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, EDGE, SIM, WEB]
     frontend:
       page_ids: [P-MON-001, P-MON-002, P-CONTROL-001, P-MISSION-003]
       required_view_states: [LOADING, READY, PARTIAL, STALE, OFFLINE, FORBIDDEN, ERROR]
@@ -462,14 +572,16 @@ features:
     observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
     verification:
       acceptance_ids: [C10, C11, C24]
-      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY, HIL]
-      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK, HIL_REPORT]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
 
   - id: F-EDGE-002
     name: 本地执行离线缓存与重连对账
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 3.3/6/8/9", "AI规范 8/10.5", "实施蓝图 5.8/6.11/7.9"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, EDGE, SIM, WEB]
     frontend:
       page_ids: [P-MON-002, P-MISSION-003]
       required_view_states: [LOADING, READY, PARTIAL, STALE, OFFLINE, ERROR]
@@ -493,15 +605,46 @@ features:
       done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
 
   - id: F-ADAPTER-001
-    name: ROS2 ROS1 Unitree 与仿真适配
-    phase: M3
+    name: ROS2 仿真与主路径适配
+    phase: M2
     implementation_status: NOT_STARTED
-    source_sections: ["PDF 6.4-6.6/7.2/8", "AI规范 8.4", "实施蓝图 5.8"]
+    source_sections: ["PDF 6.4/7.2/8", "AI规范 8.4/18", "实施蓝图 5.8/11.3"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [EDGE, SIM, WEB]
     frontend:
       page_ids: [P-ROBOT-002, P-ROBOT-003, P-EDGE-002]
       required_view_states: [LOADING, READY, PARTIAL, STALE, OFFLINE, ERROR]
     backend:
-      modules: [adapter-ros2, adapter-ros1, adapter-unitree, adapter-simulation]
+      modules: [adapter-ros2, adapter-simulation]
+      use_case_ids: [UC-EXEC-001, UC-EXEC-002, UC-EXEC-005, UC-EXEC-006]
+    data:
+      owner_schemas: [robot_registry]
+      tables: [robot_model, robot_capability_binding, adapter_compatibility]
+      state_machine_ids: [SM-EXEC-001]
+    security:
+      risk_level: R2_BOUNDED_MOTION
+      permission_codes: [robot.model.manage, edge.adapter.manage]
+      requires_edge_safety: true
+    contracts: [schema:capability-port, schema:adapter-compatibility, ros2:capability-actions, schema:simulation-parity]
+    events: [adapter.health_changed.v1, execution.started.v1, execution.failed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C09, C16, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-ADAPTER-002
+    name: ROS1 Unitree 与自研协议兼容适配
+    phase: M3
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 6.5-6.6/7.2/8", "AI规范 8.4/18", "实施蓝图 5.8/11"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [EDGE, WEB]
+    frontend:
+      page_ids: [P-ROBOT-002, P-ROBOT-003, P-EDGE-002]
+      required_view_states: [LOADING, READY, PARTIAL, STALE, OFFLINE, ERROR]
+    backend:
+      modules: [adapter-ros1, adapter-unitree, adapter-custom]
       use_case_ids: [UC-EXEC-001, UC-EXEC-002, UC-EXEC-005, UC-EXEC-006]
     data:
       owner_schemas: [robot_registry]
@@ -511,12 +654,12 @@ features:
       risk_level: R3_HIGH_RISK
       permission_codes: [robot.model.manage, edge.adapter.manage]
       requires_edge_safety: true
-    contracts: [schema:capability-port, schema:adapter-compatibility, ros2:capability-actions]
+    contracts: [schema:capability-port, schema:adapter-compatibility, schema:vendor-adapter-envelope]
     events: [adapter.health_changed.v1, execution.started.v1, execution.failed.v1]
     observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
     verification:
       acceptance_ids: [C16, C24]
-      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, HIL]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY, HIL]
       done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK, HIL_REPORT]
 
   - id: F-MAP-001
@@ -524,6 +667,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 2/5.1", "AI规范 7.9", "实施蓝图 3.5"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, WEB]
     frontend:
       page_ids: [P-MAP-001, P-MAP-002, P-SCENE-001, P-SCENE-002]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
@@ -551,6 +696,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.1/9", "AI规范 10.4/11.2", "实施蓝图 3.6/6.12"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, EDGE, WEB]
     frontend:
       page_ids: [P-MON-001, P-MON-002, P-CONTROL-001]
       required_view_states: [INITIAL, LOADING, READY, PARTIAL, STALE, OFFLINE, FORBIDDEN, ERROR]
@@ -578,6 +725,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.1/8/10", "AI规范 7.9/9.5", "实施蓝图 3.6/5.9/6.14"]
+    platform_capability_profile: BUSINESS_STANDARD
+    deployment_targets: [CLOUD_JAVA, EDGE, WEB]
     frontend:
       page_ids: [P-MEDIA-001, P-MISSION-003, P-ROBOT-002]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
@@ -605,6 +754,8 @@ features:
     phase: M2
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.10/9", "AI规范 7.8", "实施蓝图 3.6/5.9/6.16"]
+    platform_capability_profile: BUSINESS_STANDARD
+    deployment_targets: [CLOUD_JAVA, EDGE, WEB]
     frontend:
       page_ids: [P-TRACE-001, P-MISSION-003]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
@@ -632,6 +783,8 @@ features:
     phase: M6
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.9/14", "AI规范 7.8/9.4", "实施蓝图 3.8/5.9/6.16/7.11"]
+    platform_capability_profile: PHYSICAL_EXECUTION
+    deployment_targets: [CLOUD_JAVA, AGENT_PYTHON, WEB]
     frontend:
       page_ids: [P-MEM-001, P-FAIL-001, P-IMPROVE-001]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
@@ -659,6 +812,8 @@ features:
     phase: M5
     implementation_status: NOT_STARTED
     source_sections: ["PDF 5.1/10/13", "AI规范 7.9/12.4", "实施蓝图 3.7/5.9/6.13"]
+    platform_capability_profile: BUSINESS_STANDARD
+    deployment_targets: [CLOUD_JAVA, EDGE, WEB, OBSERVABILITY]
     frontend:
       page_ids: [P-ALARM-001]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
@@ -686,6 +841,8 @@ features:
     phase: M5
     implementation_status: NOT_STARTED
     source_sections: ["PDF 13", "AI规范 12", "实施蓝图 3.7"]
+    platform_capability_profile: OPERATIONS
+    deployment_targets: [CLOUD_JAVA, EDGE, WEB, OBSERVABILITY]
     frontend:
       page_ids: [P-OPS-001, P-DASH-001]
       required_view_states: [LOADING, READY, PARTIAL, STALE, FORBIDDEN, ERROR]
@@ -713,6 +870,8 @@ features:
     phase: M5
     implementation_status: NOT_STARTED
     source_sections: ["PDF 2/13", "AI规范 7.9", "实施蓝图 3.7/5.9/6.15"]
+    platform_capability_profile: PHYSICAL_OPERATIONS
+    deployment_targets: [CLOUD_JAVA, EDGE, WEB, KUBERNETES]
     frontend:
       page_ids: [P-OTA-001]
       required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
@@ -740,6 +899,8 @@ features:
     phase: M5
     implementation_status: NOT_STARTED
     source_sections: ["AI规范 11.6/16/17", "实施蓝图 8/12"]
+    platform_capability_profile: OPERATIONS
+    deployment_targets: [INFRA, KUBERNETES]
     frontend:
       page_ids: [P-OPS-001]
       required_view_states: [LOADING, READY, PARTIAL, FORBIDDEN, ERROR]
