@@ -1,0 +1,364 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opengeobot.io/schemas/platform-feature-manifest.schema.json",
+  "title": "OpenGeoBot platform feature manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "baseline",
+    "sources",
+    "features"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "baseline": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/feature"
+      }
+    }
+  },
+  "$defs": {
+    "stringSet": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "pageIdSet": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^P-[A-Z]+-[A-Z0-9]+$"
+      },
+      "uniqueItems": true
+    },
+    "useCaseIdSet": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^UC-[A-Z]+-[A-Z0-9-]+$"
+      },
+      "uniqueItems": true
+    },
+    "stateMachineIdSet": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^SM-[A-Z]+-[A-Z0-9-]+$"
+      },
+      "uniqueItems": true
+    },
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "phase",
+        "implementation_status",
+        "source_sections",
+        "frontend",
+        "backend",
+        "data",
+        "security",
+        "contracts",
+        "events",
+        "observability",
+        "verification"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^F-[A-Z]+-[0-9]{3}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2
+        },
+        "phase": {
+          "enum": [
+            "M0",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6"
+          ]
+        },
+        "implementation_status": {
+          "enum": [
+            "NOT_STARTED",
+            "IN_PROGRESS",
+            "DONE",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "source_sections": {
+          "$ref": "#/$defs/stringSet"
+        },
+        "frontend": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "page_ids",
+            "required_view_states"
+          ],
+          "properties": {
+            "page_ids": {
+              "$ref": "#/$defs/pageIdSet"
+            },
+            "required_view_states": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "INITIAL",
+                  "LOADING",
+                  "READY",
+                  "EMPTY",
+                  "PARTIAL",
+                  "STALE",
+                  "OFFLINE",
+                  "FORBIDDEN",
+                  "ERROR"
+                ]
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "backend": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "modules",
+            "use_case_ids"
+          ],
+          "properties": {
+            "modules": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "use_case_ids": {
+              "$ref": "#/$defs/useCaseIdSet"
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "owner_schemas",
+            "tables",
+            "state_machine_ids"
+          ],
+          "properties": {
+            "owner_schemas": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "tables": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "state_machine_ids": {
+              "$ref": "#/$defs/stateMachineIdSet"
+            }
+          }
+        },
+        "security": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "risk_level",
+            "permission_codes",
+            "requires_edge_safety"
+          ],
+          "properties": {
+            "risk_level": {
+              "enum": [
+                "R0_READ_ONLY",
+                "R1_NON_MOTION",
+                "R2_BOUNDED_MOTION",
+                "R3_HIGH_RISK"
+              ]
+            },
+            "permission_codes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+              },
+              "uniqueItems": true
+            },
+            "requires_edge_safety": {
+              "type": "boolean"
+            }
+          }
+        },
+        "contracts": {
+          "$ref": "#/$defs/stringSet"
+        },
+        "events": {
+          "$ref": "#/$defs/stringSet"
+        },
+        "observability": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "AUDIT",
+              "TRACE",
+              "LOG",
+              "METRIC",
+              "ALARM"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "acceptance_ids",
+            "required_tests",
+            "done_evidence"
+          ],
+          "properties": {
+            "acceptance_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^C(0[1-9]|1[0-9]|2[0-4])$"
+              },
+              "uniqueItems": true
+            },
+            "required_tests": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "enum": [
+                  "UNIT",
+                  "CONTRACT",
+                  "INTEGRATION",
+                  "COMPONENT",
+                  "E2E",
+                  "SIMULATION",
+                  "SECURITY",
+                  "RECOVERY",
+                  "HIL"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "done_evidence": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "enum": [
+                  "CONTRACTS",
+                  "MIGRATIONS",
+                  "BACKEND",
+                  "FRONTEND",
+                  "EVENTS",
+                  "TEST_REPORTS",
+                  "RUNBOOK",
+                  "HIL_REPORT"
+                ]
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contracts": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "migrations": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "backend": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "frontend": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "events": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "test_reports": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "runbook": {
+              "$ref": "#/$defs/stringSet"
+            },
+            "hil_report": {
+              "$ref": "#/$defs/stringSet"
+            }
+          }
+        },
+        "not_applicable_reason": {
+          "type": "string",
+          "minLength": 10
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "implementation_status": {
+                "const": "DONE"
+              }
+            },
+            "required": [
+              "implementation_status"
+            ]
+          },
+          "then": {
+            "required": [
+              "evidence"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "implementation_status": {
+                "const": "NOT_APPLICABLE"
+              }
+            },
+            "required": [
+              "implementation_status"
+            ]
+          },
+          "then": {
+            "required": [
+              "not_applicable_reason"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

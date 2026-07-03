@@ -1,0 +1,763 @@
+schema_version: "1.0"
+baseline: "2026-07-03"
+sources:
+  - "docs/AI开发约束与平台公共能力规范 V1.0.md"
+  - "docs/平台功能与数据状态统一实施蓝图 V1.0.md"
+  - "docs/一脑多控平台详细设计说明书 V1.0.pdf"
+
+features:
+  - id: F-ENGINEERING-001
+    name: 工程脚手架与统一开发命令
+    phase: M0
+    implementation_status: NOT_STARTED
+    source_sections: ["AI规范 5/13/16/18", "实施蓝图 11/12"]
+    frontend:
+      page_ids: []
+      required_view_states: []
+    backend:
+      modules: [build-platform, contract-tooling, ci]
+      use_case_ids: [UC-ENGINEERING-BOOTSTRAP, UC-ENGINEERING-TEST]
+    data:
+      owner_schemas: []
+      tables: []
+      state_machine_ids: []
+    security:
+      risk_level: R0_READ_ONLY
+      permission_codes: []
+      requires_edge_safety: false
+    contracts: [repository-layout, dev-script-contract, ci-gates]
+    events: []
+    observability: [LOG, METRIC]
+    verification:
+      acceptance_ids: [C23, C24]
+      required_tests: [CONTRACT, INTEGRATION, E2E, SECURITY]
+      done_evidence: [CONTRACTS, BACKEND, FRONTEND, TEST_REPORTS, RUNBOOK]
+
+  - id: F-DEPLOY-001
+    name: Compose 与 Kubernetes 部署
+    phase: M0
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 13", "AI规范 13/18", "实施蓝图 12"]
+    frontend:
+      page_ids: []
+      required_view_states: []
+    backend:
+      modules: [deploy-compose, deploy-kubernetes]
+      use_case_ids: [UC-DEPLOY-START, UC-DEPLOY-HEALTH]
+    data:
+      owner_schemas: []
+      tables: []
+      state_machine_ids: [SM-SERVICE-HEALTH]
+    security:
+      risk_level: R0_READ_ONLY
+      permission_codes: []
+      requires_edge_safety: false
+    contracts: [compose-profiles, health-contract, configuration-contract]
+    events: [service.health_changed.v1]
+    observability: [LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C23, C24]
+      required_tests: [INTEGRATION, E2E, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, BACKEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-PLATFORM-001
+    name: 认证与会话
+    phase: M1
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 12.1", "AI规范 6.2", "实施蓝图 3.1/5.2/7.1"]
+    frontend:
+      page_ids: [P-AUTH-001, P-AUTH-002]
+      required_view_states: [INITIAL, LOADING, READY, FORBIDDEN, ERROR]
+    backend:
+      modules: [platform-iam]
+      use_case_ids: [UC-IAM-001, UC-IAM-002]
+    data:
+      owner_schemas: [platform_iam]
+      tables: [sys_user, sys_refresh_token, sys_session]
+      state_machine_ids: [SM-IAM-001]
+    security:
+      risk_level: R1_NON_MOTION
+      permission_codes: [platform.profile.read, platform.profile.manage]
+      requires_edge_safety: false
+    contracts: [openapi:auth-sessions, openapi:me]
+    events: [user.logged_in.v1, session.refreshed.v1, session.revoked.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C01, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-PLATFORM-002
+    name: 用户组织角色权限
+    phase: M1
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 10.1/12.1", "AI规范 6.2", "实施蓝图 3.9/5.2"]
+    frontend:
+      page_ids: [P-SYS-USER, P-SYS-ORG, P-SYS-ROLE, P-SYS-PERM]
+      required_view_states: [LOADING, READY, EMPTY, FORBIDDEN, ERROR]
+    backend:
+      modules: [platform-iam]
+      use_case_ids: [UC-IAM-003, UC-IAM-004, UC-IAM-005, UC-IAM-006, UC-IAM-007]
+    data:
+      owner_schemas: [platform_iam]
+      tables: [sys_user, sys_org, sys_user_org, sys_role, sys_permission, sys_user_role, sys_role_permission]
+      state_machine_ids: [SM-IAM-001]
+    security:
+      risk_level: R1_NON_MOTION
+      permission_codes: [platform.user.read, platform.user.manage, platform.org.manage, platform.role.read, platform.role.manage, platform.permission.read]
+      requires_edge_safety: false
+    contracts: [openapi:users, openapi:organizations, openapi:roles, openapi:permissions]
+    events: [user.created.v1, user.status_changed.v1, user.roles_changed.v1, role.changed.v1, authorization.changed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C01, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-PLATFORM-003
+    name: 数据字典与国际化
+    phase: M1
+    implementation_status: NOT_STARTED
+    source_sections: ["AI规范 6.3/6.4", "实施蓝图 3.9/5.2"]
+    frontend:
+      page_ids: [P-SYS-DICT, P-SYS-I18N]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
+    backend:
+      modules: [platform-governance]
+      use_case_ids: [UC-GOV-001, UC-GOV-002]
+    data:
+      owner_schemas: [platform_governance]
+      tables: [sys_dict_type, sys_dict_item, sys_i18n_resource]
+      state_machine_ids: [SM-VERSIONED-CONFIG]
+    security:
+      risk_level: R1_NON_MOTION
+      permission_codes: [platform.dictionary.read, platform.dictionary.manage, platform.i18n.read, platform.i18n.manage]
+      requires_edge_safety: false
+    contracts: [openapi:dictionaries, openapi:i18n-resources]
+    events: [platform.dictionary.changed.v1, platform.i18n.changed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC]
+    verification:
+      acceptance_ids: [C02]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS]
+
+  - id: F-PLATFORM-004
+    name: 配置审计幂等与导出
+    phase: M1
+    implementation_status: NOT_STARTED
+    source_sections: ["AI规范 6.5/6.6", "实施蓝图 3.9/5.2"]
+    frontend:
+      page_ids: [P-SYS-CONFIG, P-SYS-AUDIT]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
+    backend:
+      modules: [platform-governance, platform-common]
+      use_case_ids: [UC-GOV-003, UC-GOV-004, UC-GOV-005]
+    data:
+      owner_schemas: [platform_governance]
+      tables: [sys_config, sys_operation_audit, sys_idempotency_record, export_operation]
+      state_machine_ids: [SM-VERSIONED-CONFIG, SM-ASYNC-OPERATION]
+    security:
+      risk_level: R1_NON_MOTION
+      permission_codes: [platform.config.read, platform.config.manage, audit.audit.read, audit.audit.export]
+      requires_edge_safety: false
+    contracts: [openapi:configurations, openapi:audits, openapi:exports]
+    events: [platform.config.changed.v1, export.requested.v1, export.completed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C01, C19, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-EDGE-001
+    name: 边缘网关身份连接与证书
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 6.1/9.1/11.1", "AI规范 7.1/8.1", "实施蓝图 3.2/5.3/7.2"]
+    frontend:
+      page_ids: [P-EDGE-001, P-EDGE-002]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
+    backend:
+      modules: [robot-registry, edge-gateway]
+      use_case_ids: [UC-EDGE-001, UC-EDGE-002, UC-EDGE-003, UC-EDGE-004]
+    data:
+      owner_schemas: [robot_registry]
+      tables: [edge_gateway, edge_gateway_certificate, edge_gateway_state_event]
+      state_machine_ids: [SM-EDGE-001, SM-EDGE-002, SM-EDGE-003]
+    security:
+      risk_level: R1_NON_MOTION
+      permission_codes: [edge.gateway.read, edge.gateway.manage, edge.gateway.certificate.rotate]
+      requires_edge_safety: false
+    contracts: [openapi:edge-gateways, grpc:edge-registration, asyncapi:edge-heartbeat]
+    events: [edge_gateway.registered.v1, edge_gateway.activation_changed.v1, edge_gateway.heartbeat_received.v1, edge_gateway.certificate_rotated.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C03, C15, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-ROBOT-001
+    name: 机器人注册能力与多维状态
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.5/7/9.1/10.2", "AI规范 7.1", "实施蓝图 3.2/5.3/6.4"]
+    frontend:
+      page_ids: [P-ROBOT-001, P-ROBOT-002]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, OFFLINE, FORBIDDEN, ERROR]
+    backend:
+      modules: [robot-registry]
+      use_case_ids: [UC-ROBOT-001, UC-ROBOT-002, UC-ROBOT-003, UC-ROBOT-007]
+    data:
+      owner_schemas: [robot_registry]
+      tables: [robot, robot_capability, robot_capability_binding, robot_sensor, robot_runtime_projection, robot_state_event]
+      state_machine_ids: [SM-ROBOT-001, SM-ROBOT-002, SM-ROBOT-003, SM-ROBOT-004]
+    security:
+      risk_level: R1_NON_MOTION
+      permission_codes: [robot.robot.read, robot.robot.register]
+      requires_edge_safety: false
+    contracts: [openapi:robots, schema:capability-manifest, asyncapi:robot-status]
+    events: [robot.registered.v1, robot.manifest_changed.v1, robot.status_changed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C04]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS]
+
+  - id: F-ROBOT-002
+    name: 型号分组绑定维护与诊断
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.5/7.2", "AI规范 7.1", "实施蓝图 3.2/5.3"]
+    frontend:
+      page_ids: [P-ROBOT-003, P-ROBOT-004, P-ROBOT-002]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
+    backend:
+      modules: [robot-registry]
+      use_case_ids: [UC-ROBOT-004, UC-ROBOT-005, UC-ROBOT-006, UC-ROBOT-008]
+    data:
+      owner_schemas: [robot_registry]
+      tables: [robot_model, robot_group, robot_binding, robot_diagnostic_run]
+      state_machine_ids: [SM-ROBOT-003, SM-ASYNC-OPERATION]
+    security:
+      risk_level: R1_NON_MOTION
+      permission_codes: [robot.model.read, robot.model.manage, robot.group.manage, robot.robot.maintain, robot.robot.diagnose]
+      requires_edge_safety: false
+    contracts: [openapi:robot-models, openapi:robot-groups, openapi:robot-diagnostics]
+    events: [robot.binding_changed.v1, robot.maintenance_started.v1, robot.maintenance_completed.v1, robot.diagnostic_completed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C04, C16]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-SKILL-001
+    name: Capability 与 Skill 生命周期
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.6/7", "AI规范 7.2", "实施蓝图 3.4/5.4/6.8"]
+    frontend:
+      page_ids: [P-CAP-001, P-SKILL-001, P-SKILL-002]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
+    backend:
+      modules: [skill-registry]
+      use_case_ids: [UC-CAP-001, UC-SKILL-001, UC-SKILL-002, UC-SKILL-003, UC-SKILL-004, UC-SKILL-005, UC-SKILL-006]
+    data:
+      owner_schemas: [skill_registry]
+      tables: [capability, skill, skill_version, skill_capability_mapping, skill_validation_run]
+      state_machine_ids: [SM-SKILL-001]
+    security:
+      risk_level: R2_BOUNDED_MOTION
+      permission_codes: [skill.capability.read, skill.capability.manage, skill.skill.read, skill.skill.manage, skill.skill.publish]
+      requires_edge_safety: true
+    contracts: [openapi:capabilities, openapi:skills, schema:skill-definition]
+    events: [capability.registered.v1, skill_version.created.v1, skill_version.validated.v1, skill_version.published.v1, skill_version.retired.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C05, C10, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-MCP-001
+    name: MCP Tool 注册灰度与调用
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.7", "AI规范 7.7", "实施蓝图 3.4/5.4/9.4"]
+    frontend:
+      page_ids: [P-MCP-001]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
+    backend:
+      modules: [skill-registry, mcp-tool-gateway]
+      use_case_ids: [UC-MCP-001, UC-MCP-002, UC-MCP-003]
+    data:
+      owner_schemas: [skill_registry]
+      tables: [mcp_tool, mcp_tool_version, mcp_tool_call]
+      state_machine_ids: [SM-MCP-001]
+    security:
+      risk_level: R2_BOUNDED_MOTION
+      permission_codes: [mcp.tool.read, mcp.tool.manage, mcp.tool.invoke]
+      requires_edge_safety: true
+    contracts: [openapi:mcp-tools, schema:mcp-tool, mcp:platform-tools]
+    events: [mcp_tool_version.published.v1, mcp_tool.called.v1, mcp_tool.completed.v1, mcp_tool.failed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C06, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS]
+
+  - id: F-MISSION-001
+    name: 任务创建规划与计划修订
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.2/5.3/9.2/11.2", "AI规范 7.3/7.4", "实施蓝图 3.3/5.5/7.3"]
+    frontend:
+      page_ids: [P-MISSION-001, P-MISSION-002, P-MISSION-003]
+      required_view_states: [INITIAL, LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
+    backend:
+      modules: [agent-runtime, mission]
+      use_case_ids: [UC-MISSION-001, UC-MISSION-002, UC-MISSION-003, UC-MISSION-004, UC-MISSION-005, UC-MISSION-007]
+    data:
+      owner_schemas: [mission]
+      tables: [mission, mission_revision, mission_step, mission_event, planning_operation]
+      state_machine_ids: [SM-MISSION-001, SM-MISSION-002, SM-ASYNC-OPERATION]
+    security:
+      risk_level: R2_BOUNDED_MOTION
+      permission_codes: [mission.mission.read, mission.mission.create]
+      requires_edge_safety: true
+    contracts: [openapi:missions, schema:plan-proposal, schema:mission-plan, provider:qwenpaw]
+    events: [mission.created.v1, mission.planning_requested.v1, mission.plan_proposed.v1, mission.plan_revised.v1, mission.scheduled.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C07, C09, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-MISSION-002
+    name: 任务模板与审批
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.1/5.3/5.8/12.2", "AI规范 7.4/7.6", "实施蓝图 3.3/5.5/5.7/7.4"]
+    frontend:
+      page_ids: [P-MISSION-004, P-MISSION-005]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
+    backend:
+      modules: [mission, policy]
+      use_case_ids: [UC-MISSION-005, UC-MISSION-006, UC-MISSION-007, UC-APPROVAL-001, UC-APPROVAL-002, UC-APPROVAL-003]
+    data:
+      owner_schemas: [mission, policy]
+      tables: [mission_template, mission_template_version, approval_record]
+      state_machine_ids: [SM-MISSION-001, SM-APPROVAL-001]
+    security:
+      risk_level: R3_HIGH_RISK
+      permission_codes: [mission.template.manage, mission.mission.approve]
+      requires_edge_safety: true
+    contracts: [openapi:mission-templates, openapi:approvals, schema:approval-snapshot]
+    events: [mission.approval_requested.v1, mission.approved.v1, mission.rejected.v1, approval.invalidated.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C08, C10, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS]
+
+  - id: F-MISSION-003
+    name: 任务执行控制与终态
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.3/6.7/9", "AI规范 7.4/8.3", "实施蓝图 3.3/5.5/7.5-7.8"]
+    frontend:
+      page_ids: [P-MISSION-003]
+      required_view_states: [LOADING, READY, PARTIAL, STALE, OFFLINE, FORBIDDEN, ERROR]
+    backend:
+      modules: [mission, fleet, edge-gateway]
+      use_case_ids: [UC-MISSION-008, UC-MISSION-009, UC-MISSION-010, UC-MISSION-011, UC-MISSION-012]
+    data:
+      owner_schemas: [mission]
+      tables: [mission, mission_step, mission_event, mission_execution_link]
+      state_machine_ids: [SM-MISSION-001, SM-MISSION-002, SM-EXEC-001]
+    security:
+      risk_level: R2_BOUNDED_MOTION
+      permission_codes: [mission.mission.pause, mission.mission.resume, mission.mission.cancel]
+      requires_edge_safety: true
+    contracts: [openapi:mission-commands, asyncapi:mission-events, grpc:edge-execution]
+    events: [mission.pause_requested.v1, mission.paused.v1, mission.resumed.v1, mission.cancelled.v1, mission.completed.v1, mission.failed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C09, C12, C19]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-FLEET-001
+    name: 多机器人调度冲突与故障转移
+    phase: M4
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.4/14", "AI规范 7.5", "实施蓝图 3.3/5.6/7.5/7.10"]
+    frontend:
+      page_ids: [P-MISSION-006]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
+    backend:
+      modules: [fleet]
+      use_case_ids: [UC-FLEET-001, UC-FLEET-002, UC-FLEET-003, UC-FLEET-004, UC-FLEET-005, UC-FLEET-006, UC-FLEET-007, UC-FLEET-008, UC-FLEET-009]
+    data:
+      owner_schemas: [fleet]
+      tables: [schedule_decision, schedule_candidate, resource_lock, robot_assignment, fleet_conflict]
+      state_machine_ids: [SM-RESOURCE-LOCK, SM-FLEET-ASSIGNMENT]
+    security:
+      risk_level: R3_HIGH_RISK
+      permission_codes: [fleet.schedule.read, fleet.schedule.manage]
+      requires_edge_safety: true
+    contracts: [openapi:fleet-schedule, asyncapi:fleet-events]
+    events: [fleet.candidates_evaluated.v1, fleet.resources_reserved.v1, fleet.robot_assigned.v1, fleet.conflict_detected.v1, fleet.reassignment_completed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C13, C14]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-POLICY-001
+    name: 策略版本发布与任务判定
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.8/12", "AI规范 7.6", "实施蓝图 5.7/6.9"]
+    frontend:
+      page_ids: [P-MISSION-005, P-SYS-CONFIG]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
+    backend:
+      modules: [policy]
+      use_case_ids: [UC-POLICY-001, UC-POLICY-002, UC-POLICY-003, UC-POLICY-004]
+    data:
+      owner_schemas: [policy]
+      tables: [policy, policy_version, policy_rule, policy_evaluation]
+      state_machine_ids: [SM-POLICY-001]
+    security:
+      risk_level: R3_HIGH_RISK
+      permission_codes: [policy.policy.read, policy.policy.manage, policy.policy.publish]
+      requires_edge_safety: true
+    contracts: [openapi:policies, schema:policy-dsl, schema:policy-decision]
+    events: [policy_version.published.v1, policy.task_evaluated.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C08, C10, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-SAFETY-001
+    name: 动作安全急停与复位
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 3/6.3/9.3/12", "AI规范 8.2/11", "实施蓝图 5.7/6.4/7.8"]
+    frontend:
+      page_ids: [P-MON-001, P-MON-002, P-CONTROL-001, P-MISSION-003]
+      required_view_states: [LOADING, READY, PARTIAL, STALE, OFFLINE, FORBIDDEN, ERROR]
+    backend:
+      modules: [policy, safety-gateway, local-skill-executor]
+      use_case_ids: [UC-SAFETY-001, UC-SAFETY-002, UC-SAFETY-003, UC-SAFETY-004]
+    data:
+      owner_schemas: [policy, mission, robot_registry]
+      tables: [safety_decision, emergency_stop_event, estop_reset_request, robot_state_event]
+      state_machine_ids: [SM-ROBOT-004, SM-MISSION-001, SM-MISSION-002, SM-EXEC-001]
+    security:
+      risk_level: R3_HIGH_RISK
+      permission_codes: [safety.emergency_stop.execute, safety.emergency_stop.reset, safety.decision.read]
+      requires_edge_safety: true
+    contracts: [openapi:emergency-stop-requests, openapi:estop-reset-requests, schema:safety-decision, grpc:edge-estop]
+    events: [safety.action_evaluated.v1, safety.emergency_stop_triggered.v1, safety.estop_reset_requested.v1, safety.estop_reset_completed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C10, C11, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY, HIL]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK, HIL_REPORT]
+
+  - id: F-EDGE-002
+    name: 本地执行离线缓存与重连对账
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 3.3/6/8/9", "AI规范 8/10.5", "实施蓝图 5.8/6.11/7.9"]
+    frontend:
+      page_ids: [P-MON-002, P-MISSION-003]
+      required_view_states: [LOADING, READY, PARTIAL, STALE, OFFLINE, ERROR]
+    backend:
+      modules: [edge-gateway, safety-gateway, local-skill-executor]
+      use_case_ids: [UC-EXEC-001, UC-EXEC-002, UC-EXEC-003, UC-EXEC-004, UC-EXEC-005, UC-EXEC-006, UC-EXEC-007, UC-EXEC-008]
+    data:
+      owner_schemas: [mission]
+      tables: [mission_step, execution_record, edge_reconciliation_record]
+      state_machine_ids: [SM-EXEC-001, SM-MISSION-002]
+    security:
+      risk_level: R2_BOUNDED_MOTION
+      permission_codes: [mission.mission.read, edge.execution.read]
+      requires_edge_safety: true
+    contracts: [grpc:edge-execution, asyncapi:execution-events, schema:edge-command]
+    events: [execution.started.v1, execution.succeeded.v1, execution.failed.v1, edge.offline_mode_entered.v1, edge.reconciled.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C09, C15]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-ADAPTER-001
+    name: ROS2 ROS1 Unitree 与仿真适配
+    phase: M3
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 6.4-6.6/7.2/8", "AI规范 8.4", "实施蓝图 5.8"]
+    frontend:
+      page_ids: [P-ROBOT-002, P-ROBOT-003, P-EDGE-002]
+      required_view_states: [LOADING, READY, PARTIAL, STALE, OFFLINE, ERROR]
+    backend:
+      modules: [adapter-ros2, adapter-ros1, adapter-unitree, adapter-simulation]
+      use_case_ids: [UC-EXEC-001, UC-EXEC-002, UC-EXEC-005, UC-EXEC-006]
+    data:
+      owner_schemas: [robot_registry]
+      tables: [robot_model, robot_capability_binding, adapter_compatibility]
+      state_machine_ids: [SM-EXEC-001]
+    security:
+      risk_level: R3_HIGH_RISK
+      permission_codes: [robot.model.manage, edge.adapter.manage]
+      requires_edge_safety: true
+    contracts: [schema:capability-port, schema:adapter-compatibility, ros2:capability-actions]
+    events: [adapter.health_changed.v1, execution.started.v1, execution.failed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C16, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, HIL]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK, HIL_REPORT]
+
+  - id: F-MAP-001
+    name: 地图场景区域与禁区版本
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 2/5.1", "AI规范 7.9", "实施蓝图 3.5"]
+    frontend:
+      page_ids: [P-MAP-001, P-MAP-002, P-SCENE-001, P-SCENE-002]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
+    backend:
+      modules: [map-scene]
+      use_case_ids: [UC-MAP-UPLOAD, UC-MAP-VALIDATE, UC-MAP-PUBLISH, UC-SCENE-EDIT, UC-RESTRICTED-AREA-PUBLISH]
+    data:
+      owner_schemas: [map_scene]
+      tables: [map_asset, map_version, scene, area, restricted_area]
+      state_machine_ids: [SM-MAP-VERSION, SM-ASYNC-OPERATION]
+    security:
+      risk_level: R3_HIGH_RISK
+      permission_codes: [map.map.read, map.map.manage, map.scene.manage, map.restricted_area.manage]
+      requires_edge_safety: true
+    contracts: [openapi:maps, openapi:scenes, schema:map-coordinate, schema:restricted-area]
+    events: [map_version.published.v1, scene.changed.v1, restricted_area.changed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C17, C10]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-MONITOR-001
+    name: 实时态势与人工接管
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.1/9", "AI规范 10.4/11.2", "实施蓝图 3.6/6.12"]
+    frontend:
+      page_ids: [P-MON-001, P-MON-002, P-CONTROL-001]
+      required_view_states: [INITIAL, LOADING, READY, PARTIAL, STALE, OFFLINE, FORBIDDEN, ERROR]
+    backend:
+      modules: [monitor, fleet, safety-gateway]
+      use_case_ids: [UC-MONITOR-SNAPSHOT, UC-MONITOR-SUBSCRIBE, UC-CONTROL-LEASE-ACQUIRE, UC-CONTROL-LEASE-RELEASE]
+    data:
+      owner_schemas: [fleet, ops]
+      tables: [control_lease, robot_runtime_projection, telemetry]
+      state_machine_ids: [SM-CONTROL-001]
+    security:
+      risk_level: R3_HIGH_RISK
+      permission_codes: [monitor.fleet.view, monitor.robot.view, robot.robot.control]
+      requires_edge_safety: true
+    contracts: [openapi:monitor-snapshots, openapi:control-leases, asyncapi:websocket-events]
+    events: [control_lease.activated.v1, control_lease.released.v1, control_lease.revoked.v1, robot.status_changed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C09, C12, C15, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-MEDIA-001
+    name: 媒体对象上传查看与保留
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.1/8/10", "AI规范 7.9/9.5", "实施蓝图 3.6/5.9/6.14"]
+    frontend:
+      page_ids: [P-MEDIA-001, P-MISSION-003, P-ROBOT-002]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
+    backend:
+      modules: [media]
+      use_case_ids: [UC-MEDIA-001, UC-MEDIA-002]
+    data:
+      owner_schemas: [media]
+      tables: [media_asset, upload_session, asset_link]
+      state_machine_ids: [SM-MEDIA-001]
+    security:
+      risk_level: R1_NON_MOTION
+      permission_codes: [media.asset.read, media.asset.upload, media.asset.download, media.asset.delete]
+      requires_edge_safety: false
+    contracts: [openapi:media-assets, openapi:upload-sessions, s3:object-layout]
+    events: [media.upload_created.v1, media.asset_available.v1, media.asset_quarantined.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C18, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-TRACE-001
+    name: 全链路 Trace 与事实回放
+    phase: M2
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.10/9", "AI规范 7.8", "实施蓝图 3.6/5.9/6.16"]
+    frontend:
+      page_ids: [P-TRACE-001, P-MISSION-003]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
+    backend:
+      modules: [trace]
+      use_case_ids: [UC-TRACE-001, UC-TRACE-002]
+    data:
+      owner_schemas: [trace]
+      tables: [trace, trace_event, replay_index]
+      state_machine_ids: [SM-TRACE-001]
+    security:
+      risk_level: R0_READ_ONLY
+      permission_codes: [trace.trace.read, trace.trace.replay]
+      requires_edge_safety: false
+    contracts: [openapi:traces, openapi:replays, asyncapi:trace-events]
+    events: [trace.event_recorded.v1, trace.replay_indexed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC]
+    verification:
+      acceptance_ids: [C19, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-MEMORY-001
+    name: 任务记忆失败案例与改进闭环
+    phase: M6
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.9/14", "AI规范 7.8/9.4", "实施蓝图 3.8/5.9/6.16/7.11"]
+    frontend:
+      page_ids: [P-MEM-001, P-FAIL-001, P-IMPROVE-001]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, FORBIDDEN, ERROR]
+    backend:
+      modules: [memory]
+      use_case_ids: [UC-MEM-001, UC-MEM-002, UC-MEM-003, UC-MEM-004]
+    data:
+      owner_schemas: [memory]
+      tables: [memory, memory_embedding, failure_case, improvement_candidate]
+      state_machine_ids: [SM-MEMORY-001, SM-IMPROVE-001]
+    security:
+      risk_level: R3_HIGH_RISK
+      permission_codes: [memory.memory.read, memory.failure_case.read, memory.failure_case.manage, memory.improvement.manage, memory.improvement.approve]
+      requires_edge_safety: true
+    contracts: [openapi:memories, openapi:failure-cases, openapi:improvements, schema:memory-evidence]
+    events: [memory.extracted.v1, failure_case.created.v1, improvement.created.v1, improvement.approved.v1, improvement.released.v1, improvement.rolled_back.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C20, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-ALARM-001
+    name: 告警生命周期与通知
+    phase: M5
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 5.1/10/13", "AI规范 7.9/12.4", "实施蓝图 3.7/5.9/6.13"]
+    frontend:
+      page_ids: [P-ALARM-001]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
+    backend:
+      modules: [ops]
+      use_case_ids: [UC-ALARM-001, UC-ALARM-002, UC-ALARM-003, UC-ALARM-004]
+    data:
+      owner_schemas: [ops]
+      tables: [alarm, alarm_event, alarm_suppression]
+      state_machine_ids: [SM-ALARM-001]
+    security:
+      risk_level: R1_NON_MOTION
+      permission_codes: [ops.alarm.read, ops.alarm.manage, ops.alarm.suppress]
+      requires_edge_safety: false
+    contracts: [openapi:alarms, asyncapi:alarm-events, grafana:alert-rules]
+    events: [alarm.opened.v1, alarm.updated.v1, alarm.acknowledged.v1, alarm.resolved.v1, alarm.suppressed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C21]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-OPS-001
+    name: 指标日志健康与运维态势
+    phase: M5
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 13", "AI规范 12", "实施蓝图 3.7"]
+    frontend:
+      page_ids: [P-OPS-001, P-DASH-001]
+      required_view_states: [LOADING, READY, PARTIAL, STALE, FORBIDDEN, ERROR]
+    backend:
+      modules: [ops, observability]
+      use_case_ids: [UC-OPS-HEALTH-SNAPSHOT, UC-OPS-RUNBOOK-LINK]
+    data:
+      owner_schemas: [ops]
+      tables: [health_snapshot, telemetry_rollup]
+      state_machine_ids: [SM-SERVICE-HEALTH]
+    security:
+      risk_level: R0_READ_ONLY
+      permission_codes: [ops.health.read, dashboard.view]
+      requires_edge_safety: false
+    contracts: [openapi:health-snapshots, metrics:platform, loki:log-fields, grafana:dashboards]
+    events: [service.health_changed.v1, edge_gateway.runtime_changed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C21, C23]
+      required_tests: [CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+
+  - id: F-OTA-001
+    name: OTA 发布分批部署与回滚
+    phase: M5
+    implementation_status: NOT_STARTED
+    source_sections: ["PDF 2/13", "AI规范 7.9", "实施蓝图 3.7/5.9/6.15"]
+    frontend:
+      page_ids: [P-OTA-001]
+      required_view_states: [LOADING, READY, EMPTY, PARTIAL, STALE, FORBIDDEN, ERROR]
+    backend:
+      modules: [ops]
+      use_case_ids: [UC-OTA-001, UC-OTA-002, UC-OTA-003]
+    data:
+      owner_schemas: [ops]
+      tables: [ota_release, ota_deployment, ota_deployment_item]
+      state_machine_ids: [SM-OTA-001, SM-OTA-002]
+    security:
+      risk_level: R3_HIGH_RISK
+      permission_codes: [ops.ota.read, ops.ota.manage, ops.ota.approve]
+      requires_edge_safety: true
+    contracts: [openapi:ota-releases, openapi:ota-deployments, schema:ota-artifact]
+    events: [ota.release_created.v1, ota.deployment_started.v1, ota.deployment_progressed.v1, ota.deployment_rolled_back.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C21, C23, C24]
+      required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SIMULATION, SECURITY, RECOVERY, HIL]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK, HIL_REPORT]
+
+  - id: F-RECOVERY-001
+    name: 数据备份恢复与灾难演练
+    phase: M5
+    implementation_status: NOT_STARTED
+    source_sections: ["AI规范 11.6/16/17", "实施蓝图 8/12"]
+    frontend:
+      page_ids: [P-OPS-001]
+      required_view_states: [LOADING, READY, PARTIAL, FORBIDDEN, ERROR]
+    backend:
+      modules: [ops, backup-automation]
+      use_case_ids: [UC-BACKUP-CREATE, UC-BACKUP-VERIFY, UC-RESTORE-DRILL]
+    data:
+      owner_schemas: [ops]
+      tables: [backup_record, restore_drill]
+      state_machine_ids: [SM-BACKUP-OPERATION, SM-RESTORE-OPERATION]
+    security:
+      risk_level: R3_HIGH_RISK
+      permission_codes: [ops.backup.read, ops.backup.manage, ops.restore.execute]
+      requires_edge_safety: false
+    contracts: [runbook:backup, runbook:restore, schema:recovery-point]
+    events: [backup.completed.v1, backup.failed.v1, restore_drill.completed.v1]
+    observability: [AUDIT, TRACE, LOG, METRIC, ALARM]
+    verification:
+      acceptance_ids: [C22, C24]
+      required_tests: [INTEGRATION, E2E, SECURITY, RECOVERY]
+      done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
