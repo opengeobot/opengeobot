@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opengeobot.dev/contracts/skills/skill-definition.json",
+  "title": "Skill Definition",
+  "description": "JSON Schema for an OpenGeoBot Skill definition. A Skill is a versioned, registered physical or cognitive action that must pass safety validation before execution. Skills map to capabilities and are subject to the Safety Gateway on the edge. All field names use snake_case.",
+  "type": "object",
+  "required": [
+    "skill_id",
+    "version",
+    "name_key",
+    "description_key",
+    "category",
+    "risk_level",
+    "input_schema",
+    "output_schema",
+    "required_capabilities",
+    "safety_constraints",
+    "supported_robot_types",
+    "execution_location",
+    "timeout_ms",
+    "retryable",
+    "pausable",
+    "idempotent"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "skill_id": {
+      "type": "string",
+      "description": "Stable unique identifier of the skill."
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of this skill definition.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "name_key": {
+      "type": "string",
+      "description": "i18n resource key resolving to the localized skill name.",
+      "example": "skill.navigate.name"
+    },
+    "description_key": {
+      "type": "string",
+      "description": "i18n resource key resolving to the localized skill description.",
+      "example": "skill.navigate.description"
+    },
+    "category": {
+      "type": "string",
+      "description": "Functional category of the skill.",
+      "enum": [
+        "navigation",
+        "manipulation",
+        "perception",
+        "inspection",
+        "interaction",
+        "diagnostic",
+        "utility"
+      ]
+    },
+    "risk_level": {
+      "type": "string",
+      "description": "Platform risk classification driving safety enforcement depth.",
+      "enum": [
+        "R0_READ_ONLY",
+        "R1_NON_MOTION",
+        "R2_BOUNDED_MOTION",
+        "R3_HIGH_RISK"
+      ]
+    },
+    "input_schema": {
+      "type": "object",
+      "description": "JSON Schema describing the skill input parameters.",
+      "$ref": "https://json-schema.org/draft/2020-12/schema"
+    },
+    "output_schema": {
+      "type": "object",
+      "description": "JSON Schema describing the skill output/result.",
+      "$ref": "https://json-schema.org/draft/2020-12/schema"
+    },
+    "required_capabilities": {
+      "type": "array",
+      "description": "Capability codes that must be present on the target robot for this skill to execute.",
+      "items": {
+        "type": "object",
+        "required": ["code", "version"],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Capability code registered on the robot."
+          },
+          "version": {
+            "type": "string",
+            "description": "Minimum required capability version.",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+          }
+        }
+      },
+      "default": []
+    },
+    "safety_constraints": {
+      "type": "array",
+      "description": "Constraints the Safety Gateway enforces before and during execution.",
+      "items": {
+        "type": "object",
+        "required": ["constraint_type", "expression"],
+        "additionalProperties": false,
+        "properties": {
+          "constraint_type": {
+            "type": "string",
+            "description": "Kind of safety constraint.",
+            "enum": [
+              "speed_limit",
+              "workspace_boundary",
+              "exclusion_zone",
+              "force_limit",
+              "payload_limit",
+              "timeout",
+              "approval_required",
+              "custom"
+            ]
+          },
+          "expression": {
+            "type": "string",
+            "description": "Deterministic expression describing the constraint bounds."
+          }
+        }
+      },
+      "default": []
+    },
+    "supported_robot_types": {
+      "type": "array",
+      "description": "Robot type codes this skill is compatible with. Empty means all types subject to capability check.",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "execution_location": {
+      "type": "string",
+      "description": "Where the skill is executed.",
+      "enum": [
+        "edge",
+        "cloud",
+        "hybrid"
+      ]
+    },
+    "timeout_ms": {
+      "type": "integer",
+      "minimum": 100,
+      "description": "Maximum execution time in milliseconds.",
+      "example": 30000
+    },
+    "retryable": {
+      "type": "boolean",
+      "description": "Whether a failed execution may be retried.",
+      "default": false
+    },
+    "pausable": {
+      "type": "boolean",
+      "description": "Whether an in-flight execution can be paused and resumed.",
+      "default": false
+    },
+    "idempotent": {
+      "type": "boolean",
+      "description": "Whether repeated identical executions produce the same effect.",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,68 @@
+# Function: ServiceHealth schema for SM-SERVICE-HEALTH state machine
+# Time: 2026-07-03
+# Author: AxeXie
+ServiceHealth:
+  type: object
+  description: >-
+    Service health snapshot backing the SM-SERVICE-HEALTH state machine. The
+    `state` field is a code contract governed by the platform, not editable
+    dictionary data. All field names use snake_case.
+  required: [service_name, state, last_check_at, version]
+  additionalProperties: false
+  properties:
+    service_name:
+      type: string
+      description: Logical name of the reporting service.
+      example: cloud-control
+    state:
+      type: string
+      description: >-
+        Current health state of the service. Values are the canonical states of
+        the SM-SERVICE-HEALTH state machine.
+      enum:
+        - UNKNOWN
+        - STARTING
+        - HEALTHY
+        - DEGRADED
+        - UNHEALTHY
+        - STOPPED
+      example: HEALTHY
+    last_check_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of the most recent health evaluation.
+      example: '2026-07-03T08:00:00Z'
+    dependencies:
+      type: array
+      description: Health of critical dependencies evaluated during readiness.
+      items:
+        $ref: '#/DependencyHealth'
+      default: []
+    version:
+      type: string
+      description: Semantic version of the reporting service.
+      example: 1.0.0
+DependencyHealth:
+  type: object
+  description: Health of a single critical dependency.
+  required: [name, state]
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Logical name of the dependency (e.g. postgresql, nats).
+      example: postgresql
+    state:
+      type: string
+      description: Health state of the dependency.
+      enum:
+        - UNKNOWN
+        - STARTING
+        - HEALTHY
+        - DEGRADED
+        - UNHEALTHY
+        - STOPPED
+      example: HEALTHY
+    detail:
+      type: string
+      description: Optional human-readable detail for degraded or unhealthy deps.

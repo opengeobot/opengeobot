@@ -1,0 +1,69 @@
+# Function: ProblemDetails error response schema (RFC 9457 extension)
+# Time: 2026-07-03
+# Author: AxeXie
+ProblemDetails:
+  type: object
+  description: >-
+    Standard platform error response. Extends RFC 9457 Problem Details with a
+    stable machine-readable `code`, an i18n `message_key` plus `arguments`, and a
+    `trace_id` that links the error to the end-to-end trace context. All field
+    names use snake_case.
+  required: [type, title, status, code, message_key, trace_id]
+  additionalProperties: false
+  properties:
+    type:
+      type: string
+      format: uri-reference
+      description: >-
+        URI reference that identifies the problem type. Defaults to
+        `about:blank` when no specific type applies.
+      default: about:blank
+      example: about:blank
+    title:
+      type: string
+      description: Short, human-readable summary of the problem.
+      example: Service not ready
+    status:
+      type: integer
+      format: int32
+      minimum: 100
+      maximum: 599
+      description: HTTP status code generated for this occurrence.
+      example: 503
+    code:
+      type: string
+      description: >-
+        Stable, machine-readable error code. This is a code contract, not
+        localized text; clients must switch on this value.
+      example: HEALTH_NOT_READY
+    message_key:
+      type: string
+      description: >-
+        i18n resource key used to resolve the localized user-facing message.
+        Frontend and API consumers resolve this via the platform i18n module.
+      example: error.health.not_ready
+    arguments:
+      type: object
+      description: >-
+        Named interpolation arguments for the `message_key` template. Keys are
+        stable field names; values are primitives.
+      additionalProperties:
+        oneOf:
+          - type: string
+          - type: number
+          - type: integer
+          - type: boolean
+      example:
+        dependency: postgresql
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking this error to logs, metrics and
+        audit records across the platform.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    instance:
+      type: string
+      description: >-
+        URI reference identifying the specific occurrence of the problem, usually
+        the request path.
+      example: /health/ready

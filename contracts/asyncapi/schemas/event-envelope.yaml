@@ -1,0 +1,86 @@
+# Function: Platform event envelope schema (EVENT_ENVELOPE capability)
+# Time: 2026-07-03
+# Author: AxeXie
+EventEnvelope:
+  type: object
+  description: >-
+    Canonical platform event envelope. Every domain event is wrapped in this
+    structure so that `trace_id` links the event into the end-to-end trace
+    context and `actor` records who or what caused it. `event_type` is a code
+    contract (e.g. service.health_changed.v1), not editable dictionary data.
+    All field names use snake_case.
+  required:
+    - event_id
+    - event_type
+    - event_version
+    - occurred_at
+    - producer
+    - trace_id
+    - actor
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    event_type:
+      type: string
+      description: >-
+        Dotted, versioned event type used for routing and filtering.
+      pattern: '^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*\.v[0-9]+$'
+      example: service.health_changed.v1
+    event_version:
+      type: string
+      description: Schema version of this event payload.
+      example: '1'
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the event occurred.
+      example: '2026-07-03T08:00:00Z'
+    producer:
+      type: string
+      description: Logical name of the producing service.
+      example: cloud-control
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the event to logs, metrics and
+        audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    correlation_id:
+      type: string
+      description: Optional correlation identifier linking related events.
+    causation_id:
+      type: string
+      description: >-
+        Optional identifier of the command or event that caused this event.
+    actor:
+      $ref: '#/Actor'
+    data:
+      type: object
+      description: >-
+        Event-specific payload. The shape is determined by `event_type` and
+        referenced by the consuming contract.
+      additionalProperties: true
+Actor:
+  type: object
+  description: >-
+    The user, service, agent or system that caused the event. Used for audit and
+    authorization attribution.
+  required: [type, id]
+  additionalProperties: false
+  properties:
+    type:
+      type: string
+      description: Category of the actor.
+      enum:
+        - user
+        - service
+        - agent
+        - system
+      example: service
+    id:
+      type: string
+      description: Stable identifier of the actor (user id, service name, etc.).
+      example: cloud-control

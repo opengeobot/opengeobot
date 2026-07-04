@@ -1,0 +1,105 @@
+# Function: OpenGeoBot event streams contract (AsyncAPI 3.0.0)
+# Time: 2026-07-03
+# Author: AxeXie
+asyncapi: 3.0.0
+info:
+  title: OpenGeoBot Event Streams
+  version: 1.0.0
+  description: >-
+    Event channel definitions for the OpenGeoBot platform. NATS JetStream is the
+    primary transport for domain events; a WebSocket gateway streams events to
+    frontends. Every event is wrapped in the platform EventEnvelope so that
+    `trace_id` links the event to the end-to-end trace context.
+  contact:
+    name: OpenGeoBot Platform
+servers:
+  nats:
+    host: nats://localhost:4222
+    protocol: nats
+    description: NATS JetStream broker used for domain events.
+  websocket:
+    host: ws://localhost:8080
+    protocol: ws
+    description: WebSocket gateway delivering events to the web console.
+channels:
+  healthChanged:
+    address: opengeobot.dev.service.event.health_changed.v1
+    description: >-
+      Emitted when a service transitions between SM-SERVICE-HEALTH states
+      (UNKNOWN/STARTING/HEALTHY/DEGRADED/UNHEALTHY/STOPPED).
+    messages:
+      healthChanged:
+        $ref: '#/components/messages/HealthChangedEvent'
+  webEvents:
+    address: /ws/v1/events
+    description: >-
+      WebSocket channel streaming the generic platform EventEnvelope to
+      authorized frontend subscribers. Clients filter by `event_type`.
+    messages:
+      eventEnvelope:
+        $ref: '#/components/messages/EventEnvelope'
+operations:
+  publishHealthChanged:
+    action: send
+    title: Publish service health changed event
+    channel:
+      $ref: '#/channels/healthChanged'
+    messages:
+      - $ref: '#/components/messages/HealthChangedEvent'
+  subscribeWebEvents:
+    action: receive
+    title: Subscribe to platform events over WebSocket
+    channel:
+      $ref: '#/channels/webEvents'
+    messages:
+      - $ref: '#/components/messages/EventEnvelope'
+components:
+  messages:
+    EventEnvelope:
+      description: Generic platform event envelope delivered to web clients.
+      headers:
+        type: object
+        properties:
+          event_type:
+            type: string
+            description: Dotted event type used for client-side filtering.
+            example: service.health_changed.v1
+          trace_id:
+            type: string
+            description: End-to-end trace identifier.
+      contentType: application/json
+      payload:
+        $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+    HealthChangedEvent:
+      description: >-
+        Service health changed event. The payload is a platform EventEnvelope
+        whose `event_type` is `service.health_changed.v1` and whose `data`
+        carries the ServiceHealth snapshot.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: '../openapi/schemas/service-health.yaml#/ServiceHealth'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: service.health_changed.v1
+              event_version: '1'
+              occurred_at: '2026-07-03T08:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: service
+                id: cloud-control
+              data:
+                service_name: cloud-control
+                state: DEGRADED
+                last_check_at: '2026-07-03T08:00:00Z'
+                dependencies:
+                  - name: postgresql
+                    state: HEALTHY
+                  - name: nats
+                    state: UNHEALTHY
+                version: 1.0.0

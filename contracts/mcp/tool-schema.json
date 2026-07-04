@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opengeobot.dev/contracts/mcp/tool-schema.json",
+  "title": "MCP Tool Definition",
+  "description": "JSON Schema for an MCP Tool definition registered in the OpenGeoBot platform. Tools are versioned, permission-gated and safety-scoped; an LLM/Agent proposal is an untrusted input that must pass schema, permission, state-machine, resource and safety validation before execution. All field names use snake_case.",
+  "type": "object",
+  "required": [
+    "tool_id",
+    "tool_name",
+    "version",
+    "description",
+    "input_schema",
+    "output_schema",
+    "permission_code",
+    "risk_level",
+    "idempotent",
+    "timeout_ms",
+    "cancellable",
+    "audit_level"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "tool_id": {
+      "type": "string",
+      "description": "Stable unique identifier of the tool."
+    },
+    "tool_name": {
+      "type": "string",
+      "description": "Human-readable tool name used for display and invocation.",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of the tool definition.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Short summary of what the tool does."
+    },
+    "input_schema": {
+      "type": "object",
+      "description": "JSON Schema describing the tool input accepted from the agent.",
+      "$ref": "https://json-schema.org/draft/2020-12/schema"
+    },
+    "output_schema": {
+      "type": "object",
+      "description": "JSON Schema describing the tool output returned to the agent.",
+      "$ref": "https://json-schema.org/draft/2020-12/schema"
+    },
+    "permission_code": {
+      "type": "string",
+      "description": "Stable permission code required to invoke this tool. Checked against IAM, not role names.",
+      "example": "mcp.tool.invoke"
+    },
+    "risk_level": {
+      "type": "string",
+      "description": "Platform risk classification driving safety enforcement depth.",
+      "enum": [
+        "R0_READ_ONLY",
+        "R1_NON_MOTION",
+        "R2_BOUNDED_MOTION",
+        "R3_HIGH_RISK"
+      ]
+    },
+    "idempotent": {
+      "type": "boolean",
+      "description": "Whether repeated identical invocations produce the same effect.",
+      "default": false
+    },
+    "rate_limit": {
+      "type": "object",
+      "description": "Optional rate-limit policy for this tool.",
+      "additionalProperties": false,
+      "properties": {
+        "max_calls": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum calls allowed within the window."
+        },
+        "window_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Length of the rate-limit window in seconds."
+        }
+      },
+      "required": ["max_calls", "window_seconds"]
+    },
+    "timeout_ms": {
+      "type": "integer",
+      "minimum": 100,
+      "description": "Maximum execution time in milliseconds before the tool is considered timed out.",
+      "example": 30000
+    },
+    "cancellable": {
+      "type": "boolean",
+      "description": "Whether an in-flight tool invocation can be cancelled.",
+      "default": true
+    },
+    "audit_level": {
+      "type": "string",
+      "description": "Level of audit detail recorded for invocations of this tool.",
+      "enum": [
+        "NONE",
+        "SUMMARY",
+        "FULL"
+      ],
+      "default": "SUMMARY"
+    }
+  }
+}

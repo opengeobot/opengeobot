@@ -1,0 +1,23 @@
+{
+  "name": "opengeobot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "一脑多控平台 — Frontend monorepo root",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @opengeobot/web-console dev",
+    "build": "pnpm --filter @opengeobot/web-console build",
+    "preview": "pnpm --filter @opengeobot/web-console preview",
+    "test": "pnpm --filter @opengeobot/web-console test",
+    "lint": "pnpm --filter @opengeobot/web-console lint",
+    "type-check": "pnpm --filter @opengeobot/web-console type-check",
+    "format": "prettier --write \"apps/**/src/**/*.{ts,tsx,vue,js,jsx,json,css,scss}\""
+  },
+  "devDependencies": {
+    "prettier": "3.3.3"
+  },
+  "packageManager": "pnpm@9.12.3"
+}

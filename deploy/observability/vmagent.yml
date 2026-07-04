@@ -1,0 +1,15 @@
+# OpenGeoBot — vmagent scrape configuration
+# Time: 2026-07-03
+# Author: AxeXie
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'cloud-control'
+    static_configs:
+      - targets: ['cloud-control:8080']
+    metrics_path: /actuator/prometheus
+
+  - job_name: 'victoriametrics'
+    static_configs:
+      - targets: ['victoriametrics:8428']

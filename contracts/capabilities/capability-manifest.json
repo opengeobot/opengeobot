@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opengeobot.dev/contracts/capabilities/capability-manifest.json",
+  "title": "Capability Manifest",
+  "description": "JSON Schema for a robot capability manifest. The manifest declares the capabilities, sensors and runtime characteristics of a robot/gateway as reported during registration. It is the code contract referenced by F-ROBOT-001 (schema:capability-manifest). All field names use snake_case.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "robot_id",
+    "gateway_id",
+    "robot_type",
+    "vendor",
+    "model",
+    "ros_version",
+    "control_protocol",
+    "capabilities",
+    "sensors",
+    "manifest_digest"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Version of the capability manifest schema itself.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "example": "1.0.0"
+    },
+    "robot_id": {
+      "type": "string",
+      "description": "Stable unique identifier of the robot."
+    },
+    "gateway_id": {
+      "type": "string",
+      "description": "Identifier of the edge gateway managing this robot."
+    },
+    "robot_type": {
+      "type": "string",
+      "description": "Canonical robot type code (e.g. quadruped, amr, arm)."
+    },
+    "vendor": {
+      "type": "string",
+      "description": "Robot hardware vendor."
+    },
+    "model": {
+      "type": "string",
+      "description": "Robot model identifier."
+    },
+    "ros_version": {
+      "type": "string",
+      "description": "ROS distribution version (ros2 primary, ros1 isolated compatibility).",
+      "enum": [
+        "ros2-jazzy",
+        "ros2-humble",
+        "ros1-noetic"
+      ]
+    },
+    "control_protocol": {
+      "type": "string",
+      "description": "Primary control protocol used to drive the robot.",
+      "enum": [
+        "ros2-dds",
+        "ros1-bridge",
+        "zenoh-ros2dds",
+        "vendor-sdk"
+      ]
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "Capabilities currently registered on the robot.",
+      "items": {
+        "type": "object",
+        "required": ["code", "version"],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable capability code (e.g. base locomotion, arm control)."
+          },
+          "version": {
+            "type": "string",
+            "description": "Capability version.",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+          },
+          "constraints": {
+            "type": "array",
+            "description": "Runtime constraints enforced by the Safety Gateway for this capability.",
+            "items": {
+              "type": "object",
+              "required": ["constraint_type", "expression"],
+              "additionalProperties": false,
+              "properties": {
+                "constraint_type": {
+                  "type": "string",
+                  "description": "Kind of constraint."
+                },
+                "expression": {
+                  "type": "string",
+                  "description": "Deterministic expression describing the constraint."
+                }
+              }
+            },
+            "default": []
+          }
+        }
+      },
+      "default": []
+    },
+    "sensors": {
+      "type": "array",
+      "description": "Sensors available on the robot.",
+      "items": {
+        "type": "object",
+        "required": ["sensor_type"],
+        "additionalProperties": false,
+        "properties": {
+          "sensor_type": {
+            "type": "string",
+            "description": "Sensor type code (e.g. lidar, camera, imu)."
+          },
+          "model": {
+            "type": "string",
+            "description": "Sensor model identifier."
+          },
+          "frame_id": {
+            "type": "string",
+            "description": "ROS frame identifier the sensor publishes to."
+          },
+          "rate_hz": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Nominal publishing rate in Hertz."
+          }
+        }
+      },
+      "default": []
+    },
+    "manifest_digest": {
+      "type": "string",
+      "description": "Digest (sha256) of the canonical manifest content, used for tamper detection and change tracking.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

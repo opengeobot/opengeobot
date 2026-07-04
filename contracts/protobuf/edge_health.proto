@@ -1,0 +1,51 @@
+// Function: gRPC EdgeHealth service contract for edge gateway health checks
+// Time: 2026-07-03
+// Author: AxeXie
+syntax = "proto3";
+
+package opengeobot.edge.v1;
+
+option java_package = "dev.opengeobot.edge.v1";
+option java_multiple_files = true;
+
+// EdgeHealth is used by the cloud control plane to probe the health of an
+// edge gateway / ROSClaw Edge Runtime. It mirrors the SM-SERVICE-HEALTH
+// states used by the REST health contract.
+service EdgeHealth {
+  // Returns the current health of the edge gateway, including the state of
+  // its local Safety Gateway and Skill Executor dependencies.
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message HealthCheckRequest {
+  // Optional correlation identifier echoed back in the response to link the
+  // check to the end-to-end trace context.
+  string trace_id = 1;
+  // When true, the edge gateway must evaluate its critical dependencies
+  // (Safety Gateway, Local Skill Executor) rather than returning a cached state.
+  bool deep = 2;
+}
+
+message HealthCheckResponse {
+  // Logical name of the reporting edge service.
+  string service_name = 1;
+  // Current health state, one of SM-SERVICE-HEALTH values:
+  // UNKNOWN | STARTING | HEALTHY | DEGRADED | UNHEALTHY | STOPPED.
+  string state = 2;
+  // UTC timestamp (RFC 3339) of the most recent health evaluation.
+  string last_check_at = 3;
+  // Semantic version of the reporting edge runtime.
+  string version = 4;
+  // Health of critical edge dependencies (e.g. safety_gateway, skill_executor).
+  repeated DependencyHealth dependencies = 5;
+  // Trace identifier linking this check to logs, metrics and audit records.
+  string trace_id = 6;
+  // Whether the local Safety Gateway is armed and authoritative.
+  bool safety_gateway_active = 7;
+}
+
+message DependencyHealth {
+  string name = 1;
+  string state = 2;
+  string detail = 3;
+}

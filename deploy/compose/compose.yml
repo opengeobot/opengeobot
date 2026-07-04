@@ -1,0 +1,223 @@
+# =============================================================================
+# OpenGeoBot — Docker Compose (v2)
+# Function: M0 engineering scaffold — infra / observability / cloud profiles
+# Time: 2026-07-03
+# Author: AxeXie
+#
+# Profiles:
+#   infra          → postgres, nats, minio
+#   observability  → victoriametrics, vmagent, loki, vector, grafana
+#   cloud          → cloud-control, web-console
+#   full           → all of the above together
+#
+# Usage:
+#   docker compose -f deploy/compose/compose.yml --profile infra up -d
+#   docker compose -f deploy/compose/compose.yml --profile full up -d --build
+#   docker compose -f deploy/compose/compose.yml down
+# =============================================================================
+
+name: opengeobot
+
+networks:
+  opengeobot-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  nats_data:
+  minio_data:
+  vm_data:
+  loki_data:
+  grafana_data:
+
+# -----------------------------------------------------------------------------
+# Infrastructure profile (infra + full)
+# -----------------------------------------------------------------------------
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    profiles: [infra, full]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: opengeobot
+      POSTGRES_USER: opengeobot
+      POSTGRES_PASSWORD: opengeobot_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [opengeobot-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opengeobot -d opengeobot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  nats:
+    image: nats:2.10.22-alpine
+    profiles: [infra, full]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: -js -sd /data -m 8222
+    environment:
+      NATS_SERVER_STORAGE: /data
+    volumes:
+      - nats_data:/data
+    networks: [opengeobot-net]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    profiles: [infra, full]
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: opengeobot
+      MINIO_ROOT_PASSWORD: opengeobot_dev
+    volumes:
+      - minio_data:/data
+    networks: [opengeobot-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ---------------------------------------------------------------------------
+  # Observability profile (observability + full)
+  # ---------------------------------------------------------------------------
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.108.1
+    profiles: [observability, full]
+    ports:
+      - "8428:8428"
+    volumes:
+      - vm_data:/storage
+    networks: [opengeobot-net]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8428/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vmagent:
+    image: victoriametrics/vmagent:v1.108.1
+    profiles: [observability, full]
+    ports:
+      - "8429:8429"
+    volumes:
+      - ../observability/vmagent.yml:/etc/vmagent/config.yml:ro
+    command: -promscrape.config=/etc/vmagent/config.yml -remoteWrite.url=http://victoriametrics:8428/api/v1/write
+    networks: [opengeobot-net]
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+
+  loki:
+    image: grafana/loki:3.2.1
+    profiles: [observability, full]
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+      - ../observability/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    networks: [opengeobot-net]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vector:
+    image: timberio/vector:0.41.1-debian
+    profiles: [observability, full]
+    volumes:
+      - ../observability/vector.yaml:/etc/vector/vector.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: --config /etc/vector/vector.yaml
+    networks: [opengeobot-net]
+    depends_on:
+      loki:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    profiles: [observability, full]
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+    networks: [opengeobot-net]
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Cloud profile (cloud + full)
+  # ---------------------------------------------------------------------------
+  cloud-control:
+    build:
+      context: ../..
+      dockerfile: apps/cloud-control/Dockerfile
+    profiles: [cloud, full]
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: opengeobot
+      DB_USER: opengeobot
+      DB_PASSWORD: opengeobot_dev
+      NATS_URL: nats://nats:4222
+      MINIO_ENDPOINT: http://minio:9000
+    networks: [opengeobot-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8080/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  web-console:
+    build:
+      context: ../..
+      dockerfile: apps/web-console/Dockerfile
+    profiles: [cloud, full]
+    ports:
+      - "5173:80"
+    networks: [opengeobot-net]
+    depends_on:
+      cloud-control:
+        condition: service_healthy

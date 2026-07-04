@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Function: Cloud control aggregator POM — modular monolith modules
+  Time: 2026-07-03
+  Author: AxeXie
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.opengeobot</groupId>
+        <artifactId>opengeobot-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>cloud-control</artifactId>
+    <packaging>pom</packaging>
+
+    <name>OpenGeoBot Cloud Control</name>
+    <description>一脑多控平台 — 模块化单体云控制面聚合模块</description>
+
+    <modules>
+        <module>platform-common</module>
+        <module>platform-iam</module>
+        <module>platform-governance</module>
+        <module>bootstrap</module>
+    </modules>
+
+</project>

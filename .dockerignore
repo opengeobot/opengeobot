@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+.DS_Store
+
+# Java
+**/target/
+*.class
+*.jar
+!**/src/**/*.jar
+
+# Node
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Python
+**/__pycache__/
+**/.venv/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Docker data
+.docker-data/
+
+# Env (keep .env.example)
+.env
+
+# Docs (not needed for build)
+docs/
+*.md
+!README.md
+
+# Tests
+tests/
+
+# Trae specs
+.trae/
+
+# Misc
+*.log
+.dev-pids/

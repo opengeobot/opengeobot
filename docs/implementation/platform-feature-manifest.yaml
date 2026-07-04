@@ -85,7 +85,7 @@ features:
   - id: F-ENGINEERING-001
     name: 工程脚手架与统一开发命令
     phase: M0
-    implementation_status: NOT_STARTED
+    implementation_status: IN_PROGRESS
     source_sections: ["AI规范 5/13/16/18", "实施蓝图 11/12"]
     platform_capability_profile: ENGINEERING_CORE
     deployment_targets: [BUILD]
@@ -110,11 +110,18 @@ features:
       acceptance_ids: [C23, C24]
       required_tests: [CONTRACT, INTEGRATION, E2E, SECURITY]
       done_evidence: [CONTRACTS, BACKEND, FRONTEND, TEST_REPORTS, RUNBOOK]
+    evidence:
+      contracts: [contracts/openapi/openapi.yaml, contracts/asyncapi/asyncapi.yaml]
+      backend: [apps/cloud-control/, apps/cloud-control/platform-common/, apps/cloud-control/bootstrap/, scripts/dev.sh, scripts/dev.ps1]
+      frontend: [apps/web-console/]
+      deployment: [deploy/compose/compose.yml, deploy/observability/]
+      test_reports: [apps/cloud-control/bootstrap/src/test/]
+      runbook: [docs/runbooks/m0-engineering-base.md]
 
   - id: F-DEPLOY-001
     name: Compose 与 Kubernetes 部署
     phase: M0
-    implementation_status: NOT_STARTED
+    implementation_status: IN_PROGRESS
     source_sections: ["PDF 13", "AI规范 13/18", "实施蓝图 12"]
     platform_capability_profile: ENGINEERING_CORE
     deployment_targets: [INFRA, OBSERVABILITY, KUBERNETES]
@@ -139,6 +146,13 @@ features:
       acceptance_ids: [C23, C24]
       required_tests: [INTEGRATION, E2E, SECURITY, RECOVERY]
       done_evidence: [CONTRACTS, BACKEND, EVENTS, TEST_REPORTS, RUNBOOK]
+    evidence:
+      contracts: [contracts/openapi/openapi.yaml, contracts/asyncapi/asyncapi.yaml]
+      backend: [apps/cloud-control/, apps/cloud-control/platform-common/, apps/cloud-control/bootstrap/, scripts/dev.sh, scripts/dev.ps1]
+      frontend: [apps/web-console/]
+      deployment: [deploy/compose/compose.yml, deploy/observability/]
+      test_reports: [apps/cloud-control/bootstrap/src/test/]
+      runbook: [docs/runbooks/m0-engineering-base.md]
 
   - id: F-PLATFORM-001
     name: 认证与会话

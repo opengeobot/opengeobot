@@ -1,0 +1,141 @@
+# Function: OpenGeoBot Cloud Control API root contract (OpenAPI 3.1.0)
+# Time: 2026-07-03
+# Author: AxeXie
+openapi: 3.1.0
+info:
+  title: OpenGeoBot Cloud Control API
+  version: 1.0.0
+  description: >-
+    Cloud control plane REST contract for the OpenGeoBot one-brain-multi-control
+    platform. Health endpoints follow the deployment health contract
+    (SM-SERVICE-HEALTH). All field names use snake_case. Error responses conform
+    to the platform ProblemDetails model with stable `code` and `message_key`.
+  contact:
+    name: OpenGeoBot Platform
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Development server
+tags:
+  - name: health
+    description: Service health, readiness and version info
+paths:
+  /health/live:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      description: >-
+        Indicates the process is alive and able to handle requests. A 200 means
+        the application is running; it does not imply dependencies are ready.
+      operationId: getHealthLive
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/service-health.yaml#/ServiceHealth'
+              example:
+                service_name: cloud-control
+                state: HEALTHY
+                last_check_at: '2026-07-03T08:00:00Z'
+                dependencies: []
+                version: 1.0.0
+        '503':
+          description: Service is not alive
+          content:
+            application/problem+json:
+              schema:
+                $ref: './schemas/error.yaml#/ProblemDetails'
+  /health/ready:
+    get:
+      tags: [health]
+      summary: Readiness probe
+      description: >-
+        Indicates whether the service is ready to receive traffic. Returns 200
+        when critical dependencies (e.g. database, NATS) are reachable, and 503
+        when any required dependency is not ready.
+      operationId: getHealthReady
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/service-health.yaml#/ServiceHealth'
+              example:
+                service_name: cloud-control
+                state: HEALTHY
+                last_check_at: '2026-07-03T08:00:00Z'
+                dependencies:
+                  - name: postgresql
+                    state: HEALTHY
+                  - name: nats
+                    state: HEALTHY
+                version: 1.0.0
+        '503':
+          description: Service is not ready
+          content:
+            application/problem+json:
+              schema:
+                $ref: './schemas/error.yaml#/ProblemDetails'
+              example:
+                type: about:blank
+                title: Service not ready
+                status: 503
+                code: HEALTH_NOT_READY
+                message_key: error.health.not_ready
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                instance: /health/ready
+  /health/info:
+    get:
+      tags: [health]
+      summary: Build and version info
+      description: >-
+        Returns version, build and runtime information for diagnostics. This
+        endpoint is read-only and does not reflect dependency health.
+      operationId: getHealthInfo
+      responses:
+        '200':
+          description: Version information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionInfo'
+              example:
+                service_name: cloud-control
+                version: 1.0.0
+                build_commit: a1b2c3d
+                build_time: '2026-07-03T07:00:00Z'
+                java_version: 21
+                spring_boot_version: 3.3.0
+components:
+  schemas:
+    ProblemDetails:
+      $ref: './schemas/error.yaml#/ProblemDetails'
+    ServiceHealth:
+      $ref: './schemas/service-health.yaml#/ServiceHealth'
+    VersionInfo:
+      type: object
+      description: Build and runtime version information.
+      required: [service_name, version]
+      additionalProperties: false
+      properties:
+        service_name:
+          type: string
+          description: Logical name of the service.
+        version:
+          type: string
+          description: Semantic version of the running build.
+        build_commit:
+          type: string
+          description: Source control commit hash the build was produced from.
+        build_time:
+          type: string
+          format: date-time
+          description: UTC timestamp the build was produced.
+        java_version:
+          type: integer
+          description: Major JDK version the service runs on.
+        spring_boot_version:
+          type: string
+          description: Spring Boot framework version in use.

@@ -1,0 +1,12 @@
+# Function: Cloud control development profile — verbose logging and SQL output
+# Time: 2026-07-03
+# Author: AxeXie
+
+logging:
+  level:
+    io.opengeobot: DEBUG
+    org.springframework.web: DEBUG
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
