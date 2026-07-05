@@ -1,0 +1,25 @@
+<!--
+Function: F-PLATFORM-002 test summary — user/org/role/permission closed-loop verification
+Time: 2026-07-05
+Author: AxeXie
+-->
+<!DOCTYPE html>
+<html><head><title>F-PLATFORM-002 Test Summary</title></head>
+<body>
+<h1>F-PLATFORM-002 Test Summary — Users, Organizations, Roles &amp; Permissions</h1>
+<table border="1">
+<tr><th>Test</th><th>Method</th><th>Status</th></tr>
+<tr><td>List users (GET /api/v1/users) — paginated</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Create user (POST /api/v1/users) — returns user_id</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>List roles (GET /api/v1/roles) — paginated</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Create role (POST /api/v1/roles) — returns role_id</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Assign roles to user (PUT /api/v1/users/{id}/roles) — HTTP 200</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Verify user roles (GET /api/v1/users/{id}/roles) — 1 role assigned</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Disable user (PATCH /api/v1/users/{id}/status) — HTTP 200</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Audit: CREATE_USER, CREATE_ROLE, ASSIGN_USER_ROLES, UPDATE_USER_STATUS recorded</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Permission enforcement (platform.user.read/manage, platform.role.read/manage)</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>trace_id present in all audit records</td><td>API E2E</td><td>PASS</td></tr>
+</table>
+<p>Total: 10 tests, 10 passed, 0 failed</p>
+<p>Acceptance: C01 (common capabilities closed loop), C24 (security baseline)</p>
+</body></html>

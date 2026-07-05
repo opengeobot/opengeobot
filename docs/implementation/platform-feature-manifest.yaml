@@ -199,7 +199,7 @@ features:
   - id: F-PLATFORM-001
     name: 认证与会话
     phase: M1
-    implementation_status: NOT_STARTED
+    implementation_status: DONE
     source_sections: ["PDF 12.1", "AI规范 6.2", "实施蓝图 3.1/5.2/7.1"]
     platform_capability_profile: PLATFORM_PROVIDER
     deployment_targets: [CLOUD_JAVA, WEB]
@@ -224,11 +224,36 @@ features:
       acceptance_ids: [C01, C24]
       required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY]
       done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+    evidence:
+      contracts:
+        - contracts/openapi/openapi.yaml
+        - contracts/asyncapi/asyncapi.yaml
+      migrations:
+        - apps/cloud-control/bootstrap/src/main/resources/db/migration/V3__create_iam_auth_tables.sql
+      backend:
+        - apps/cloud-control/platform-iam/
+      frontend:
+        - apps/web-console/src/views/LoginView.vue
+        - apps/web-console/src/views/ProfileView.vue
+      events:
+        - contracts/asyncapi/asyncapi.yaml
+      deployment:
+        - deploy/compose/compose.yml
+        - reports/deployment/F-PLATFORM-001-deployment-summary.md
+      observability:
+        - deploy/observability/vmagent.yml
+        - reports/observability/F-PLATFORM-001-observability-summary.md
+      security_reports:
+        - reports/security/F-PLATFORM-001-security-checklist.md
+      test_reports:
+        - reports/tests/F-PLATFORM-001-test-summary.html
+      runbook:
+        - docs/runbooks/m1-platform-capabilities.md
 
   - id: F-PLATFORM-002
     name: 用户组织角色权限
     phase: M1
-    implementation_status: IN_PROGRESS
+    implementation_status: DONE
     source_sections: ["PDF 10.1/12.1", "AI规范 6.2", "实施蓝图 3.9/5.2"]
     platform_capability_profile: PLATFORM_PROVIDER
     deployment_targets: [CLOUD_JAVA, WEB]
@@ -253,11 +278,37 @@ features:
       acceptance_ids: [C01, C24]
       required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY]
       done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+    evidence:
+      contracts:
+        - contracts/openapi/openapi.yaml
+      migrations:
+        - apps/cloud-control/bootstrap/src/main/resources/db/migration/V4__create_iam_rbac_tables.sql
+      backend:
+        - apps/cloud-control/platform-iam/
+      frontend:
+        - apps/web-console/src/views/system/UserManagement.vue
+        - apps/web-console/src/views/system/OrgManagement.vue
+        - apps/web-console/src/views/system/RoleManagement.vue
+        - apps/web-console/src/views/system/PermissionView.vue
+      events:
+        - contracts/asyncapi/asyncapi.yaml
+      deployment:
+        - deploy/compose/compose.yml
+        - reports/deployment/F-PLATFORM-002-deployment-summary.md
+      observability:
+        - deploy/observability/vmagent.yml
+        - reports/observability/F-PLATFORM-002-observability-summary.md
+      security_reports:
+        - reports/security/F-PLATFORM-002-security-checklist.md
+      test_reports:
+        - reports/tests/F-PLATFORM-002-test-summary.html
+      runbook:
+        - docs/runbooks/m1-platform-capabilities.md
 
   - id: F-PLATFORM-003
     name: 数据字典与国际化
     phase: M1
-    implementation_status: NOT_STARTED
+    implementation_status: DONE
     source_sections: ["AI规范 6.3/6.4", "实施蓝图 3.9/5.2"]
     platform_capability_profile: PLATFORM_PROVIDER
     deployment_targets: [CLOUD_JAVA, WEB]
@@ -282,11 +333,35 @@ features:
       acceptance_ids: [C02]
       required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E]
       done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS]
+    evidence:
+      contracts:
+        - contracts/openapi/openapi.yaml
+      migrations:
+        - apps/cloud-control/bootstrap/src/main/resources/db/migration/V5__create_dict_i18n_tables.sql
+      backend:
+        - apps/cloud-control/platform-governance/
+      frontend:
+        - apps/web-console/src/views/system/DictManagement.vue
+        - apps/web-console/src/views/system/I18nManagement.vue
+      events:
+        - contracts/asyncapi/asyncapi.yaml
+      deployment:
+        - deploy/compose/compose.yml
+        - reports/deployment/F-PLATFORM-003-deployment-summary.md
+      observability:
+        - deploy/observability/vmagent.yml
+        - reports/observability/F-PLATFORM-003-observability-summary.md
+      security_reports:
+        - reports/security/F-PLATFORM-003-security-checklist.md
+      test_reports:
+        - reports/tests/F-PLATFORM-003-test-summary.html
+      runbook:
+        - docs/runbooks/m1-platform-capabilities.md
 
   - id: F-PLATFORM-004
     name: 配置审计幂等与导出
     phase: M1
-    implementation_status: IN_PROGRESS
+    implementation_status: DONE
     source_sections: ["AI规范 6.5/6.6", "实施蓝图 3.9/5.2"]
     platform_capability_profile: PLATFORM_PROVIDER
     deployment_targets: [CLOUD_JAVA, WEB]
@@ -311,6 +386,31 @@ features:
       acceptance_ids: [C01, C19, C24]
       required_tests: [UNIT, CONTRACT, INTEGRATION, COMPONENT, E2E, SECURITY]
       done_evidence: [CONTRACTS, MIGRATIONS, BACKEND, FRONTEND, EVENTS, TEST_REPORTS, RUNBOOK]
+    evidence:
+      contracts:
+        - contracts/openapi/openapi.yaml
+      migrations:
+        - apps/cloud-control/bootstrap/src/main/resources/db/migration/V6__create_config_export_tables.sql
+      backend:
+        - apps/cloud-control/platform-governance/
+        - apps/cloud-control/platform-common/
+      frontend:
+        - apps/web-console/src/views/system/ConfigManagement.vue
+        - apps/web-console/src/views/system/AuditLog.vue
+      events:
+        - contracts/asyncapi/asyncapi.yaml
+      deployment:
+        - deploy/compose/compose.yml
+        - reports/deployment/F-PLATFORM-004-deployment-summary.md
+      observability:
+        - deploy/observability/vmagent.yml
+        - reports/observability/F-PLATFORM-004-observability-summary.md
+      security_reports:
+        - reports/security/F-PLATFORM-004-security-checklist.md
+      test_reports:
+        - reports/tests/F-PLATFORM-004-test-summary.html
+      runbook:
+        - docs/runbooks/m1-platform-capabilities.md
 
   - id: F-EDGE-001
     name: 边缘网关身份连接与证书

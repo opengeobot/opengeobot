@@ -1,0 +1,23 @@
+<!--
+Function: F-PLATFORM-004 test summary — configuration, audit, idempotency and export verification
+Time: 2026-07-05
+Author: AxeXie
+-->
+<!DOCTYPE html>
+<html><head><title>F-PLATFORM-004 Test Summary</title></head>
+<body>
+<h1>F-PLATFORM-004 Test Summary — Configuration, Audit, Idempotency &amp; Export</h1>
+<table border="1">
+<tr><th>Test</th><th>Method</th><th>Status</th></tr>
+<tr><td>List configs (GET /api/v1/configs) — HTTP 200</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>List audits (GET /api/v1/audits) — HTTP 200, paginated</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Audit records contain action, actor_id, resource_type, resource_id, result</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Audit trace_id present on all records</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Audit covers LOGIN, CREATE_USER, CREATE_ROLE, ASSIGN_USER_ROLES, UPDATE_USER_STATUS</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Export endpoint registered (POST /api/v1/exports)</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Permission enforcement (platform.config.read/manage, audit.audit.read/export)</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Idempotency record table present (sys_idempotency_record)</td><td>DB migration</td><td>PASS</td></tr>
+</table>
+<p>Total: 8 tests, 8 passed, 0 failed</p>
+<p>Acceptance: C01 (common capabilities), C19 (trace replay), C24 (security baseline)</p>
+</body></html>

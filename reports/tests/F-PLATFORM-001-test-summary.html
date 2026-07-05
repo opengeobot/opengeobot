@@ -1,0 +1,22 @@
+<!--
+Function: F-PLATFORM-001 test summary — authentication and session closed-loop verification
+Time: 2026-07-05
+Author: AxeXie
+-->
+<!DOCTYPE html>
+<html><head><title>F-PLATFORM-001 Test Summary</title></head>
+<body>
+<h1>F-PLATFORM-001 Test Summary — Authentication &amp; Session</h1>
+<table border="1">
+<tr><th>Test</th><th>Method</th><th>Status</th></tr>
+<tr><td>Login as admin (POST /api/v1/auth/login)</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>JWT access token issued with permission claims</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Refresh token issued (rt_ prefix)</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>GET /api/v1/profile with Bearer token</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Token expiry (expires_in=1800)</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Login audit record written (action=LOGIN, trace_id present)</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Unauthorized request without token rejected</td><td>API E2E</td><td>PASS</td></tr>
+</table>
+<p>Total: 7 tests, 7 passed, 0 failed</p>
+<p>Acceptance: C01 (common capabilities closed loop), C24 (security baseline)</p>
+</body></html>
