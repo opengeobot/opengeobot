@@ -1,0 +1,378 @@
+# Function: Adapter management endpoint paths for F-ADAPTER-002
+# Time: 2026-07-05
+# Author: AxeXie
+
+adaptersCollection:
+  get:
+    tags: [adapter]
+    summary: List registered adapters
+    description: >-
+      Returns a paginated list of registered protocol adapters. Results can be
+      filtered by `protocol_type`, `status` and `robot_id`. Requires the
+      `robot.adapter.read` permission.
+    operationId: listAdapters
+    parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 1
+        description: Page number (1-based).
+        example: 1
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of items per page.
+        example: 20
+      - name: protocol_type
+        in: query
+        required: false
+        schema:
+          $ref: '../schemas/adapter.yaml#/ProtocolType'
+        description: Filter adapters by protocol type.
+        example: ROS1
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '../schemas/adapter.yaml#/AdapterStatus'
+        description: Filter adapters by operational status.
+        example: ACTIVE
+      - name: robot_id
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter adapters serving the given robot.
+        example: rbt_01J00000000000000000000001
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Paginated list of adapters.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/adapter.yaml#/AdapterPage'
+            example:
+              items:
+                - adapter_id: adp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  robot_id: rbt_01J00000000000000000000001
+                  protocol_type: ROS1
+                  version: 0.1.0
+                  status: ACTIVE
+                  config:
+                    ros_master_uri: http://localhost:11311
+                  created_at: '2026-07-05T08:00:00Z'
+                  updated_at: '2026-07-05T08:00:00Z'
+              total: 1
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.adapter.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [adapter]
+    summary: Register a protocol adapter
+    description: >-
+      Registers a new protocol adapter that translates platform skill commands
+      into a robot-native protocol. The adapter is created with an initial
+      status of `REGISTERED`. Emits an `adapter.registered.v1` event on
+      success. Requires the `robot.adapter.register` permission. Supports
+      idempotency via the `Idempotency-Key` header.
+    operationId: registerAdapter
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: adapter-register-20260705
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/adapter.yaml#/RegisterAdapterRequest'
+          example:
+            robot_id: rbt_01J00000000000000000000001
+            protocol_type: ROS1
+            version: 0.1.0
+            config:
+              ros_master_uri: http://localhost:11311
+              node_name: opengeobot_ros1
+    responses:
+      '201':
+        description: Adapter registered.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/adapter.yaml#/Adapter'
+            example:
+              adapter_id: adp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              robot_id: rbt_01J00000000000000000000001
+              protocol_type: ROS1
+              version: 0.1.0
+              status: REGISTERED
+              config:
+                ros_master_uri: http://localhost:11311
+              created_at: '2026-07-05T08:00:00Z'
+              updated_at: '2026-07-05T08:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.adapter.register permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+adapterItem:
+  parameters:
+    - name: adapterId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the adapter.
+      example: adp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+  get:
+    tags: [adapter]
+    summary: Get adapter detail
+    description: >-
+      Returns the full adapter detail, including protocol configuration.
+      Requires the `robot.adapter.read` permission.
+    operationId: getAdapter
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Adapter detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/adapter.yaml#/Adapter'
+            example:
+              adapter_id: adp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              robot_id: rbt_01J00000000000000000000001
+              protocol_type: ROS1
+              version: 0.1.0
+              status: ACTIVE
+              config:
+                ros_master_uri: http://localhost:11311
+              created_at: '2026-07-05T08:00:00Z'
+              updated_at: '2026-07-05T08:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.adapter.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Adapter not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+adapterStatus:
+  parameters:
+    - name: adapterId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the adapter.
+      example: adp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+  put:
+    tags: [adapter]
+    summary: Update adapter status
+    description: >-
+      Transitions the adapter operational status. The transition is validated
+      against the SM-ADAPTER-001 state machine. The `reason` is recorded in
+      the audit log, and an `adapter.status_changed.v1` event is emitted.
+      Requires the `robot.adapter.register` permission. Supports idempotency
+      via the `Idempotency-Key` header.
+    operationId: updateAdapterStatus
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: adapter-status-20260705
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/adapter.yaml#/UpdateAdapterStatusRequest'
+          example:
+            status: ACTIVE
+            reason: ADAPTER_HEALTHY
+    responses:
+      '200':
+        description: Updated adapter detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/adapter.yaml#/Adapter'
+      '400':
+        description: Invalid request body or disallowed status transition.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.adapter.register permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Adapter not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: The requested status transition is not allowed by SM-ADAPTER-001.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+adapterTranslate:
+  parameters:
+    - name: adapterId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the adapter.
+      example: adp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+  post:
+    tags: [adapter]
+    summary: Translate a command to robot protocol
+    description: >-
+      Translates a platform skill command into a robot-native protocol message
+      using the adapter's translation profile. The returned command is an
+      untrusted proposal that must be validated by the edge Safety Gateway
+      before execution. Requires the `robot.adapter.translate` permission.
+      Supports idempotency via the `Idempotency-Key` header.
+    operationId: translateCommand
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: adapter-translate-20260705
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/adapter.yaml#/TranslateCommandRequest'
+          example:
+            skill_id: stand_up
+            params:
+              duration: 2.0
+    responses:
+      '200':
+        description: Translation result.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/adapter.yaml#/TranslateCommandResponse'
+            example:
+              adapter_id: adp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              skill_id: stand_up
+              translated_command:
+                topic: /standUpCmd
+                type: std_msgs/Bool
+                data: true
+              success: true
+              error: null
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.adapter.translate permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Adapter not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Adapter is not in an ACTIVE state.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

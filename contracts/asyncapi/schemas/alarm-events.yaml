@@ -1,0 +1,146 @@
+# Function: Alarm event payloads for F-ALARM-001 AsyncAPI
+# Time: 2026-07-05
+# Author: AxeXie
+AlarmTriggeredV1:
+  type: object
+  description: >-
+    Payload for the alarm.triggered.v1 event, emitted when an alarm rule
+    condition is met and a new alarm event is created.
+  required:
+    - alarm_id
+    - rule_id
+    - source
+    - severity
+    - message
+    - triggered_at
+  additionalProperties: false
+  properties:
+    alarm_id:
+      type: string
+      description: Unique alarm event identifier.
+      example: alm_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    rule_id:
+      type: string
+      description: Identifier of the rule that triggered this alarm.
+      example: alr_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    source:
+      type: string
+      description: Source of the alarm (e.g. robot_id or system component).
+      example: rbt_01J00000000000000000000001
+    severity:
+      type: string
+      description: Severity level.
+      enum:
+        - CRITICAL
+        - HIGH
+        - MEDIUM
+        - LOW
+      example: HIGH
+    message:
+      type: string
+      description: Human-readable description of the alarm condition.
+      example: Robot rbt_01J00000000000000000000001 has been offline for 320s
+    triggered_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the alarm was triggered.
+      example: '2026-07-05T10:05:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+AlarmAcknowledgedV1:
+  type: object
+  description: >-
+    Payload for the alarm.acknowledged.v1 event, emitted when an alarm is
+    acknowledged by an operator.
+  required:
+    - alarm_id
+    - rule_id
+    - source
+    - severity
+    - acknowledged_by
+    - acknowledged_at
+  additionalProperties: false
+  properties:
+    alarm_id:
+      type: string
+      description: Unique alarm event identifier.
+      example: alm_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    rule_id:
+      type: string
+      description: Identifier of the rule that triggered this alarm.
+      example: alr_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    source:
+      type: string
+      description: Source of the alarm.
+      example: rbt_01J00000000000000000000001
+    severity:
+      type: string
+      description: Severity level.
+      enum:
+        - CRITICAL
+        - HIGH
+        - MEDIUM
+        - LOW
+      example: HIGH
+    acknowledged_by:
+      type: string
+      description: Actor that acknowledged the alarm.
+      example: usr_01J00000000000000000000001
+    acknowledged_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the alarm was acknowledged.
+      example: '2026-07-05T10:10:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+AlarmResolvedV1:
+  type: object
+  description: >-
+    Payload for the alarm.resolved.v1 event, emitted when an alarm is
+    resolved, either manually or automatically.
+  required:
+    - alarm_id
+    - rule_id
+    - source
+    - severity
+    - resolved_at
+  additionalProperties: false
+  properties:
+    alarm_id:
+      type: string
+      description: Unique alarm event identifier.
+      example: alm_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    rule_id:
+      type: string
+      description: Identifier of the rule that triggered this alarm.
+      example: alr_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    source:
+      type: string
+      description: Source of the alarm.
+      example: rbt_01J00000000000000000000001
+    severity:
+      type: string
+      description: Severity level.
+      enum:
+        - CRITICAL
+        - HIGH
+        - MEDIUM
+        - LOW
+      example: HIGH
+    resolved_by:
+      type: string
+      description: Actor that resolved the alarm, if applicable.
+      example: usr_01J00000000000000000000001
+    resolved_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the alarm was resolved.
+      example: '2026-07-05T10:15:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

@@ -1,0 +1,436 @@
+# Function: OpenAPI path items for F-ALARM-001 alarm lifecycle and notification API
+# Time: 2026-07-05
+# Author: AxeXie
+alarmsCollection:
+  get:
+    tags: [alarm]
+    summary: List alarm events
+    description: >-
+      Returns a paginated list of alarm events, optionally filtered by
+      `status`, `severity` and `source`. Events are ordered from newest to
+      oldest. Requires the `ops.alarm.read` permission.
+    operationId: listAlarms
+    security:
+      - bearerAuth: []
+    parameters:
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: status
+        in: query
+        description: Filter by alarm status.
+        schema:
+          $ref: '../schemas/alarm.yaml#/AlarmStatus'
+        example: ACTIVE
+      - name: severity
+        in: query
+        description: Filter by alarm severity.
+        schema:
+          $ref: '../schemas/alarm.yaml#/AlarmSeverity'
+        example: HIGH
+      - name: source
+        in: query
+        description: Filter by alarm source (e.g. robot_id or system component).
+        schema:
+          type: string
+        example: rbt_01J00000000000000000000001
+    responses:
+      '200':
+        description: Paginated list of alarm events.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/alarm.yaml#/AlarmEvent'
+                total:
+                  type: integer
+                  format: int64
+                  example: 5
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.alarm.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+alarmRulesCollection:
+  get:
+    tags: [alarm]
+    summary: List alarm rules
+    description: >-
+      Returns a paginated list of alarm rules, optionally filtered by
+      `source` and `enabled`. Requires the `ops.alarm.read` permission.
+    operationId: listAlarmRules
+    security:
+      - bearerAuth: []
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: source
+        in: query
+        description: Filter by rule source.
+        schema:
+          type: string
+      - name: enabled
+        in: query
+        description: Filter by enabled state.
+        schema:
+          type: boolean
+    responses:
+      '200':
+        description: Paginated list of alarm rules.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/alarm.yaml#/AlarmRule'
+                total:
+                  type: integer
+                  format: int64
+                page:
+                  type: integer
+                page_size:
+                  type: integer
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.alarm.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [alarm]
+    summary: Create an alarm rule
+    description: >-
+      Creates a new alarm rule that, when enabled, is evaluated periodically
+      by the alarm evaluator. When the rule condition is met, an alarm event
+      is triggered and notifications are sent via configured channels. Requires
+      the `ops.alarm.manage` permission.
+    operationId: createAlarmRule
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/alarm.yaml#/CreateAlarmRuleRequest'
+          example:
+            name: robot_offline
+            source: robot_registry
+            metric: robot.offline_duration
+            condition: GREATER_THAN
+            threshold: 300
+            severity: HIGH
+            enabled: true
+    responses:
+      '201':
+        description: Alarm rule created.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/alarm.yaml#/AlarmRule'
+            example:
+              rule_id: alr_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              name: robot_offline
+              source: robot_registry
+              metric: robot.offline_duration
+              condition: GREATER_THAN
+              threshold: 300
+              severity: HIGH
+              enabled: true
+              created_at: '2026-07-05T10:00:00Z'
+              updated_at: '2026-07-05T10:00:00Z'
+              created_by: usr_01J00000000000000000000001
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.alarm.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+alarmRuleItem:
+  parameters:
+    - name: ruleId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the alarm rule.
+      example: alr_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+  put:
+    tags: [alarm]
+    summary: Update an alarm rule
+    description: >-
+      Updates the name, condition, threshold, severity and enabled flag of an
+      existing alarm rule. Requires the `ops.alarm.manage` permission.
+    operationId: updateAlarmRule
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/alarm.yaml#/UpdateAlarmRuleRequest'
+          example:
+            threshold: 600
+            severity: CRITICAL
+            enabled: false
+    responses:
+      '200':
+        description: Alarm rule updated.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/alarm.yaml#/AlarmRule'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.alarm.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Alarm rule not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+alarmAcknowledge:
+  parameters:
+    - name: alarmId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the alarm event.
+      example: alm_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+  post:
+    tags: [alarm]
+    summary: Acknowledge an alarm
+    description: >-
+      Transitions an alarm from `ACTIVE` to `ACKNOWLEDGED`, recording the
+      acknowledging actor. A `alarm.acknowledged.v1` event is published via
+      the transactional outbox. Requires the `ops.alarm.manage` permission.
+    operationId: acknowledgeAlarm
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Alarm acknowledged.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/alarm.yaml#/AlarmEvent'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.alarm.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Alarm not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Alarm is not in ACTIVE state.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+alarmResolve:
+  parameters:
+    - name: alarmId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the alarm event.
+      example: alm_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+  post:
+    tags: [alarm]
+    summary: Resolve an alarm
+    description: >-
+      Transitions an alarm from `ACTIVE` or `ACKNOWLEDGED` to `RESOLVED`,
+      recording the resolving actor and timestamp. A `alarm.resolved.v1` event
+      is published via the transactional outbox. Requires the
+      `ops.alarm.manage` permission.
+    operationId: resolveAlarm
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Alarm resolved.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/alarm.yaml#/AlarmEvent'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.alarm.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Alarm not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Alarm is already RESOLVED.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+alarmChannelsCollection:
+  get:
+    tags: [alarm]
+    summary: List notification channels
+    description: >-
+      Returns the list of configured notification channels. Requires the
+      `ops.alarm.read` permission.
+    operationId: listAlarmChannels
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: List of notification channels.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/alarm.yaml#/NotificationChannel'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.alarm.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [alarm]
+    summary: Create a notification channel
+    description: >-
+      Creates a new notification channel (e.g. in-app, webhook, email).
+      Requires the `ops.alarm.manage` permission.
+    operationId: createAlarmChannel
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/alarm.yaml#/CreateNotificationChannelRequest'
+          example:
+            name: ops-webhook
+            type: webhook
+            config:
+              url: https://hooks.example.com/alerts
+            enabled: true
+    responses:
+      '201':
+        description: Notification channel created.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/alarm.yaml#/NotificationChannel'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.alarm.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

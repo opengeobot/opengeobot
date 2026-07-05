@@ -1,0 +1,343 @@
+# Function: Fleet scheduling schemas for F-FLEET-001
+# Time: 2026-07-05
+# Author: AxeXie
+
+ScheduleStatus:
+  type: string
+  description: >-
+    Canonical fleet schedule status. Governs whether a schedule is pending,
+    active, completed or cancelled. This is a code contract governed by the
+    platform, not editable dictionary data.
+  enum:
+    - PENDING
+    - APPROVED
+    - ACTIVE
+    - COMPLETED
+    - CANCELLED
+  example: PENDING
+
+ConflictType:
+  type: string
+  description: >-
+    Canonical conflict type detected by the fleet scheduler when two or more
+    schedules compete for the same robot or overlapping time/space. This is a
+    code contract.
+  enum:
+    - TIME_OVERLAP
+    - ROBOT_BUSY
+    - PATH_COLLISION
+    - RESOURCE_CONTENTION
+  example: TIME_OVERLAP
+
+ConflictResolution:
+  type: string
+  description: >-
+    Resolution strategy applied to a detected conflict. `REORDER` shifts the
+    lower-priority schedule later; `REASSIGN` moves it to another robot;
+    `CANCEL` drops the lowest-priority schedule. This is a code contract.
+  enum:
+    - REORDER
+    - REASSIGN
+    - CANCEL
+  example: REORDER
+
+FailoverStatus:
+  type: string
+  description: >-
+    Status of a failover event. `INITIATED` means the transfer has started but
+    not completed; `COMPLETED` means the mission was transferred to the target
+    robot; `FAILED` means no suitable target robot was found. This is a code
+    contract.
+  enum:
+    - INITIATED
+    - COMPLETED
+    - FAILED
+  example: COMPLETED
+
+FleetSchedule:
+  type: object
+  description: >-
+    A fleet schedule entry assigning a mission to a robot within a planned
+    time window. The scheduler detects conflicts between schedules and can
+    fail over a mission to another robot when the original robot becomes
+    unavailable. All field names use snake_case.
+  required: [schedule_id, mission_id, robot_id, planned_start, planned_end, priority, status, created_at]
+  additionalProperties: false
+  properties:
+    schedule_id:
+      type: string
+      description: Stable public identifier of the schedule (ULID-based).
+      example: sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Public identifier of the mission being scheduled.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Public identifier of the robot assigned to execute the mission.
+      example: rbt_01J00000000000000000000001
+    planned_start:
+      type: string
+      format: date-time
+      description: UTC timestamp of the planned execution start.
+      example: '2026-07-05T10:00:00Z'
+    planned_end:
+      type: string
+      format: date-time
+      description: UTC timestamp of the planned execution end.
+      example: '2026-07-05T10:30:00Z'
+    priority:
+      type: string
+      description: Scheduling priority of the mission.
+      enum:
+        - LOW
+        - NORMAL
+        - HIGH
+        - URGENT
+      example: NORMAL
+    status:
+      $ref: '#/ScheduleStatus'
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the schedule was created.
+      example: '2026-07-05T08:00:00Z'
+
+FleetSchedulePage:
+  type: object
+  description: Paginated response wrapper for fleet schedule entries.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/FleetSchedule'
+    total:
+      type: integer
+      format: int64
+      description: Total number of matching records.
+      example: 5
+    page:
+      type: integer
+      description: Current page number.
+      example: 1
+    page_size:
+      type: integer
+      description: Number of items per page.
+      example: 20
+
+ConflictRecord:
+  type: object
+  description: >-
+    A detected conflict between two or more fleet schedules. The conflict is
+    detected when schedules for the same robot overlap in time or when paths
+    collide. All field names use snake_case.
+  required: [conflict_id, schedule_ids, conflict_type, detected_at, status]
+  additionalProperties: false
+  properties:
+    conflict_id:
+      type: string
+      description: Stable public identifier of the conflict (ULID-based).
+      example: cfl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    schedule_ids:
+      type: array
+      description: Public identifiers of the conflicting schedules.
+      items:
+        type: string
+      example:
+        - sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+        - sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2D
+    conflict_type:
+      $ref: '#/ConflictType'
+    description:
+      type: string
+      description: Human-readable description of the conflict.
+      example: Schedules overlap on robot rbt_01J00000000000000000000001 between 10:00 and 10:30
+    detected_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the conflict was detected.
+      example: '2026-07-05T08:00:05Z'
+    resolved_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the conflict was resolved, if applicable.
+      example: '2026-07-05T08:01:00Z'
+    resolution:
+      $ref: '#/ConflictResolution'
+    status:
+      type: string
+      description: Whether the conflict is still open or has been resolved.
+      enum:
+        - OPEN
+        - RESOLVED
+      example: OPEN
+
+ConflictRecordPage:
+  type: object
+  description: Paginated response wrapper for conflict records.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ConflictRecord'
+    total:
+      type: integer
+      format: int64
+      description: Total number of matching records.
+      example: 2
+    page:
+      type: integer
+      description: Current page number.
+      example: 1
+    page_size:
+      type: integer
+      description: Number of items per page.
+      example: 20
+
+FailoverEvent:
+  type: object
+  description: >-
+    A failover event recording the transfer of a mission from one robot to
+    another when the original robot becomes unavailable. All field names use
+    snake_case.
+  required: [failover_id, robot_id, mission_id, reason, status, occurred_at]
+  additionalProperties: false
+  properties:
+    failover_id:
+      type: string
+      description: Stable public identifier of the failover event (ULID-based).
+      example: fov_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Public identifier of the source robot that became unavailable.
+      example: rbt_01J00000000000000000000001
+    mission_id:
+      type: string
+      description: Public identifier of the mission being transferred.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    reason:
+      type: string
+      description: Machine-readable reason for the failover.
+      example: ROBOT_OFFLINE
+    target_robot_id:
+      type: string
+      description: Public identifier of the robot taking over the mission.
+      example: rbt_01J00000000000000000000002
+    status:
+      $ref: '#/FailoverStatus'
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the failover was initiated.
+      example: '2026-07-05T10:05:00Z'
+
+FailoverEventPage:
+  type: object
+  description: Paginated response wrapper for failover events.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/FailoverEvent'
+    total:
+      type: integer
+      format: int64
+      description: Total number of matching records.
+      example: 1
+    page:
+      type: integer
+      description: Current page number.
+      example: 1
+    page_size:
+      type: integer
+      description: Number of items per page.
+      example: 20
+
+CreateScheduleRequest:
+  type: object
+  description: >-
+    Request body for assigning a mission to a robot within a planned time
+    window. The scheduler runs conflict detection after creation. All field
+    names use snake_case.
+  required: [mission_id, robot_id, planned_start, planned_end]
+  additionalProperties: false
+  properties:
+    mission_id:
+      type: string
+      description: Public identifier of the mission to schedule.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Public identifier of the robot assigned to execute the mission.
+      example: rbt_01J00000000000000000000001
+    planned_start:
+      type: string
+      format: date-time
+      description: UTC timestamp of the planned execution start.
+      example: '2026-07-05T10:00:00Z'
+    planned_end:
+      type: string
+      format: date-time
+      description: UTC timestamp of the planned execution end.
+      example: '2026-07-05T10:30:00Z'
+    priority:
+      type: string
+      description: Scheduling priority of the mission. Defaults to NORMAL.
+      enum:
+        - LOW
+        - NORMAL
+        - HIGH
+        - URGENT
+      example: NORMAL
+
+ResolveConflictRequest:
+  type: object
+  description: >-
+    Request body for resolving a detected conflict. The `resolution` determines
+    how the conflict is handled: reorder the lower-priority schedule, reassign
+    it to another robot, or cancel it. All field names use snake_case.
+  required: [resolution]
+  additionalProperties: false
+  properties:
+    resolution:
+      $ref: '#/ConflictResolution'
+    target_robot_id:
+      type: string
+      description: >-
+        Public identifier of the robot to reassign to. Required when resolution
+        is `REASSIGN`.
+      example: rbt_01J00000000000000000000002
+
+TriggerFailoverRequest:
+  type: object
+  description: >-
+    Request body for triggering a manual failover. The mission is transferred
+    from the source robot to a target robot chosen by the scheduler or
+    specified by the caller. All field names use snake_case.
+  required: [robot_id, mission_id, reason]
+  additionalProperties: false
+  properties:
+    robot_id:
+      type: string
+      description: Public identifier of the source robot that became unavailable.
+      example: rbt_01J00000000000000000000001
+    mission_id:
+      type: string
+      description: Public identifier of the mission to transfer.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    reason:
+      type: string
+      description: Machine-readable reason for the failover.
+      example: MANUAL_FAILOVER
+    target_robot_id:
+      type: string
+      description: >-
+        Optional explicit target robot. If omitted, the scheduler selects an
+        available robot.
+      example: rbt_01J00000000000000000000002

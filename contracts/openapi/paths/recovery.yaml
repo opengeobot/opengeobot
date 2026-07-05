@@ -1,0 +1,242 @@
+# Function: OpenAPI path items for F-RECOVERY-001 backup and recovery API
+# Time: 2026-07-05
+# Author: AxeXie
+recoveryBackupsCollection:
+  get:
+    tags: [recovery]
+    summary: List backups
+    description: >-
+      Returns a paginated list of backup records. Results can be filtered by
+      `type` and `status`. Requires the `ops.backup.read` permission.
+    operationId: listBackups
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: type
+        in: query
+        description: Filter by backup type.
+        schema:
+          $ref: '../schemas/recovery.yaml#/BackupRecord/properties/type'
+        example: DATABASE
+      - name: status
+        in: query
+        description: Filter by backup status.
+        schema:
+          $ref: '../schemas/recovery.yaml#/BackupRecord/properties/status'
+        example: COMPLETED
+    responses:
+      '200':
+        description: Paginated list of backup records.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/recovery.yaml#/BackupRecord'
+                total:
+                  type: integer
+                  format: int64
+                  example: 14
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.backup.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [recovery]
+    summary: Trigger a manual backup
+    description: >-
+      Triggers a manual backup of the specified type. Requires the
+      `ops.backup.manage` permission.
+    operationId: triggerBackup
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [type]
+            additionalProperties: false
+            properties:
+              type:
+                $ref: '../schemas/recovery.yaml#/BackupRecord/properties/type'
+          example:
+            type: DATABASE
+    responses:
+      '201':
+        description: Backup triggered successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/recovery.yaml#/BackupRecord'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.backup.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+recoveryRestore:
+  post:
+    tags: [recovery]
+    summary: Restore from a backup
+    description: >-
+      Restores the database or MinIO from the specified backup. Requires the
+      `ops.restore.execute` permission.
+    operationId: restoreBackup
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/recovery.yaml#/RestoreRequest'
+          example:
+            backup_id: bkp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '201':
+        description: Restore initiated successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/recovery.yaml#/RestoreRecord'
+      '404':
+        description: Backup not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Backup is not in a restorable state.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+recoveryDrillsCollection:
+  get:
+    tags: [recovery]
+    summary: List disaster recovery drills
+    description: Returns a paginated list of drill records.
+    operationId: listDrills
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+    responses:
+      '200':
+        description: Paginated list of drill records.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/recovery.yaml#/DrillRecord'
+                total:
+                  type: integer
+                  format: int64
+                  example: 5
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.backup.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [recovery]
+    summary: Create a disaster recovery drill
+    description: >-
+      Creates and runs a disaster recovery drill. Requires the
+      `ops.backup.manage` permission.
+    operationId: createDrill
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/recovery.yaml#/CreateDrillRequest'
+          example:
+            type: BACKUP_VERIFY
+            notes: Weekly verification.
+    responses:
+      '201':
+        description: Drill created and executed.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/recovery.yaml#/DrillRecord'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.backup.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

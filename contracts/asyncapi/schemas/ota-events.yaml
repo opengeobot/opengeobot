@@ -1,0 +1,151 @@
+# Function: OTA lifecycle event payload schemas for F-OTA-001
+# Time: 2026-07-05
+# Author: AxeXie
+
+OtaReleaseStartedV1:
+  type: object
+  description: >-
+    Event emitted when an OTA release campaign deployment starts. The payload
+    is wrapped in the platform EventEnvelope whose `event_type` is
+    `ota.release_started.v1`. `trace_id` links the deployment to the
+    end-to-end trace context. All field names use snake_case.
+  required:
+    - event_id
+    - campaign_id
+    - package_id
+    - target_robots
+    - canary_percent
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    campaign_id:
+      type: string
+      description: Public identifier of the campaign.
+      example: ota_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    package_id:
+      type: string
+      description: Identifier of the package being deployed.
+      example: pkg_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    target_robots:
+      type: array
+      items:
+        type: string
+      description: List of robot identifiers targeted by the campaign.
+      example:
+        - rbt_01J00000000000000000000001
+    canary_percent:
+      type: integer
+      minimum: 0
+      maximum: 100
+      description: Canary wave percentage.
+      example: 25
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the deployment started.
+      example: '2026-07-05T09:00:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+
+OtaCompletedV1:
+  type: object
+  description: >-
+    Event emitted when an OTA deployment completes (all target robots finished).
+    The payload is wrapped in the platform EventEnvelope whose `event_type` is
+    `ota.completed.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - campaign_id
+    - package_id
+    - success_count
+    - failed_count
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    campaign_id:
+      type: string
+      description: Public identifier of the campaign.
+      example: ota_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    package_id:
+      type: string
+      description: Identifier of the deployed package.
+      example: pkg_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    success_count:
+      type: integer
+      description: Number of robots that deployed successfully.
+      example: 3
+    failed_count:
+      type: integer
+      description: Number of robots that failed deployment.
+      example: 0
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the campaign completed.
+      example: '2026-07-05T09:30:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+
+OtaRollbackV1:
+  type: object
+  description: >-
+    Event emitted when an OTA campaign is rolled back, restoring the previous
+    version on affected robots. The payload is wrapped in the platform
+    EventEnvelope whose `event_type` is `ota.rolled_back.v1`. All field names
+    use snake_case.
+  required:
+    - event_id
+    - campaign_id
+    - package_id
+    - affected_robots
+    - reason
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    campaign_id:
+      type: string
+      description: Public identifier of the campaign rolled back.
+      example: ota_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    package_id:
+      type: string
+      description: Identifier of the package that was rolled back.
+      example: pkg_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    affected_robots:
+      type: array
+      items:
+        type: string
+      description: List of robot identifiers affected by the rollback.
+      example:
+        - rbt_01J00000000000000000000001
+    reason:
+      type: string
+      description: Reason for the rollback.
+      example: Canary wave reported degraded locomotion stability.
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the rollback occurred.
+      example: '2026-07-05T10:00:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

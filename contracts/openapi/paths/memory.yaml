@@ -1,0 +1,214 @@
+# Function: OpenAPI path items for F-MEMORY-001 task memory API
+# Time: 2026-07-05
+# Author: AxeXie
+memoryCasesCollection:
+  get:
+    tags: [memory]
+    summary: List task cases
+    description: >-
+      Returns a paginated list of task cases. Results can be filtered by
+      `result` (SUCCESS/FAILURE), `robot_id`, and `skill_id`. Requires the
+      `memory.memory.read` permission.
+    operationId: listTaskCases
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: result
+        in: query
+        description: Filter by execution result.
+        schema:
+          $ref: '../schemas/memory.yaml#/TaskCase/properties/result'
+        example: FAILURE
+      - name: robot_id
+        in: query
+        description: Filter by robot identifier.
+        schema:
+          type: string
+        example: rbt_01J00000000000000000000001
+      - name: skill_id
+        in: query
+        description: Filter by skill identifier.
+        schema:
+          type: string
+        example: skl_01J00000000000000000000003
+    responses:
+      '200':
+        description: Paginated list of task cases.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/memory.yaml#/TaskCase'
+                total:
+                  type: integer
+                  format: int64
+                  example: 42
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the memory.memory.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+memoryCaseItem:
+  get:
+    tags: [memory]
+    summary: Get a task case by id
+    description: >-
+      Returns the task case and, if it is a failure, the associated failure
+      case with root-cause analysis and similar cases.
+    operationId: getTaskCase
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        description: Unique case identifier.
+        schema:
+          type: string
+        example: tcs_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: The requested task case.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_case]
+              additionalProperties: false
+              properties:
+                task_case:
+                  $ref: '../schemas/memory.yaml#/TaskCase'
+                failure_case:
+                  $ref: '../schemas/memory.yaml#/FailureCase'
+      '404':
+        description: No case found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+memorySuggestionsCollection:
+  get:
+    tags: [memory]
+    summary: List improvement suggestions
+    description: >-
+      Returns a paginated list of improvement suggestions. Requires the
+      `memory.failure_case.read` permission.
+    operationId: listSuggestions
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: status
+        in: query
+        description: Filter by suggestion status.
+        schema:
+          $ref: '../schemas/memory.yaml#/ImprovementSuggestion/properties/status'
+        example: PENDING
+    responses:
+      '200':
+        description: Paginated list of suggestions.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/memory.yaml#/ImprovementSuggestion'
+                total:
+                  type: integer
+                  format: int64
+                  example: 7
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the memory.failure_case.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+memoryFeedback:
+  post:
+    tags: [memory]
+    summary: Submit feedback on a suggestion
+    description: >-
+      Submits feedback on an improvement suggestion, updating its status.
+      Requires the `memory.improvement.manage` permission.
+    operationId: submitFeedback
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/memory.yaml#/FeedbackRequest'
+          example:
+            suggestion_id: imp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+            feedback: Applied and verified.
+    responses:
+      '200':
+        description: Feedback recorded.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/memory.yaml#/ImprovementSuggestion'
+      '404':
+        description: Suggestion not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

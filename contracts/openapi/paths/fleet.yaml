@@ -1,0 +1,477 @@
+# Function: Fleet scheduling endpoint paths for F-FLEET-001
+# Time: 2026-07-05
+# Author: AxeXie
+
+fleetScheduleCollection:
+  get:
+    tags: [fleet]
+    summary: List fleet schedules
+    description: >-
+      Returns a paginated list of fleet schedules. Results can be filtered by
+      `status`, `robot_id` and `mission_id`. Requires the `fleet.schedule.read`
+      permission.
+    operationId: listFleetSchedules
+    parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 1
+        description: Page number (1-based).
+        example: 1
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of items per page.
+        example: 20
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '../schemas/fleet.yaml#/ScheduleStatus'
+        description: Filter schedules by status.
+        example: PENDING
+      - name: robot_id
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter schedules for the given robot.
+        example: rbt_01J00000000000000000000001
+      - name: mission_id
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter schedules for the given mission.
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Paginated list of fleet schedules.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/fleet.yaml#/FleetSchedulePage'
+            example:
+              items:
+                - schedule_id: sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  robot_id: rbt_01J00000000000000000000001
+                  planned_start: '2026-07-05T10:00:00Z'
+                  planned_end: '2026-07-05T10:30:00Z'
+                  priority: NORMAL
+                  status: PENDING
+                  created_at: '2026-07-05T08:00:00Z'
+              total: 1
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the fleet.schedule.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [fleet]
+    summary: Create a fleet schedule
+    description: >-
+      Assigns a mission to a robot within a planned time window. After
+      creation, the scheduler runs conflict detection against existing
+      schedules. Emits a `fleet.schedule_created.v1` event on success.
+      Requires the `fleet.schedule.write` permission. Supports idempotency via
+      the `Idempotency-Key` header.
+    operationId: createFleetSchedule
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: schedule-create-20260705
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/fleet.yaml#/CreateScheduleRequest'
+          example:
+            mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+            robot_id: rbt_01J00000000000000000000001
+            planned_start: '2026-07-05T10:00:00Z'
+            planned_end: '2026-07-05T10:30:00Z'
+            priority: NORMAL
+    responses:
+      '201':
+        description: Schedule created.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/fleet.yaml#/FleetSchedule'
+            example:
+              schedule_id: sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              robot_id: rbt_01J00000000000000000000001
+              planned_start: '2026-07-05T10:00:00Z'
+              planned_end: '2026-07-05T10:30:00Z'
+              priority: NORMAL
+              status: PENDING
+              created_at: '2026-07-05T08:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the fleet.schedule.write permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: The mission is already scheduled or the robot is unavailable.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+fleetConflictsCollection:
+  get:
+    tags: [fleet]
+    summary: List detected conflicts
+    description: >-
+      Returns a paginated list of detected fleet schedule conflicts. Results
+      can be filtered by `status` (OPEN or RESOLVED). Requires the
+      `fleet.conflict.read` permission.
+    operationId: listFleetConflicts
+    parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 1
+        description: Page number (1-based).
+        example: 1
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of items per page.
+        example: 20
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [OPEN, RESOLVED]
+        description: Filter conflicts by status.
+        example: OPEN
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Paginated list of conflict records.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/fleet.yaml#/ConflictRecordPage'
+            example:
+              items:
+                - conflict_id: cfl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  schedule_ids:
+                    - sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                    - sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2D
+                  conflict_type: TIME_OVERLAP
+                  description: Schedules overlap on robot rbt_01J00000000000000000000001
+                  detected_at: '2026-07-05T08:00:05Z'
+                  status: OPEN
+              total: 1
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the fleet.conflict.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+fleetConflictResolve:
+  parameters:
+    - name: conflictId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the conflict.
+      example: cfl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+  post:
+    tags: [fleet]
+    summary: Resolve a conflict
+    description: >-
+      Resolves a detected conflict by reordering, reassigning or cancelling the
+      lower-priority schedule. Emits a `fleet.conflict_resolved.v1` event on
+      success. Requires the `fleet.conflict.write` permission. Supports
+      idempotency via the `Idempotency-Key` header.
+    operationId: resolveConflict
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: conflict-resolve-20260705
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/fleet.yaml#/ResolveConflictRequest'
+          example:
+            resolution: REORDER
+    responses:
+      '200':
+        description: Conflict resolved.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/fleet.yaml#/ConflictRecord'
+            example:
+              conflict_id: cfl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              schedule_ids:
+                - sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                - sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2D
+              conflict_type: TIME_OVERLAP
+              description: Schedules overlap on robot rbt_01J00000000000000000000001
+              detected_at: '2026-07-05T08:00:05Z'
+              resolved_at: '2026-07-05T08:01:00Z'
+              resolution: REORDER
+              status: RESOLVED
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the fleet.conflict.write permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Conflict not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Conflict is already resolved.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+fleetFailoversCollection:
+  get:
+    tags: [fleet]
+    summary: List failover events
+    description: >-
+      Returns a paginated list of failover events. Results can be filtered by
+      `robot_id` and `status`. Requires the `fleet.failover.read` permission.
+    operationId: listFleetFailovers
+    parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 1
+        description: Page number (1-based).
+        example: 1
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of items per page.
+        example: 20
+      - name: robot_id
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter failovers by source robot.
+        example: rbt_01J00000000000000000000001
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '../schemas/fleet.yaml#/FailoverStatus'
+        description: Filter failovers by status.
+        example: COMPLETED
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Paginated list of failover events.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/fleet.yaml#/FailoverEventPage'
+            example:
+              items:
+                - failover_id: fov_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  robot_id: rbt_01J00000000000000000000001
+                  mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  reason: ROBOT_OFFLINE
+                  target_robot_id: rbt_01J00000000000000000000002
+                  status: COMPLETED
+                  occurred_at: '2026-07-05T10:05:00Z'
+              total: 1
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the fleet.failover.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [fleet]
+    summary: Trigger a manual failover
+    description: >-
+      Triggers a manual failover of a mission from one robot to another. The
+      scheduler finds an available target robot if none is specified. Emits a
+      `fleet.failover.v1` event on success. Requires the
+      `fleet.failover.write` permission. Supports idempotency via the
+      `Idempotency-Key` header.
+    operationId: triggerFailover
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: failover-trigger-20260705
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/fleet.yaml#/TriggerFailoverRequest'
+          example:
+            robot_id: rbt_01J00000000000000000000001
+            mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+            reason: MANUAL_FAILOVER
+    responses:
+      '201':
+        description: Failover triggered.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/fleet.yaml#/FailoverEvent'
+            example:
+              failover_id: fov_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              robot_id: rbt_01J00000000000000000000001
+              mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              reason: MANUAL_FAILOVER
+              target_robot_id: rbt_01J00000000000000000000002
+              status: COMPLETED
+              occurred_at: '2026-07-05T10:05:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the fleet.failover.write permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Mission or robot not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: No suitable target robot available.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

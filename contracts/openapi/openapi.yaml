@@ -82,6 +82,33 @@ tags:
     description: >-
       Real-time monitoring — robot status, mission progress, dashboard
       overview and manual takeover (F-MONITOR-001).
+  - name: alarm
+    description: >-
+      Alarm lifecycle management — rules, events, acknowledgement, resolution
+      and notification channels (F-ALARM-001).
+  - name: ops
+    description: >-
+      Operations dashboard — metrics, health, reports and capacity forecasting
+      (F-OPS-001).
+  - name: ota
+    description: >-
+      OTA publishing — firmware/skill package upload, release campaigns,
+      staged canary deployment and rollback (F-OTA-001).
+  - name: recovery
+    description: >-
+      Backup, restore and disaster recovery drills (F-RECOVERY-001).
+  - name: memory
+    description: >-
+      Task memory — failure case analysis, similar case lookup and
+      improvement suggestion feedback (F-MEMORY-001).
+  - name: adapter
+    description: >-
+      Protocol adapter registry and command translation for ROS1/Unitree/custom
+      robot protocols (F-ADAPTER-002).
+  - name: fleet
+    description: >-
+      Fleet scheduling, conflict detection and failover management
+      (F-FLEET-001).
 paths:
   /health/live:
     get:
@@ -332,6 +359,68 @@ paths:
     $ref: './paths/monitor.yaml#/monitorTakeover'
   /monitor/overview:
     $ref: './paths/monitor.yaml#/monitorOverview'
+  /alarms:
+    $ref: './paths/alarm.yaml#/alarmsCollection'
+  /alarms/rules:
+    $ref: './paths/alarm.yaml#/alarmRulesCollection'
+  /alarms/rules/{ruleId}:
+    $ref: './paths/alarm.yaml#/alarmRuleItem'
+  /alarms/{alarmId}/acknowledge:
+    $ref: './paths/alarm.yaml#/alarmAcknowledge'
+  /alarms/{alarmId}/resolve:
+    $ref: './paths/alarm.yaml#/alarmResolve'
+  /alarms/channels:
+    $ref: './paths/alarm.yaml#/alarmChannelsCollection'
+  /ops/dashboard:
+    $ref: './paths/ops.yaml#/opsDashboard'
+  /ops/metrics:
+    $ref: './paths/ops.yaml#/opsMetrics'
+  /ops/health:
+    $ref: './paths/ops.yaml#/opsHealth'
+  /ops/reports/{reportType}:
+    $ref: './paths/ops.yaml#/opsReport'
+  /ops/capacity:
+    $ref: './paths/ops.yaml#/opsCapacity'
+  /adapters:
+    $ref: './paths/adapter.yaml#/adaptersCollection'
+  /adapters/{adapterId}:
+    $ref: './paths/adapter.yaml#/adapterItem'
+  /adapters/{adapterId}/status:
+    $ref: './paths/adapter.yaml#/adapterStatus'
+  /adapters/{adapterId}/translate:
+    $ref: './paths/adapter.yaml#/adapterTranslate'
+  /fleet/schedule:
+    $ref: './paths/fleet.yaml#/fleetScheduleCollection'
+  /fleet/conflicts:
+    $ref: './paths/fleet.yaml#/fleetConflictsCollection'
+  /fleet/conflicts/{conflictId}/resolve:
+    $ref: './paths/fleet.yaml#/fleetConflictResolve'
+  /fleet/failovers:
+    $ref: './paths/fleet.yaml#/fleetFailoversCollection'
+  /ota/packages:
+    $ref: './paths/ota.yaml#/otaPackagesCollection'
+  /ota/packages/{packageId}:
+    $ref: './paths/ota.yaml#/otaPackageItem'
+  /ota/campaigns:
+    $ref: './paths/ota.yaml#/otaCampaignsCollection'
+  /ota/campaigns/{campaignId}:
+    $ref: './paths/ota.yaml#/otaCampaignItem'
+  /ota/campaigns/{campaignId}/rollback:
+    $ref: './paths/ota.yaml#/otaCampaignRollback'
+  /recovery/backups:
+    $ref: './paths/recovery.yaml#/recoveryBackupsCollection'
+  /recovery/restore:
+    $ref: './paths/recovery.yaml#/recoveryRestore'
+  /recovery/drills:
+    $ref: './paths/recovery.yaml#/recoveryDrillsCollection'
+  /memory/cases:
+    $ref: './paths/memory.yaml#/memoryCasesCollection'
+  /memory/cases/{caseId}:
+    $ref: './paths/memory.yaml#/memoryCaseItem'
+  /memory/suggestions:
+    $ref: './paths/memory.yaml#/memorySuggestionsCollection'
+  /memory/feedback:
+    $ref: './paths/memory.yaml#/memoryFeedback'
 components:
   securitySchemes:
     bearerAuth:
@@ -513,6 +602,92 @@ components:
       $ref: './schemas/monitor.yaml#/MonitorOverview'
     TakeoverRequest:
       $ref: './schemas/monitor.yaml#/TakeoverRequest'
+    ProtocolType:
+      $ref: './schemas/adapter.yaml#/ProtocolType'
+    AdapterStatus:
+      $ref: './schemas/adapter.yaml#/AdapterStatus'
+    Adapter:
+      $ref: './schemas/adapter.yaml#/Adapter'
+    AdapterPage:
+      $ref: './schemas/adapter.yaml#/AdapterPage'
+    RegisterAdapterRequest:
+      $ref: './schemas/adapter.yaml#/RegisterAdapterRequest'
+    UpdateAdapterStatusRequest:
+      $ref: './schemas/adapter.yaml#/UpdateAdapterStatusRequest'
+    TranslateCommandRequest:
+      $ref: './schemas/adapter.yaml#/TranslateCommandRequest'
+    TranslateCommandResponse:
+      $ref: './schemas/adapter.yaml#/TranslateCommandResponse'
+    FleetSchedule:
+      $ref: './schemas/fleet.yaml#/FleetSchedule'
+    FleetSchedulePage:
+      $ref: './schemas/fleet.yaml#/FleetSchedulePage'
+    ConflictRecord:
+      $ref: './schemas/fleet.yaml#/ConflictRecord'
+    ConflictRecordPage:
+      $ref: './schemas/fleet.yaml#/ConflictRecordPage'
+    FailoverEvent:
+      $ref: './schemas/fleet.yaml#/FailoverEvent'
+    FailoverEventPage:
+      $ref: './schemas/fleet.yaml#/FailoverEventPage'
+    CreateScheduleRequest:
+      $ref: './schemas/fleet.yaml#/CreateScheduleRequest'
+    ResolveConflictRequest:
+      $ref: './schemas/fleet.yaml#/ResolveConflictRequest'
+    TriggerFailoverRequest:
+      $ref: './schemas/fleet.yaml#/TriggerFailoverRequest'
+    FirmwarePackage:
+      $ref: './schemas/ota.yaml#/FirmwarePackage'
+    ReleaseCampaign:
+      $ref: './schemas/ota.yaml#/ReleaseCampaign'
+    DeploymentRecord:
+      $ref: './schemas/ota.yaml#/DeploymentRecord'
+    CreateCampaignRequest:
+      $ref: './schemas/ota.yaml#/CreateCampaignRequest'
+    BackupRecord:
+      $ref: './schemas/recovery.yaml#/BackupRecord'
+    RestoreRecord:
+      $ref: './schemas/recovery.yaml#/RestoreRecord'
+    DrillRecord:
+      $ref: './schemas/recovery.yaml#/DrillRecord'
+    RestoreRequest:
+      $ref: './schemas/recovery.yaml#/RestoreRequest'
+    CreateDrillRequest:
+      $ref: './schemas/recovery.yaml#/CreateDrillRequest'
+    TaskCase:
+      $ref: './schemas/memory.yaml#/TaskCase'
+    FailureCase:
+      $ref: './schemas/memory.yaml#/FailureCase'
+    ImprovementSuggestion:
+      $ref: './schemas/memory.yaml#/ImprovementSuggestion'
+    FeedbackRequest:
+      $ref: './schemas/memory.yaml#/FeedbackRequest'
+    AlarmRule:
+      $ref: './schemas/alarm.yaml#/AlarmRule'
+    AlarmEvent:
+      $ref: './schemas/alarm.yaml#/AlarmEvent'
+    AlarmSeverity:
+      $ref: './schemas/alarm.yaml#/AlarmSeverity'
+    AlarmStatus:
+      $ref: './schemas/alarm.yaml#/AlarmStatus'
+    NotificationChannel:
+      $ref: './schemas/alarm.yaml#/NotificationChannel'
+    CreateAlarmRuleRequest:
+      $ref: './schemas/alarm.yaml#/CreateAlarmRuleRequest'
+    UpdateAlarmRuleRequest:
+      $ref: './schemas/alarm.yaml#/UpdateAlarmRuleRequest'
+    CreateNotificationChannelRequest:
+      $ref: './schemas/alarm.yaml#/CreateNotificationChannelRequest'
+    OpsDashboard:
+      $ref: './schemas/ops.yaml#/OpsDashboard'
+    MetricSnapshot:
+      $ref: './schemas/ops.yaml#/MetricSnapshot'
+    HealthCheck:
+      $ref: './schemas/ops.yaml#/HealthCheck'
+    ReportRecord:
+      $ref: './schemas/ops.yaml#/ReportRecord'
+    CapacityForecast:
+      $ref: './schemas/ops.yaml#/CapacityForecast'
     VersionInfo:
       type: object
       description: Build and runtime version information.

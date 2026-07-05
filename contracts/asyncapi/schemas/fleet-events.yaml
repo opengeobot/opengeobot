@@ -1,0 +1,232 @@
+# Function: Fleet event payload schemas for F-FLEET-001
+# Time: 2026-07-05
+# Author: AxeXie
+FleetScheduleCreatedV1:
+  type: object
+  description: >-
+    Payload emitted when a new fleet schedule is created. Carried as the `data`
+    field of the platform EventEnvelope with `event_type` equal to
+    `fleet.schedule_created.v1`. `trace_id` links the creation to the
+    end-to-end trace context. All field names use snake_case.
+  required:
+    - event_id
+    - schedule_id
+    - mission_id
+    - robot_id
+    - status
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    schedule_id:
+      type: string
+      description: Stable public identifier of the created schedule.
+      example: sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Public identifier of the mission being scheduled.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Public identifier of the robot assigned to execute the mission.
+      example: rbt_01J00000000000000000000001
+    planned_start:
+      type: string
+      format: date-time
+      description: UTC timestamp of the planned execution start.
+      example: '2026-07-05T10:00:00Z'
+    planned_end:
+      type: string
+      format: date-time
+      description: UTC timestamp of the planned execution end.
+      example: '2026-07-05T10:30:00Z'
+    priority:
+      type: string
+      description: Scheduling priority of the mission.
+      enum:
+        - LOW
+        - NORMAL
+        - HIGH
+        - URGENT
+      example: NORMAL
+    status:
+      type: string
+      description: Initial schedule status (always PENDING on creation).
+      enum:
+        - PENDING
+        - APPROVED
+        - ACTIVE
+        - COMPLETED
+        - CANCELLED
+      example: PENDING
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the schedule was created.
+      example: '2026-07-05T08:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the creation to logs, metrics and
+        audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+FleetConflictDetectedV1:
+  type: object
+  description: >-
+    Payload emitted when the fleet scheduler detects a conflict between two or
+    more schedules. Carried as the `data` field of the platform EventEnvelope
+    with `event_type` equal to `fleet.conflict_detected.v1`. All field names
+    use snake_case.
+  required:
+    - event_id
+    - conflict_id
+    - schedule_ids
+    - conflict_type
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    conflict_id:
+      type: string
+      description: Stable public identifier of the detected conflict.
+      example: cfl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    schedule_ids:
+      type: array
+      description: Public identifiers of the conflicting schedules.
+      items:
+        type: string
+      example:
+        - sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+        - sch_01JX2Q3R4T5V6W7X8Y9Z0A1B2D
+    conflict_type:
+      type: string
+      description: Canonical conflict type.
+      enum:
+        - TIME_OVERLAP
+        - ROBOT_BUSY
+        - PATH_COLLISION
+        - RESOURCE_CONTENTION
+      example: TIME_OVERLAP
+    description:
+      type: string
+      description: Human-readable description of the conflict.
+      example: Schedules overlap on robot rbt_01J00000000000000000000001
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the conflict was detected.
+      example: '2026-07-05T08:00:05Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the detection to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+FleetConflictResolvedV1:
+  type: object
+  description: >-
+    Payload emitted when a detected conflict is resolved by reordering,
+    reassigning or cancelling a schedule. Carried as the `data` field of the
+    platform EventEnvelope with `event_type` equal to
+    `fleet.conflict_resolved.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - conflict_id
+    - resolution
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    conflict_id:
+      type: string
+      description: Stable public identifier of the resolved conflict.
+      example: cfl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    resolution:
+      type: string
+      description: Resolution strategy applied to the conflict.
+      enum:
+        - REORDER
+        - REASSIGN
+        - CANCEL
+      example: REORDER
+    resolved_by:
+      type: string
+      description: Identifier of the actor that resolved the conflict.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the conflict was resolved.
+      example: '2026-07-05T08:01:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the resolution to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+FleetFailoverV1:
+  type: object
+  description: >-
+    Payload emitted when a mission is failed over from one robot to another.
+    Carried as the `data` field of the platform EventEnvelope with
+    `event_type` equal to `fleet.failover.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - failover_id
+    - robot_id
+    - mission_id
+    - reason
+    - status
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    failover_id:
+      type: string
+      description: Stable public identifier of the failover event.
+      example: fov_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Public identifier of the source robot that became unavailable.
+      example: rbt_01J00000000000000000000001
+    mission_id:
+      type: string
+      description: Public identifier of the mission being transferred.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    reason:
+      type: string
+      description: Machine-readable reason for the failover.
+      example: ROBOT_OFFLINE
+    target_robot_id:
+      type: string
+      description: Public identifier of the robot taking over the mission.
+      example: rbt_01J00000000000000000000002
+    status:
+      type: string
+      description: Status of the failover event.
+      enum:
+        - INITIATED
+        - COMPLETED
+        - FAILED
+      example: COMPLETED
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the failover was initiated.
+      example: '2026-07-05T10:05:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the failover to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

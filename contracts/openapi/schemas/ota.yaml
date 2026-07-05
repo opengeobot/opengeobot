@@ -1,0 +1,217 @@
+# Function: OTA package and release campaign schemas for F-OTA-001
+# Time: 2026-07-05
+# Author: AxeXie
+FirmwarePackage:
+  type: object
+  description: >-
+    A firmware or skill package artifact stored in the OTA registry and backed
+    by the `ota.firmware_package` table. The `file_path` references the object
+    in MinIO/S3; `checksum` (SHA-256) verifies integrity. `type` is either
+    `FIRMWARE` or `SKILL_BUNDLE`. All field names use snake_case.
+  required:
+    - package_id
+    - name
+    - version
+    - type
+    - file_path
+    - file_size
+    - checksum
+    - created_at
+  additionalProperties: false
+  properties:
+    package_id:
+      type: string
+      description: Unique, prefixed public identifier of the package (ULID-based).
+      example: pkg_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable package name.
+      example: locomotion-controller-firmware
+    version:
+      type: string
+      description: Semantic version of the package.
+      example: 1.4.2
+    type:
+      type: string
+      description: Package artifact type.
+      enum:
+        - FIRMWARE
+        - SKILL_BUNDLE
+      example: FIRMWARE
+    file_path:
+      type: string
+      description: Object path in MinIO/S3 where the package is stored.
+      example: ota/pkg_01JX2Q3R4T5V6W7X8Y9Z0A1B2C.bin
+    file_size:
+      type: integer
+      format: int64
+      description: Size of the package file in bytes.
+      example: 1048576
+    checksum:
+      type: string
+      description: SHA-256 checksum of the package file for integrity verification.
+      example: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+    description:
+      type: string
+      description: Optional human-readable notes about the package.
+      example: Locomotion controller firmware with improved gait stability.
+    created_by:
+      type: string
+      description: Identifier of the actor that uploaded the package.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the package was uploaded.
+      example: '2026-07-05T08:00:00Z'
+ReleaseCampaign:
+  type: object
+  description: >-
+    A release campaign coordinates the staged rollout of a firmware/skill
+    package to a set of robots. Backed by the `ota.release_campaign` table.
+    Canary deployment selects a percentage of target robots for the first
+    wave. Follows SM-OTA-001 (CREATED → IN_PROGRESS → COMPLETED / ROLLED_BACK).
+    All field names use snake_case.
+  required:
+    - campaign_id
+    - package_id
+    - canary_percent
+    - status
+    - target_robots
+    - created_at
+  additionalProperties: false
+  properties:
+    campaign_id:
+      type: string
+      description: Unique, prefixed public identifier of the campaign (ULID-based).
+      example: ota_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    package_id:
+      type: string
+      description: Identifier of the firmware/skill package to deploy.
+      example: pkg_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    canary_percent:
+      type: integer
+      minimum: 0
+      maximum: 100
+      description: Percentage of target robots included in the canary wave.
+      example: 25
+    status:
+      type: string
+      description: Campaign lifecycle status.
+      enum:
+        - CREATED
+        - IN_PROGRESS
+        - COMPLETED
+        - ROLLED_BACK
+        - FAILED
+      example: IN_PROGRESS
+    target_robots:
+      type: array
+      description: List of robot identifiers targeted by this campaign.
+      items:
+        type: string
+      example:
+        - rbt_01J00000000000000000000001
+        - rbt_01J00000000000000000000002
+    started_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when deployment started.
+      example: '2026-07-05T09:00:00Z'
+    completed_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the campaign completed or was rolled back.
+      example: '2026-07-05T09:30:00Z'
+    created_by:
+      type: string
+      description: Identifier of the actor that created the campaign.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the campaign was created.
+      example: '2026-07-05T08:30:00Z'
+DeploymentRecord:
+  type: object
+  description: >-
+    Per-robot deployment outcome for a campaign, backed by the
+    `ota.deployment_record` table. Follows SM-OTA-002
+    (PENDING → IN_PROGRESS → SUCCESS / FAILED / ROLLED_BACK).
+    All field names use snake_case.
+  required:
+    - record_id
+    - campaign_id
+    - robot_id
+    - status
+    - started_at
+  additionalProperties: false
+  properties:
+    record_id:
+      type: string
+      description: Unique, prefixed public identifier of the deployment record.
+      example: dep_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    campaign_id:
+      type: string
+      description: Identifier of the owning campaign.
+      example: ota_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Identifier of the target robot.
+      example: rbt_01J00000000000000000000001
+    status:
+      type: string
+      description: Deployment state for this robot.
+      enum:
+        - PENDING
+        - IN_PROGRESS
+        - SUCCESS
+        - FAILED
+        - ROLLED_BACK
+      example: SUCCESS
+    started_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when deployment to this robot started.
+      example: '2026-07-05T09:00:00Z'
+    completed_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when deployment finished.
+      example: '2026-07-05T09:05:00Z'
+    error:
+      type: string
+      description: Error message when the deployment failed.
+      example: Robot timed out during firmware transfer.
+CreateCampaignRequest:
+  type: object
+  description: >-
+    Request body for creating a release campaign. The `package_id` must
+    reference an existing firmware/skill package. `target_robots` lists the
+    robots to deploy to; `canary_percent` controls the canary wave size. All
+    field names use snake_case.
+  required:
+    - package_id
+    - target_robots
+    - canary_percent
+  additionalProperties: false
+  properties:
+    package_id:
+      type: string
+      description: Identifier of the package to deploy.
+      example: pkg_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    target_robots:
+      type: array
+      description: List of robot identifiers targeted by the campaign.
+      minItems: 1
+      items:
+        type: string
+      example:
+        - rbt_01J00000000000000000000001
+        - rbt_01J00000000000000000000002
+    canary_percent:
+      type: integer
+      minimum: 0
+      maximum: 100
+      description: Percentage of target robots for the canary wave.
+      example: 25

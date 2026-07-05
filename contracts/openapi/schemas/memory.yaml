@@ -1,0 +1,176 @@
+# Function: Task memory schemas for F-MEMORY-001
+# Time: 2026-07-05
+# Author: AxeXie
+TaskCase:
+  type: object
+  description: >-
+    A recorded task execution case backed by the `memory.task_case` table.
+    Captures the outcome (success/failure) of a mission step execution along
+    with context for later analysis and improvement. All field names use
+    snake_case.
+  required:
+    - case_id
+    - mission_id
+    - robot_id
+    - skill_id
+    - result
+    - occurred_at
+  additionalProperties: false
+  properties:
+    case_id:
+      type: string
+      description: Unique, prefixed public identifier of the case (ULID-based).
+      example: tcs_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Identifier of the mission the case belongs to.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Identifier of the robot that executed the task.
+      example: rbt_01J00000000000000000000001
+    skill_id:
+      type: string
+      description: Identifier of the skill invoked.
+      example: skl_01J00000000000000000000003
+    result:
+      type: string
+      description: Execution outcome.
+      enum:
+        - SUCCESS
+        - FAILURE
+      example: FAILURE
+    duration_ms:
+      type: integer
+      format: int64
+      description: Execution duration in milliseconds.
+      example: 1250
+    context:
+      type: object
+      description: Additional execution context stored as jsonb.
+      additionalProperties: true
+    error_message:
+      type: string
+      description: Error message when the result is FAILURE.
+      example: Skill execution timed out after 5000ms.
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the case occurred.
+      example: '2026-07-05T09:00:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+FailureCase:
+  type: object
+  description: >-
+    An analysed failure case backed by the `memory.failure_case` table. Adds
+    root-cause analysis and environment context to a failed task case, and
+    links to similar historical cases. All field names use snake_case.
+  required:
+    - case_id
+    - failure_type
+    - root_cause
+  additionalProperties: false
+  properties:
+    case_id:
+      type: string
+      description: Identifier of the originating task case.
+      example: tcs_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    failure_type:
+      type: string
+      description: Categorised failure type.
+      enum:
+        - TIMEOUT
+        - SKILL_ERROR
+        - SAFETY_VIOLATION
+        - HARDWARE_FAULT
+        - UNKNOWN
+      example: TIMEOUT
+    root_cause:
+      type: string
+      description: Root cause analysis summary.
+      example: Move forward skill exceeded the 5000ms budget on uneven terrain.
+    environment:
+      type: object
+      description: Environmental context at the time of failure (jsonb).
+      additionalProperties: true
+    similar_cases:
+      type: array
+      description: Identifiers of similar historical cases.
+      items:
+        type: string
+      example:
+        - tcs_01J0000000000000000000000A
+        - tcs_01J0000000000000000000000B
+ImprovementSuggestion:
+  type: object
+  description: >-
+    A suggested improvement derived from failure patterns, backed by the
+    `memory.improvement_suggestion` table. Follows SM-IMPROVE-001
+    (PENDING → ACCEPTED / REJECTED / APPLIED). All field names use snake_case.
+  required:
+    - suggestion_id
+    - case_id
+    - suggestion_text
+    - confidence
+    - status
+    - created_at
+  additionalProperties: false
+  properties:
+    suggestion_id:
+      type: string
+      description: Unique, prefixed public identifier of the suggestion.
+      example: imp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    case_id:
+      type: string
+      description: Identifier of the originating case.
+      example: tcs_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    suggestion_text:
+      type: string
+      description: Human-readable improvement suggestion.
+      example: Increase move_forward timeout to 8000ms on uneven terrain.
+    confidence:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+      description: Confidence score of the suggestion.
+      example: 0.82
+    status:
+      type: string
+      description: Suggestion lifecycle status.
+      enum:
+        - PENDING
+        - ACCEPTED
+        - REJECTED
+        - APPLIED
+      example: PENDING
+    feedback:
+      type: string
+      description: Optional feedback submitted on the suggestion.
+      example: Applied and verified — locomotion stability improved.
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the suggestion was created.
+      example: '2026-07-05T09:30:00Z'
+FeedbackRequest:
+  type: object
+  description: >-
+    Request body for submitting feedback on an improvement suggestion. All
+    field names use snake_case.
+  required:
+    - suggestion_id
+    - feedback
+  additionalProperties: false
+  properties:
+    suggestion_id:
+      type: string
+      description: Identifier of the suggestion being reviewed.
+      example: imp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    feedback:
+      type: string
+      description: Feedback text.
+      example: Suggestion applied successfully.

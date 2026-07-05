@@ -1,0 +1,109 @@
+# Function: Task memory event payload schemas for F-MEMORY-001
+# Time: 2026-07-05
+# Author: AxeXie
+
+MemoryCaseRecordedV1:
+  type: object
+  description: >-
+    Event emitted when a task execution case is recorded in the memory store.
+    The payload is wrapped in the platform EventEnvelope whose `event_type` is
+    `memory.case_recorded.v1`. Consumers use this to trigger failure analysis
+    and improvement generation. `trace_id` links the case to the end-to-end
+    trace context. All field names use snake_case.
+  required:
+    - event_id
+    - case_id
+    - mission_id
+    - robot_id
+    - skill_id
+    - result
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    case_id:
+      type: string
+      description: Public identifier of the recorded task case.
+      example: tcs_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Identifier of the mission the case belongs to.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Identifier of the robot that executed the task.
+      example: rbt_01J00000000000000000000001
+    skill_id:
+      type: string
+      description: Identifier of the skill invoked.
+      example: skl_01J00000000000000000000003
+    result:
+      type: string
+      description: Execution outcome.
+      enum:
+        - SUCCESS
+        - FAILURE
+      example: FAILURE
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the case occurred.
+      example: '2026-07-05T09:00:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+
+MemoryImprovementSuggestedV1:
+  type: object
+  description: >-
+    Event emitted when an improvement suggestion is generated from failure
+    patterns. The payload is wrapped in the platform EventEnvelope whose
+    `event_type` is `memory.improvement_suggested.v1`. All field names use
+    snake_case.
+  required:
+    - event_id
+    - suggestion_id
+    - case_id
+    - suggestion_text
+    - confidence
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    suggestion_id:
+      type: string
+      description: Public identifier of the generated suggestion.
+      example: imp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    case_id:
+      type: string
+      description: Identifier of the originating failure case.
+      example: tcs_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    suggestion_text:
+      type: string
+      description: Human-readable improvement suggestion.
+      example: Increase move_forward timeout to 8000ms on uneven terrain.
+    confidence:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+      description: Confidence score of the suggestion.
+      example: 0.82
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the suggestion was generated.
+      example: '2026-07-05T09:30:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

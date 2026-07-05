@@ -246,3 +246,28 @@ services:
       resources:
         limits:
           memory: 256M
+
+  # ---------------------------------------------------------------------------
+  # ROS1 adapter profile (ros1 + full)
+  # ---------------------------------------------------------------------------
+  # F-ADAPTER-002: ROS1 protocol translation adapter. Translates platform skill
+  # commands into ROS1/Unitree/custom robot protocol messages over NATS. The
+  # adapter never drives motors directly — translations are proposals validated
+  # by the edge Safety Gateway.
+  ros1-adapter:
+    build:
+      context: ../../services/ros1-adapter
+    profiles: [ros1, full]
+    environment:
+      - NATS_URL=nats://nats:4222
+      - ADAPTER_ID=adp_01J00000000000000000000001
+      - ROBOT_ID=rbt_01J00000000000000000000001
+      - PROTOCOL_TYPE=ROS1
+      - LOG_LEVEL=INFO
+    networks: [opengeobot-net]
+    depends_on:
+      - nats
+    deploy:
+      resources:
+        limits:
+          memory: 256M

@@ -1,0 +1,340 @@
+# Function: OpenAPI path items for F-OTA-001 OTA publishing API
+# Time: 2026-07-05
+# Author: AxeXie
+otaPackagesCollection:
+  get:
+    tags: [ota]
+    summary: List firmware/skill packages
+    description: >-
+      Returns a paginated list of OTA packages. Results can be filtered by
+      `type` (FIRMWARE or SKILL_BUNDLE).
+    operationId: listOtaPackages
+    parameters:
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: type
+        in: query
+        description: Filter by package type.
+        schema:
+          $ref: '../schemas/ota.yaml#/FirmwarePackage/properties/type'
+        example: FIRMWARE
+    responses:
+      '200':
+        description: Paginated list of OTA packages.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/ota.yaml#/FirmwarePackage'
+                total:
+                  type: integer
+                  format: int64
+                  example: 3
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.ota.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [ota]
+    summary: Upload an OTA package
+    description: >-
+      Uploads a new firmware or skill bundle package. The file is stored in
+      MinIO/S3 and metadata recorded. Requires the `ops.ota.manage` permission.
+    operationId: uploadOtaPackage
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file, name, version, type]
+            properties:
+              file:
+                type: string
+                format: binary
+                description: Package binary file.
+              name:
+                type: string
+                description: Human-readable package name.
+              version:
+                type: string
+                description: Semantic version.
+              type:
+                type: string
+                enum: [FIRMWARE, SKILL_BUNDLE]
+              description:
+                type: string
+    responses:
+      '201':
+        description: Package uploaded successfully.
+        headers:
+          Location:
+            description: URL of the created package.
+            schema:
+              type: string
+              format: uri
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ota.yaml#/FirmwarePackage'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.ota.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+otaPackageItem:
+  get:
+    tags: [ota]
+    summary: Get a package by id
+    description: Returns the metadata of the OTA package identified by `packageId`.
+    operationId: getOtaPackage
+    parameters:
+      - name: packageId
+        in: path
+        required: true
+        description: Unique package identifier.
+        schema:
+          type: string
+        example: pkg_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: The requested package.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ota.yaml#/FirmwarePackage'
+      '404':
+        description: No package found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+otaCampaignsCollection:
+  get:
+    tags: [ota]
+    summary: List release campaigns
+    description: Returns a paginated list of OTA release campaigns.
+    operationId: listOtaCampaigns
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: status
+        in: query
+        description: Filter by campaign status.
+        schema:
+          $ref: '../schemas/ota.yaml#/ReleaseCampaign/properties/status'
+        example: IN_PROGRESS
+    responses:
+      '200':
+        description: Paginated list of campaigns.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/ota.yaml#/ReleaseCampaign'
+                total:
+                  type: integer
+                  format: int64
+                  example: 2
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.ota.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [ota]
+    summary: Create a release campaign
+    description: >-
+      Creates a new release campaign for a package, selecting the canary wave
+      based on `canary_percent`. Requires the `ops.ota.manage` permission.
+    operationId: createOtaCampaign
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ota.yaml#/CreateCampaignRequest'
+          example:
+            package_id: pkg_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+            target_robots:
+              - rbt_01J00000000000000000000001
+              - rbt_01J00000000000000000000002
+            canary_percent: 50
+    responses:
+      '201':
+        description: Campaign created successfully.
+        headers:
+          Location:
+            description: URL of the created campaign.
+            schema:
+              type: string
+              format: uri
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ota.yaml#/ReleaseCampaign'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Referenced package not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+otaCampaignItem:
+  get:
+    tags: [ota]
+    summary: Get a campaign with deployment records
+    description: >-
+      Returns the campaign state and the per-robot deployment records.
+    operationId: getOtaCampaign
+    parameters:
+      - name: campaignId
+        in: path
+        required: true
+        description: Unique campaign identifier.
+        schema:
+          type: string
+        example: ota_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: The campaign with deployment records.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [campaign, deployments]
+              additionalProperties: false
+              properties:
+                campaign:
+                  $ref: '../schemas/ota.yaml#/ReleaseCampaign'
+                deployments:
+                  type: array
+                  items:
+                    $ref: '../schemas/ota.yaml#/DeploymentRecord'
+      '404':
+        description: No campaign found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+otaCampaignRollback:
+  post:
+    tags: [ota]
+    summary: Rollback a deployment
+    description: >-
+      Rolls back the deployment for a campaign, marking deployment records as
+      rolled back and restoring the previous version. Requires the
+      `ops.ota.manage` permission.
+    operationId: rollbackOtaCampaign
+    parameters:
+      - name: campaignId
+        in: path
+        required: true
+        description: Unique campaign identifier.
+        schema:
+          type: string
+        example: ota_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Campaign rolled back successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ota.yaml#/ReleaseCampaign'
+      '404':
+        description: No campaign found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Campaign cannot be rolled back in its current state.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

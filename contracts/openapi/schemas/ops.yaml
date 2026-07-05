@@ -1,0 +1,253 @@
+# Function: Ops schemas for F-OPS-001 metrics, health and operations dashboard
+# Time: 2026-07-05
+# Author: AxeXie
+OpsDashboard:
+  type: object
+  description: >-
+    Operations dashboard overview aggregating system health, robot statistics,
+    mission statistics and alarm statistics into a single snapshot.
+  required:
+    - system_health
+    - robot_stats
+    - mission_stats
+    - alarm_stats
+  additionalProperties: false
+  properties:
+    system_health:
+      type: object
+      description: Overall system health summary.
+      required: [overall]
+      additionalProperties: false
+      properties:
+        overall:
+          type: string
+          description: Aggregated health state.
+          enum:
+            - HEALTHY
+            - DEGRADED
+            - UNHEALTHY
+          example: HEALTHY
+        components:
+          type: array
+          description: Per-component health snapshots.
+          items:
+            $ref: '#/HealthCheck'
+    robot_stats:
+      type: object
+      description: Robot fleet statistics.
+      required: [total, online, offline, busy, error]
+      additionalProperties: false
+      properties:
+        total:
+          type: integer
+          format: int64
+          example: 12
+        online:
+          type: integer
+          format: int64
+          example: 8
+        offline:
+          type: integer
+          format: int64
+          example: 2
+        busy:
+          type: integer
+          format: int64
+          example: 1
+        error:
+          type: integer
+          format: int64
+          example: 1
+    mission_stats:
+      type: object
+      description: Mission statistics.
+      required: [total, active, completed, failed]
+      additionalProperties: false
+      properties:
+        total:
+          type: integer
+          format: int64
+          example: 150
+        active:
+          type: integer
+          format: int64
+          example: 3
+        completed:
+          type: integer
+          format: int64
+          example: 140
+        failed:
+          type: integer
+          format: int64
+          example: 7
+    alarm_stats:
+      type: object
+      description: Alarm statistics.
+      required: [active, acknowledged, resolved]
+      additionalProperties: false
+      properties:
+        active:
+          type: integer
+          format: int64
+          example: 2
+        acknowledged:
+          type: integer
+          format: int64
+          example: 1
+        resolved:
+          type: integer
+          format: int64
+          example: 15
+MetricSnapshot:
+  type: object
+  description: >-
+    A metric data point backed by the `ops.metric_snapshot` table. Each
+    snapshot captures a metric name, numeric value, unit, optional tags and
+    a timestamp.
+  required:
+    - metric_name
+    - value
+    - timestamp
+  additionalProperties: false
+  properties:
+    metric_name:
+      type: string
+      description: Name of the metric (e.g. robot.online_count).
+      example: robot.online_count
+    value:
+      type: number
+      description: Numeric value of the metric.
+      example: 8
+    unit:
+      type: string
+      description: Unit of the metric value (e.g. count, percent, seconds).
+      example: count
+    tags:
+      type: object
+      description: Optional tags for dimensional filtering.
+      additionalProperties: true
+      example:
+        fleet: default
+    timestamp:
+      type: string
+      format: date-time
+      description: UTC timestamp when the metric was recorded.
+      example: '2026-07-05T10:00:00Z'
+HealthCheck:
+  type: object
+  description: >-
+    A component health check record backed by the `ops.health_check` table.
+    Captures the status, latency and error message of a dependency check.
+  required:
+    - component
+    - status
+    - last_check_at
+  additionalProperties: false
+  properties:
+    component:
+      type: string
+      description: Name of the component being checked (e.g. postgresql, nats).
+      example: postgresql
+    status:
+      type: string
+      description: Health status of the component.
+      enum:
+        - HEALTHY
+        - DEGRADED
+        - UNHEALTHY
+      example: HEALTHY
+    latency_ms:
+      type: integer
+      description: Latency of the health check in milliseconds.
+      example: 2
+    error_message:
+      type: string
+      description: Error message if the check failed, null otherwise.
+      example: null
+    last_check_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of the last check.
+      example: '2026-07-05T10:00:00Z'
+ReportRecord:
+  type: object
+  description: >-
+    An operations report record backed by the `ops.report_record` table.
+    Summarises historical data for a given period.
+  required:
+    - report_type
+    - period_start
+    - period_end
+    - generated_at
+  additionalProperties: false
+  properties:
+    report_type:
+      type: string
+      description: Type of the report.
+      enum:
+        - daily
+        - weekly
+        - monthly
+      example: daily
+    period_start:
+      type: string
+      format: date-time
+      description: Start of the report period (inclusive).
+      example: '2026-07-04T00:00:00Z'
+    period_end:
+      type: string
+      format: date-time
+      description: End of the report period (exclusive).
+      example: '2026-07-05T00:00:00Z'
+    summary:
+      type: object
+      description: Aggregated summary data for the period.
+      additionalProperties: true
+      example:
+        total_missions: 15
+        completed_missions: 13
+        failed_missions: 2
+        active_alarms: 1
+        avg_robot_online: 8.5
+    generated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the report was generated.
+      example: '2026-07-05T01:00:00Z'
+CapacityForecast:
+  type: object
+  description: >-
+    A capacity forecast entry comparing current usage of a resource against
+    projected usage and a threshold.
+  required:
+    - resource
+    - current_usage
+    - projected_usage
+    - threshold
+    - alert
+  additionalProperties: false
+  properties:
+    resource:
+      type: string
+      description: Name of the resource being forecast.
+      example: concurrent_missions
+    current_usage:
+      type: number
+      description: Current usage of the resource.
+      example: 3
+    projected_usage:
+      type: number
+      description: Projected usage based on recent trends.
+      example: 5
+    threshold:
+      type: number
+      description: Capacity threshold for the resource.
+      example: 10
+    unit:
+      type: string
+      description: Unit of the usage values.
+      example: count
+    alert:
+      type: boolean
+      description: Whether projected usage exceeds the threshold.
+      example: false

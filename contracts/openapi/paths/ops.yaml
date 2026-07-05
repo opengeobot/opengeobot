@@ -1,0 +1,224 @@
+# Function: OpenAPI path items for F-OPS-001 ops dashboard and health API
+# Time: 2026-07-05
+# Author: AxeXie
+opsDashboard:
+  get:
+    tags: [ops]
+    summary: Get dashboard overview
+    description: >-
+      Returns the operations dashboard overview aggregating system health,
+      robot statistics, mission statistics and alarm statistics. Requires the
+      `dashboard.view` permission.
+    operationId: getOpsDashboard
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Operations dashboard overview.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ops.yaml#/OpsDashboard'
+            example:
+              system_health:
+                overall: HEALTHY
+                components:
+                  - component: postgresql
+                    status: HEALTHY
+                    latency_ms: 2
+                  - component: nats
+                    status: HEALTHY
+                    latency_ms: 1
+              robot_stats:
+                total: 12
+                online: 8
+                offline: 2
+                busy: 1
+                error: 1
+              mission_stats:
+                total: 150
+                active: 3
+                completed: 140
+                failed: 7
+              alarm_stats:
+                active: 2
+                acknowledged: 1
+                resolved: 15
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the dashboard.view permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+opsMetrics:
+  get:
+    tags: [ops]
+    summary: Query metrics
+    description: >-
+      Returns metric snapshots filtered by metric name and time range.
+      Requires the `ops.health.read` permission.
+    operationId: queryOpsMetrics
+    security:
+      - bearerAuth: []
+    parameters:
+      - name: metric_name
+        in: query
+        description: Filter by metric name.
+        schema:
+          type: string
+        example: robot.online_count
+      - name: start
+        in: query
+        description: Start of the time range (inclusive).
+        schema:
+          type: string
+          format: date-time
+        example: '2026-07-05T00:00:00Z'
+      - name: end
+        in: query
+        description: End of the time range (inclusive).
+        schema:
+          type: string
+          format: date-time
+        example: '2026-07-05T23:59:59Z'
+      - name: limit
+        in: query
+        description: Maximum number of snapshots to return.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 100
+        example: 100
+    responses:
+      '200':
+        description: List of metric snapshots.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/ops.yaml#/MetricSnapshot'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.health.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+opsHealth:
+  get:
+    tags: [ops]
+    summary: Health check summary
+    description: >-
+      Returns a summary of component health checks (database, NATS, MinIO).
+      Requires the `ops.health.read` permission.
+    operationId: getOpsHealth
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Component health check summary.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/ops.yaml#/HealthCheck'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.health.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+opsReport:
+  parameters:
+    - name: reportType
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+          - daily
+          - weekly
+          - monthly
+      description: Type of report to generate.
+      example: daily
+  get:
+    tags: [ops]
+    summary: Generate a report
+    description: >-
+      Generates an operations report (daily, weekly or monthly) summarising
+      historical robot, mission and alarm data. The report is persisted as a
+      `report_record` and returned. Requires the `ops.health.read` permission.
+    operationId: generateOpsReport
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Generated report.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ops.yaml#/ReportRecord'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.health.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+opsCapacity:
+  get:
+    tags: [ops]
+    summary: Capacity forecast
+    description: >-
+      Returns a capacity forecast for platform resources (robots, storage,
+      concurrent missions), comparing current usage against projected usage
+      and thresholds. Requires the `ops.health.read` permission.
+    operationId: getOpsCapacity
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Capacity forecast.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/ops.yaml#/CapacityForecast'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the ops.health.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

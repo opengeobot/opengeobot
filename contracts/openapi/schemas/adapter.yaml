@@ -1,0 +1,199 @@
+# Function: Adapter registry schemas for F-ADAPTER-002
+# Time: 2026-07-05
+# Author: AxeXie
+
+ProtocolType:
+  type: string
+  description: >-
+    Canonical robot protocol type. Identifies which translation profile the
+    adapter uses to convert platform skill commands into robot-native protocol
+    messages. This is a code contract governed by the platform, not editable
+    dictionary data. ROS1 is an isolated-compatibility path (ROS2 is primary).
+  enum:
+    - ROS1
+    - ROS2
+    - UNITREE
+    - CUSTOM
+  example: ROS1
+
+AdapterStatus:
+  type: string
+  description: >-
+    Operational status of a registered protocol adapter. Governs whether the
+    adapter receives translation requests. This is a code contract.
+  enum:
+    - REGISTERED
+    - ACTIVE
+    - DEGRADED
+    - OFFLINE
+  example: ACTIVE
+
+Adapter:
+  type: object
+  description: >-
+    A registered protocol adapter that translates platform skill commands into
+    a robot-native protocol (ROS1, Unitree, custom). The adapter never directly
+    drives motors or joints — translations are proposals validated by the edge
+    Safety Gateway. All field names use snake_case.
+  required: [adapter_id, robot_id, protocol_type, version, status, created_at]
+  additionalProperties: false
+  properties:
+    adapter_id:
+      type: string
+      description: Stable public identifier of the adapter (ULID-based).
+      example: adp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Public identifier of the robot this adapter serves.
+      example: rbt_01J00000000000000000000001
+    protocol_type:
+      $ref: '#/ProtocolType'
+    version:
+      type: string
+      description: Adapter implementation version (semantic versioning).
+      example: 0.1.0
+    status:
+      $ref: '#/AdapterStatus'
+    config:
+      type: object
+      description: >-
+        Protocol-specific structured configuration (e.g. ROS1 master URI,
+        Unitree channel). Keys and values are protocol-defined.
+      additionalProperties: true
+      example:
+        ros_master_uri: http://localhost:11311
+        node_name: opengeobot_ros1
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the adapter was registered.
+      example: '2026-07-05T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the adapter record was last updated.
+      example: '2026-07-05T08:00:00Z'
+
+AdapterPage:
+  type: object
+  description: Paginated response wrapper for adapter entries.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Adapter'
+    total:
+      type: integer
+      format: int64
+      description: Total number of matching records.
+      example: 3
+    page:
+      type: integer
+      description: Current page number.
+      example: 1
+    page_size:
+      type: integer
+      description: Number of items per page.
+      example: 20
+
+RegisterAdapterRequest:
+  type: object
+  description: >-
+    Request body for registering a new protocol adapter. The adapter is created
+    with an initial status of `REGISTERED` until the runtime activates it. All
+    field names use snake_case.
+  required: [robot_id, protocol_type, version]
+  additionalProperties: false
+  properties:
+    robot_id:
+      type: string
+      description: Public identifier of the robot this adapter serves.
+      example: rbt_01J00000000000000000000001
+    protocol_type:
+      $ref: '#/ProtocolType'
+    version:
+      type: string
+      description: Adapter implementation version (semantic versioning).
+      example: 0.1.0
+    config:
+      type: object
+      description: Protocol-specific structured configuration.
+      additionalProperties: true
+      example:
+        ros_master_uri: http://localhost:11311
+        node_name: opengeobot_ros1
+
+UpdateAdapterStatusRequest:
+  type: object
+  description: >-
+    Request body for transitioning the adapter operational status. The
+    `reason` is recorded in the audit log. All field names use snake_case.
+  required: [status]
+  additionalProperties: false
+  properties:
+    status:
+      $ref: '#/AdapterStatus'
+    reason:
+      type: string
+      description: Machine-readable reason for the status transition.
+      example: ADAPTER_HEALTHY
+
+TranslateCommandRequest:
+  type: object
+  description: >-
+    Request body for translating a platform skill command into a robot-native
+    protocol message. The returned translation is an untrusted proposal that
+    must be validated by the edge Safety Gateway before execution. All field
+    names use snake_case.
+  required: [skill_id]
+  additionalProperties: false
+  properties:
+    skill_id:
+      type: string
+      description: Identifier of the skill command to translate.
+      example: stand_up
+    params:
+      type: object
+      description: Skill-specific input parameters.
+      additionalProperties: true
+      example:
+        duration: 2.0
+
+TranslateCommandResponse:
+  type: object
+  description: >-
+    Result of translating a platform skill command into a robot-native protocol
+    message. The `translated_command` is the protocol-specific payload; it is
+    an untrusted proposal that must pass edge Safety Gateway validation. All
+    field names use snake_case.
+  required: [adapter_id, skill_id, translated_command, success]
+  additionalProperties: false
+  properties:
+    adapter_id:
+      type: string
+      description: Public identifier of the adapter that performed the translation.
+      example: adp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    skill_id:
+      type: string
+      description: Identifier of the skill command that was translated.
+      example: stand_up
+    translated_command:
+      type: object
+      description: >-
+        Protocol-specific translated command payload. Shape depends on
+        `protocol_type`.
+      additionalProperties: true
+      example:
+        topic: /stand_up_cmd
+        type: std_msgs/Bool
+        data: true
+    success:
+      type: boolean
+      description: Whether the translation succeeded.
+      example: true
+    error:
+      type: string
+      description: Error message when translation fails.
+      example: null

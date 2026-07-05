@@ -261,6 +261,33 @@ channels:
     messages:
       safetyReset:
         $ref: '#/components/messages/SafetyResetEvent'
+  alarmTriggered:
+    address: opengeobot.dev.ops.event.alarm_triggered.v1
+    description: >-
+      Emitted when an alarm rule condition is met and a new alarm event is
+      created. The payload is a platform EventEnvelope whose `event_type` is
+      `alarm.triggered.v1`. Consumers may display the alarm in the operations
+      dashboard or forward it to external notification systems.
+    messages:
+      alarmTriggered:
+        $ref: '#/components/messages/AlarmTriggeredEvent'
+  alarmAcknowledged:
+    address: opengeobot.dev.ops.event.alarm_acknowledged.v1
+    description: >-
+      Emitted when an alarm is acknowledged by an operator. The payload is a
+      platform EventEnvelope whose `event_type` is `alarm.acknowledged.v1`.
+    messages:
+      alarmAcknowledged:
+        $ref: '#/components/messages/AlarmAcknowledgedEvent'
+  alarmResolved:
+    address: opengeobot.dev.ops.event.alarm_resolved.v1
+    description: >-
+      Emitted when an alarm is resolved, either manually or automatically.
+      The payload is a platform EventEnvelope whose `event_type` is
+      `alarm.resolved.v1`.
+    messages:
+      alarmResolved:
+        $ref: '#/components/messages/AlarmResolvedEvent'
 operations:
   publishHealthChanged:
     action: send
@@ -451,6 +478,27 @@ operations:
       $ref: '#/channels/safetyReset'
     messages:
       - $ref: '#/components/messages/SafetyResetEvent'
+  publishAlarmTriggered:
+    action: send
+    title: Publish alarm triggered event
+    channel:
+      $ref: '#/channels/alarmTriggered'
+    messages:
+      - $ref: '#/components/messages/AlarmTriggeredEvent'
+  publishAlarmAcknowledged:
+    action: send
+    title: Publish alarm acknowledged event
+    channel:
+      $ref: '#/channels/alarmAcknowledged'
+    messages:
+      - $ref: '#/components/messages/AlarmAcknowledgedEvent'
+  publishAlarmResolved:
+    action: send
+    title: Publish alarm resolved event
+    channel:
+      $ref: '#/channels/alarmResolved'
+    messages:
+      - $ref: '#/components/messages/AlarmResolvedEvent'
 components:
   messages:
     EventEnvelope:
@@ -1210,4 +1258,97 @@ components:
                 event_type: RESET
                 reason: Reset by usr_01J00000000000000000000001
                 occurred_at: '2026-07-05T10:05:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    AlarmTriggeredEvent:
+      description: >-
+        Alarm triggered event. The payload is a platform EventEnvelope whose
+        `event_type` is `alarm.triggered.v1` and whose `data` carries the
+        AlarmTriggeredV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/alarm-events.yaml#/AlarmTriggeredV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: alarm.triggered.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T10:05:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: service
+                id: cloud-control
+              data:
+                alarm_id: alm_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                rule_id: alr_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                source: rbt_01J00000000000000000000001
+                severity: HIGH
+                message: Robot rbt_01J00000000000000000000001 has been offline for 320s
+                triggered_at: '2026-07-05T10:05:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    AlarmAcknowledgedEvent:
+      description: >-
+        Alarm acknowledged event. The payload is a platform EventEnvelope
+        whose `event_type` is `alarm.acknowledged.v1` and whose `data`
+        carries the AlarmAcknowledgedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/alarm-events.yaml#/AlarmAcknowledgedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: alarm.acknowledged.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T10:10:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                alarm_id: alm_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                rule_id: alr_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                source: rbt_01J00000000000000000000001
+                severity: HIGH
+                acknowledged_by: usr_01J00000000000000000000001
+                acknowledged_at: '2026-07-05T10:10:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    AlarmResolvedEvent:
+      description: >-
+        Alarm resolved event. The payload is a platform EventEnvelope whose
+        `event_type` is `alarm.resolved.v1` and whose `data` carries the
+        AlarmResolvedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/alarm-events.yaml#/AlarmResolvedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: alarm.resolved.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T10:15:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                alarm_id: alm_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                rule_id: alr_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                source: rbt_01J00000000000000000000001
+                severity: HIGH
+                resolved_by: usr_01J00000000000000000000001
+                resolved_at: '2026-07-05T10:15:00Z'
                 trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

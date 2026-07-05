@@ -1,0 +1,289 @@
+# Function: Alarm schemas for F-ALARM-001 alarm lifecycle and notification
+# Time: 2026-07-05
+# Author: AxeXie
+AlarmSeverity:
+  type: string
+  description: >-
+    Severity level of an alarm. `CRITICAL` requires immediate intervention;
+    `HIGH` indicates a significant issue; `MEDIUM` a moderate concern; `LOW`
+    an informational alert.
+  enum:
+    - CRITICAL
+    - HIGH
+    - MEDIUM
+    - LOW
+  example: HIGH
+AlarmStatus:
+  type: string
+  description: >-
+    Lifecycle state of an alarm event following the SM-ALARM-001 state machine
+    (ACTIVE → ACKNOWLEDGED → RESOLVED). `ACTIVE` alarms have been triggered but
+    not yet acknowledged; `ACKNOWLEDGED` alarms are being handled; `RESOLVED`
+    alarms have been addressed.
+  enum:
+    - ACTIVE
+    - ACKNOWLEDGED
+    - RESOLVED
+  example: ACTIVE
+AlarmRule:
+  type: object
+  description: >-
+    An alarm rule backed by the `alarm.alarm_rule` table. Rules are evaluated
+    periodically by the alarm evaluator; when the condition is met, an alarm
+    event is triggered.
+  required:
+    - rule_id
+    - name
+    - source
+    - metric
+    - condition
+    - threshold
+    - severity
+    - enabled
+  additionalProperties: false
+  properties:
+    rule_id:
+      type: string
+      description: Unique identifier of the alarm rule (ULID-based).
+      example: alr_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable name of the rule.
+      example: robot_offline
+    source:
+      type: string
+      description: >-
+        Source domain of the metric (e.g. robot_registry, mission, safety).
+      example: robot_registry
+    metric:
+      type: string
+      description: >-
+        Metric identifier evaluated by this rule (e.g.
+        robot.offline_duration, mission.failure_rate).
+      example: robot.offline_duration
+    condition:
+      type: string
+      description: >-
+        Comparison operator applied to the metric value against the threshold.
+        Supported values: GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL,
+        LESS_THAN_OR_EQUAL, EQUALS.
+      example: GREATER_THAN
+    threshold:
+      type: number
+      description: Threshold value against which the metric is compared.
+      example: 300
+    severity:
+      $ref: '#/AlarmSeverity'
+    enabled:
+      type: boolean
+      description: Whether the rule is active and being evaluated.
+      example: true
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the rule was created.
+      example: '2026-07-05T10:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the rule was last updated.
+      example: '2026-07-05T10:00:00Z'
+    created_by:
+      type: string
+      description: Actor that created the rule.
+      example: usr_01J00000000000000000000001
+AlarmEvent:
+  type: object
+  description: >-
+    An alarm event backed by the `alarm.alarm_event` table. Events are
+    append-only and follow the SM-ALARM-001 state machine
+    (ACTIVE → ACKNOWLEDGED → RESOLVED). Each event carries a `trace_id`
+    linking it to the end-to-end trace context.
+  required:
+    - alarm_id
+    - rule_id
+    - source
+    - severity
+    - message
+    - status
+    - triggered_at
+  additionalProperties: false
+  properties:
+    alarm_id:
+      type: string
+      description: Unique identifier of the alarm event (ULID-based).
+      example: alm_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    rule_id:
+      type: string
+      description: Identifier of the rule that triggered this alarm.
+      example: alr_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    source:
+      type: string
+      description: >-
+        Source of the alarm (e.g. robot_id or system component name).
+      example: rbt_01J00000000000000000000001
+    severity:
+      $ref: '#/AlarmSeverity'
+    message:
+      type: string
+      description: Human-readable description of the alarm condition.
+      example: Robot rbt_01J00000000000000000000001 has been offline for 320s
+    status:
+      $ref: '#/AlarmStatus'
+    triggered_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the alarm was triggered.
+      example: '2026-07-05T10:05:00Z'
+    acknowledged_by:
+      type: string
+      description: Actor that acknowledged the alarm, if any.
+      example: usr_01J00000000000000000000001
+    acknowledged_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the alarm was acknowledged, if any.
+      example: '2026-07-05T10:10:00Z'
+    resolved_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the alarm was resolved, if any.
+      example: '2026-07-05T10:15:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking this event to logs and metrics.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+NotificationChannel:
+  type: object
+  description: >-
+    A notification channel backed by the `alarm.notification_channel` table.
+    Channels define how alarm notifications are delivered (in-app, webhook,
+    email).
+  required:
+    - channel_id
+    - name
+    - type
+    - enabled
+  additionalProperties: false
+  properties:
+    channel_id:
+      type: string
+      description: Unique identifier of the notification channel (ULID-based).
+      example: nch_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable name of the channel.
+      example: in-app
+    type:
+      type: string
+      description: >-
+        Delivery type of the channel. `in-app` stores notifications in the
+        database; `webhook` sends an HTTP POST; `email` sends an email
+        (stubbed for M5).
+      enum:
+        - in-app
+        - webhook
+        - email
+      example: in-app
+    config:
+      type: object
+      description: >-
+        Channel-specific configuration. For webhook, contains `url`; for
+        email, contains `recipients`.
+      additionalProperties: true
+      example:
+        url: https://hooks.example.com/alerts
+    enabled:
+      type: boolean
+      description: Whether the channel is active.
+      example: true
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the channel was created.
+      example: '2026-07-05T10:00:00Z'
+CreateAlarmRuleRequest:
+  type: object
+  description: Request body for creating a new alarm rule.
+  required:
+    - name
+    - source
+    - metric
+    - condition
+    - threshold
+    - severity
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Human-readable name of the rule.
+      example: robot_offline
+    source:
+      type: string
+      description: Source domain of the metric.
+      example: robot_registry
+    metric:
+      type: string
+      description: Metric identifier evaluated by this rule.
+      example: robot.offline_duration
+    condition:
+      type: string
+      description: Comparison operator (GREATER_THAN, LESS_THAN, etc.).
+      example: GREATER_THAN
+    threshold:
+      type: number
+      description: Threshold value.
+      example: 300
+    severity:
+      $ref: '#/AlarmSeverity'
+    enabled:
+      type: boolean
+      description: Whether the rule is active. Defaults to true.
+      default: true
+      example: true
+UpdateAlarmRuleRequest:
+  type: object
+  description: Request body for updating an existing alarm rule.
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      example: robot_offline
+    condition:
+      type: string
+      example: GREATER_THAN
+    threshold:
+      type: number
+      example: 600
+    severity:
+      $ref: '#/AlarmSeverity'
+    enabled:
+      type: boolean
+      example: false
+CreateNotificationChannelRequest:
+  type: object
+  description: Request body for creating a notification channel.
+  required:
+    - name
+    - type
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      example: ops-webhook
+    type:
+      type: string
+      enum:
+        - in-app
+        - webhook
+        - email
+      example: webhook
+    config:
+      type: object
+      additionalProperties: true
+      example:
+        url: https://hooks.example.com/alerts
+    enabled:
+      type: boolean
+      default: true
+      example: true
