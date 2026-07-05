@@ -1,0 +1,583 @@
+# Function: OpenAPI path items for F-SKILL-001 skill lifecycle API
+# Time: 2026-07-05
+# Author: AxeXie
+skillsCollection:
+  get:
+    tags: [skill]
+    summary: List registered skills
+    description: >-
+      Returns a paginated list of registered skills. Results can be filtered by
+      `status` and by `module`. Skills follow the SM-SKILL-001 state machine
+      (DRAFT → PUBLISHED → DEPRECATED/DISABLED).
+    operationId: listSkills
+    parameters:
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: status
+        in: query
+        description: Filter by lifecycle status.
+        schema:
+          $ref: '../schemas/skill.yaml#/Skill/properties/status'
+        example: PUBLISHED
+      - name: module
+        in: query
+        description: Filter by owning module.
+        schema:
+          type: string
+        example: locomotion
+    responses:
+      '200':
+        description: Paginated list of skills.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Paginated response wrapper for skill entries.
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/skill.yaml#/Skill'
+                total:
+                  type: integer
+                  format: int64
+                  description: Total number of matching records.
+                  example: 5
+                page:
+                  type: integer
+                  description: Current page number.
+                  example: 1
+                page_size:
+                  type: integer
+                  description: Number of items per page.
+                  example: 20
+            example:
+              items:
+                - skill_id: skl_01J00000000000000000000001
+                  name: stand_up
+                  module: locomotion
+                  description: Commands the robot to stand up.
+                  status: PUBLISHED
+                  current_version: 1
+                  created_at: '2026-07-05T08:00:00Z'
+                  updated_at: '2026-07-05T08:00:00Z'
+              total: 5
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the skill.skill.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [skill]
+    summary: Register a new skill
+    description: >-
+      Registers a new skill in the registry. The `name` must be unique; a
+      duplicate returns `SKILL_ALREADY_EXISTS`. A freshly created skill starts
+      in `DRAFT` status with `current_version` 0. A `skill.registered.v1`
+      event is published via the transactional outbox.
+    operationId: createSkill
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/skill.yaml#/CreateSkillRequest'
+          example:
+            name: stand_up
+            module: locomotion
+            description: Commands the robot to stand up from a seated or prone position.
+            input_schema:
+              type: object
+              properties:
+                speed:
+                  type: number
+                  default: 0.5
+            output_schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+    responses:
+      '201':
+        description: Skill registered successfully.
+        headers:
+          Location:
+            description: URL of the created skill.
+            schema:
+              type: string
+              format: uri
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/skill.yaml#/Skill'
+            example:
+              skill_id: skl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              name: stand_up
+              module: locomotion
+              description: Commands the robot to stand up from a seated or prone position.
+              status: DRAFT
+              current_version: 0
+              created_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              updated_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              created_at: '2026-07-05T08:00:00Z'
+              updated_at: '2026-07-05T08:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the skill.skill.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: A skill with the given name already exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Skill already exists
+              status: 409
+              code: SKILL_ALREADY_EXISTS
+              message_key: error.skill.already_exists
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /skills
+skillItem:
+  get:
+    tags: [skill]
+    summary: Get a skill by id
+    description: >-
+      Returns the current state of the skill identified by `skillId`.
+    operationId: getSkill
+    parameters:
+      - name: skillId
+        in: path
+        description: Unique skill identifier.
+        required: true
+        schema:
+          type: string
+        example: skl_01J00000000000000000000001
+    responses:
+      '200':
+        description: The requested skill.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/skill.yaml#/Skill'
+            example:
+              skill_id: skl_01J00000000000000000000001
+              name: stand_up
+              module: locomotion
+              description: Commands the robot to stand up.
+              status: PUBLISHED
+              current_version: 1
+              created_at: '2026-07-05T08:00:00Z'
+              updated_at: '2026-07-05T09:30:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the skill.skill.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No skill found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Skill not found
+              status: 404
+              code: SKILL_NOT_FOUND
+              message_key: error.skill.not_found
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /skills/skl_01J00000000000000000000001
+  put:
+    tags: [skill]
+    summary: Update a skill
+    description: >-
+      Updates the description and/or input/output schemas of an existing skill.
+      The `status` field is not modified here; use the publish/disable/enable
+      endpoints for state transitions. All changes are audited.
+    operationId: updateSkill
+    parameters:
+      - name: skillId
+        in: path
+        description: Unique skill identifier.
+        required: true
+        schema:
+          type: string
+        example: skl_01J00000000000000000000001
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/skill.yaml#/UpdateSkillRequest'
+          example:
+            description: Commands the robot to stand up (updated parameters).
+            input_schema:
+              type: object
+              properties:
+                speed:
+                  type: number
+                  default: 0.8
+    responses:
+      '200':
+        description: Skill updated successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/skill.yaml#/Skill'
+            example:
+              skill_id: skl_01J00000000000000000000001
+              name: stand_up
+              module: locomotion
+              description: Commands the robot to stand up (updated parameters).
+              status: DRAFT
+              current_version: 0
+              updated_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              created_at: '2026-07-05T08:00:00Z'
+              updated_at: '2026-07-05T10:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the skill.skill.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No skill found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+skillPublish:
+  post:
+    tags: [skill]
+    summary: Publish a new version of the skill
+    description: >-
+      Publishes the current draft state of the skill as a new immutable version.
+      Increments `current_version`, appends a row to `skill_version`, and
+      transitions the skill to `PUBLISHED` status. A `skill_version.published.v1`
+      event and a `skill.status_changed.v1` event are emitted via the
+      transactional outbox. Requires the `skill.skill.publish` permission.
+    operationId: publishSkill
+    parameters:
+      - name: skillId
+        in: path
+        description: Unique skill identifier.
+        required: true
+        schema:
+          type: string
+        example: skl_01J00000000000000000000001
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              changelog:
+                type: string
+                description: Optional human-readable summary of changes in this version.
+                example: Updated stand-up speed parameter.
+    responses:
+      '200':
+        description: Skill version published successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/skill.yaml#/Skill'
+            example:
+              skill_id: skl_01J00000000000000000000001
+              name: stand_up
+              module: locomotion
+              description: Commands the robot to stand up.
+              status: PUBLISHED
+              current_version: 1
+              updated_at: '2026-07-05T10:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the skill.skill.publish permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No skill found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Skill is not in a publishable state (e.g. already published with no changes).
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+skillDisable:
+  post:
+    tags: [skill]
+    summary: Disable a skill
+    description: >-
+      Administratively disables a skill, transitioning it to `DISABLED`
+      status. Disabled skills cannot be invoked by the mission or edge
+      execution layers. A `skill.status_changed.v1` event is emitted via the
+      transactional outbox. Requires the `skill.skill.manage` permission.
+    operationId: disableSkill
+    parameters:
+      - name: skillId
+        in: path
+        description: Unique skill identifier.
+        required: true
+        schema:
+          type: string
+        example: skl_01J00000000000000000000001
+    responses:
+      '200':
+        description: Skill disabled successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/skill.yaml#/Skill'
+            example:
+              skill_id: skl_01J00000000000000000000001
+              name: stand_up
+              module: locomotion
+              status: DISABLED
+              current_version: 1
+              updated_at: '2026-07-05T11:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the skill.skill.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No skill found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Skill is already disabled.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+skillEnable:
+  post:
+    tags: [skill]
+    summary: Enable a skill
+    description: >-
+      Re-enables a previously disabled skill, transitioning it back to
+      `PUBLISHED` status if it has a published version, or to `DRAFT` if no
+      version has been published yet. A `skill.status_changed.v1` event is
+      emitted via the transactional outbox. Requires the `skill.skill.manage`
+      permission.
+    operationId: enableSkill
+    parameters:
+      - name: skillId
+        in: path
+        description: Unique skill identifier.
+        required: true
+        schema:
+          type: string
+        example: skl_01J00000000000000000000001
+    responses:
+      '200':
+        description: Skill enabled successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/skill.yaml#/Skill'
+            example:
+              skill_id: skl_01J00000000000000000000001
+              name: stand_up
+              module: locomotion
+              status: PUBLISHED
+              current_version: 1
+              updated_at: '2026-07-05T12:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the skill.skill.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No skill found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Skill is not in a disabled state.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+skillVersions:
+  get:
+    tags: [skill]
+    summary: List skill versions
+    description: >-
+      Returns the version history for the given skill, ordered from newest to
+      oldest. The history is read from the append-only `skill_version` table.
+    operationId: listSkillVersions
+    parameters:
+      - name: skillId
+        in: path
+        description: Unique skill identifier.
+        required: true
+        schema:
+          type: string
+        example: skl_01J00000000000000000000001
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+    responses:
+      '200':
+        description: Paginated version history for the skill.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Paginated response wrapper for skill version entries.
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/skill.yaml#/SkillVersion'
+                total:
+                  type: integer
+                  format: int64
+                  description: Total number of version records.
+                  example: 2
+                page:
+                  type: integer
+                  description: Current page number.
+                  example: 1
+                page_size:
+                  type: integer
+                  description: Number of items per page.
+                  example: 20
+            example:
+              items:
+                - skill_id: skl_01J00000000000000000000001
+                  version: 1
+                  status: PUBLISHED
+                  changelog: Initial published version.
+                  published_at: '2026-07-05T10:00:00Z'
+                  published_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  created_at: '2026-07-05T10:00:00Z'
+              total: 1
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the skill.skill.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No skill found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

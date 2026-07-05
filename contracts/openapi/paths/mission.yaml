@@ -1,0 +1,676 @@
+# Function: OpenAPI path items for F-MISSION-001/002/003 mission management API
+# Time: 2026-07-05
+# Author: AxeXie
+missionsCollection:
+  get:
+    tags: [mission]
+    summary: List missions
+    description: >-
+      Returns a paginated list of missions. Results can be filtered by `status`
+      and by `robot_id`. Ordered by most recently updated first.
+    operationId: listMissions
+    parameters:
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: status
+        in: query
+        description: Filter by mission status (SM-MISSION-001).
+        schema:
+          $ref: '../schemas/mission.yaml#/MissionStatus'
+        example: READY
+      - name: robot_id
+        in: query
+        description: Filter by assigned robot.
+        schema:
+          type: string
+        example: rbt_01J00000000000000000000001
+    responses:
+      '200':
+        description: Paginated list of missions.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/MissionPage'
+            example:
+              items:
+                - mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  name: Patrol perimeter zone A
+                  robot_id: rbt_01J00000000000000000000001
+                  status: READY
+                  priority: NORMAL
+                  created_at: '2026-07-05T09:55:00Z'
+                  updated_at: '2026-07-05T09:56:00Z'
+              total: 1
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to list missions.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [mission]
+    summary: Create a mission
+    description: >-
+      Creates a new mission in the PENDING state with the supplied ordered
+      steps. Each step references a registered skill. A `mission_created.v1`
+      event is published via the transactional outbox. The mission must be
+      planned and approved before execution.
+    operationId: createMission
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/mission.yaml#/CreateMissionRequest'
+          example:
+            name: Patrol perimeter zone A
+            description: Sweep the north perimeter and report anomalies.
+            robot_id: rbt_01J00000000000000000000001
+            priority: NORMAL
+            steps:
+              - skill_id: skl_01J00000000000000000000001
+                step_order: 0
+                input_params:
+                  target_zone: zone_a
+              - skill_id: skl_01J00000000000000000000002
+                step_order: 1
+    responses:
+      '201':
+        description: Mission created successfully.
+        headers:
+          Location:
+            description: URL of the created mission.
+            schema:
+              type: string
+              format: uri
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/Mission'
+            example:
+              mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              name: Patrol perimeter zone A
+              robot_id: rbt_01J00000000000000000000001
+              status: PENDING
+              priority: NORMAL
+              created_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              created_at: '2026-07-05T09:55:00Z'
+              updated_at: '2026-07-05T09:55:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to create missions.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+missionItem:
+  get:
+    tags: [mission]
+    summary: Get mission detail
+    description: >-
+      Returns the mission together with its ordered steps. The `steps` array
+      reflects the current plan after any revisions.
+    operationId: getMission
+    parameters:
+      - name: missionId
+        in: path
+        description: Public identifier of the mission.
+        required: true
+        schema:
+          type: string
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Mission detail with steps.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/MissionDetail'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to read missions.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Mission not found
+              status: 404
+              code: MISSION_NOT_FOUND
+              message_key: error.mission.not_found
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /missions/msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+  put:
+    tags: [mission]
+    summary: Update mission metadata
+    description: >-
+      Updates mutable metadata (name, description, priority, scheduled_at) of a
+      mission that has not yet started executing. A `mission_plan_revised.v1`
+      event is published via the transactional outbox.
+    operationId: updateMission
+    parameters:
+      - name: missionId
+        in: path
+        description: Public identifier of the mission.
+        required: true
+        schema:
+          type: string
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/mission.yaml#/UpdateMissionRequest'
+          example:
+            name: Patrol perimeter zone A (revised)
+            priority: HIGH
+    responses:
+      '200':
+        description: Mission updated successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/Mission'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Mission is not in a state that allows updates.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Invalid state transition
+              status: 409
+              code: MISSION_INVALID_TRANSITION
+              message_key: error.mission.invalid_transition
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /missions/msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+missionPlan:
+  post:
+    tags: [mission]
+    summary: Revise mission plan
+    description: >-
+      Replaces the step list of a mission that is in PENDING or PLANNING state,
+      transitioning it to PLANNING then READY. A `mission_plan_revised.v1` event
+      is published via the transactional outbox.
+    operationId: reviseMissionPlan
+    parameters:
+      - name: missionId
+        in: path
+        description: Public identifier of the mission.
+        required: true
+        schema:
+          type: string
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/mission.yaml#/RevisePlanRequest'
+          example:
+            steps:
+              - skill_id: skl_01J00000000000000000000001
+                step_order: 0
+                input_params:
+                  target_zone: zone_a
+    responses:
+      '200':
+        description: Plan revised successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/Mission'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Mission is not in a state that allows plan revision.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+missionStart:
+  post:
+    tags: [mission]
+    summary: Start mission execution
+    description: >-
+      Transitions a READY mission to EXECUTING and begins step execution. The
+      mission must have passed approval when required. A `mission_started.v1`
+      event is published via the transactional outbox. Physical execution is
+      dispatched to the edge Safety Gateway; this endpoint only transitions
+      cloud-side state.
+    operationId: startMission
+    parameters:
+      - name: missionId
+        in: path
+        description: Public identifier of the mission.
+        required: true
+        schema:
+          type: string
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Mission started successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/Mission'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Mission is not READY and cannot be started.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+missionPause:
+  post:
+    tags: [mission]
+    summary: Pause mission execution
+    description: >-
+      Transitions an EXECUTING mission to PAUSED. A `mission.paused.v1` event is
+      published via the transactional outbox. Already-running steps complete
+      their current action before pausing.
+    operationId: pauseMission
+    parameters:
+      - name: missionId
+        in: path
+        description: Public identifier of the mission.
+        required: true
+        schema:
+          type: string
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Mission paused successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/Mission'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Mission is not EXECUTING and cannot be paused.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+missionResume:
+  post:
+    tags: [mission]
+    summary: Resume mission execution
+    description: >-
+      Transitions a PAUSED mission back to EXECUTING. A `mission.resumed.v1`
+      event is published via the transactional outbox.
+    operationId: resumeMission
+    parameters:
+      - name: missionId
+        in: path
+        description: Public identifier of the mission.
+        required: true
+        schema:
+          type: string
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Mission resumed successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/Mission'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Mission is not PAUSED and cannot be resumed.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+missionCancel:
+  post:
+    tags: [mission]
+    summary: Cancel mission
+    description: >-
+      Transitions a non-terminal mission to CANCELLED. A `mission.cancelled.v1`
+      event is published via the transactional outbox. Cancel is allowed from
+      any non-terminal state.
+    operationId: cancelMission
+    parameters:
+      - name: missionId
+        in: path
+        description: Public identifier of the mission.
+        required: true
+        schema:
+          type: string
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Mission cancelled successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/Mission'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Mission is already in a terminal state.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+missionSubmitApproval:
+  post:
+    tags: [mission]
+    summary: Submit mission for approval
+    description: >-
+      Submits a READY mission for approval, creating a PENDING approval record.
+      A `mission.approval_requested.v1` event is published via the transactional
+      outbox. The mission remains READY until an approver decides.
+    operationId: submitMissionApproval
+    parameters:
+      - name: missionId
+        in: path
+        description: Public identifier of the mission.
+        required: true
+        schema:
+          type: string
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Approval request recorded.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/MissionApproval'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Mission is not in a state that can be submitted for approval.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+missionApprove:
+  post:
+    tags: [mission]
+    summary: Approve mission
+    description: >-
+      Records an APPROVED decision for a mission. The mission becomes eligible
+      for execution. A `mission.approved.v1` event is published via the
+      transactional outbox.
+    operationId: approveMission
+    parameters:
+      - name: missionId
+        in: path
+        description: Public identifier of the mission.
+        required: true
+        schema:
+          type: string
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/mission.yaml#/ApprovalRequest'
+          example:
+            comment: Plan reviewed, safe to execute.
+    responses:
+      '200':
+        description: Approval recorded.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/MissionApproval'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Mission has no pending approval or is already decided.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+missionReject:
+  post:
+    tags: [mission]
+    summary: Reject mission
+    description: >-
+      Records a REJECTED decision for a mission. The mission cannot be started
+      until the plan is revised and re-approved. A `mission.rejected.v1` event is
+      published via the transactional outbox.
+    operationId: rejectMission
+    parameters:
+      - name: missionId
+        in: path
+        description: Public identifier of the mission.
+        required: true
+        schema:
+          type: string
+        example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/mission.yaml#/ApprovalRequest'
+          example:
+            comment: Step 2 skill not validated for this robot.
+    responses:
+      '200':
+        description: Rejection recorded.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/MissionApproval'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Mission has no pending approval or is already decided.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+missionTemplatesCollection:
+  get:
+    tags: [mission]
+    summary: List mission templates
+    description: Returns a paginated list of mission templates.
+    operationId: listMissionTemplates
+    parameters:
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+    responses:
+      '200':
+        description: Paginated list of mission templates.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Paginated response wrapper for mission templates.
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/mission.yaml#/MissionTemplate'
+                total:
+                  type: integer
+                  format: int64
+                  example: 5
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to read mission templates.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [mission]
+    summary: Create a mission template
+    description: >-
+      Creates a reusable mission template with a blueprint step list. Templates
+      are used to fast-create missions with a standard plan.
+    operationId: createMissionTemplate
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/mission.yaml#/CreateMissionTemplateRequest'
+          example:
+            name: Standard perimeter patrol
+            description: Reusable two-step patrol template.
+            steps:
+              - skill_id: skl_01J00000000000000000000001
+                step_order: 0
+              - skill_id: skl_01J00000000000000000000002
+                step_order: 1
+    responses:
+      '201':
+        description: Template created successfully.
+        headers:
+          Location:
+            description: URL of the created template.
+            schema:
+              type: string
+              format: uri
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mission.yaml#/MissionTemplate'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to manage mission templates.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

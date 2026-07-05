@@ -1,0 +1,303 @@
+# Function: Mission event payload schemas for F-MISSION-001/002/003
+# Time: 2026-07-05
+# Author: AxeXie
+MissionCreatedV1:
+  type: object
+  description: >-
+    Payload emitted when a new mission is created. Carried as the `data` field of
+    the platform EventEnvelope with `event_type` equal to
+    `mission.created.v1`. `trace_id` links the creation to the end-to-end trace
+    context. All field names use snake_case.
+  required:
+    - event_id
+    - mission_id
+    - name
+    - robot_id
+    - status
+    - priority
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Stable public identifier of the created mission.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable name of the mission.
+      example: Patrol perimeter zone A
+    robot_id:
+      type: string
+      description: Public identifier of the robot assigned to the mission.
+      example: rbt_01J00000000000000000000001
+    status:
+      type: string
+      description: Initial mission status (always PENDING on creation).
+      enum:
+        - PENDING
+        - PLANNING
+        - READY
+        - EXECUTING
+        - PAUSED
+        - COMPLETED
+        - FAILED
+        - CANCELLED
+      example: PENDING
+    priority:
+      type: string
+      description: Scheduling priority of the mission.
+      enum:
+        - LOW
+        - NORMAL
+        - HIGH
+        - URGENT
+      example: NORMAL
+    created_by:
+      type: string
+      description: Identifier of the actor that created the mission.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the mission was created.
+      example: '2026-07-05T09:55:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the creation to logs, metrics and
+        audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+MissionPlanRevisedV1:
+  type: object
+  description: >-
+    Payload emitted when a mission plan (step list) is revised. Carried as the
+    `data` field of the platform EventEnvelope with `event_type` equal to
+    `mission.plan_revised.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - mission_id
+    - status
+    - step_count
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Stable public identifier of the mission whose plan was revised.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    status:
+      type: string
+      description: Mission status after the plan revision (PLANNING or READY).
+      enum:
+        - PLANNING
+        - READY
+      example: READY
+    step_count:
+      type: integer
+      description: Number of steps in the revised plan.
+      example: 2
+    revised_by:
+      type: string
+      description: Identifier of the actor that revised the plan.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the plan was revised.
+      example: '2026-07-05T09:56:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the revision to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+MissionStartedV1:
+  type: object
+  description: >-
+    Payload emitted when a mission transitions to EXECUTING. Carried as the
+    `data` field of the platform EventEnvelope with `event_type` equal to
+    `mission.started.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - mission_id
+    - robot_id
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Stable public identifier of the started mission.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Public identifier of the robot executing the mission.
+      example: rbt_01J00000000000000000000001
+    started_by:
+      type: string
+      description: Identifier of the actor that started the mission.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    started_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when execution began.
+      example: '2026-07-05T10:00:05Z'
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the started event was recorded.
+      example: '2026-07-05T10:00:05Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the start to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+MissionCompletedV1:
+  type: object
+  description: >-
+    Payload emitted when a mission reaches the COMPLETED terminal state. Carried
+    as the `data` field of the platform EventEnvelope with `event_type` equal to
+    `mission.completed.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - mission_id
+    - robot_id
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Stable public identifier of the completed mission.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Public identifier of the robot that executed the mission.
+      example: rbt_01J00000000000000000000001
+    completed_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the mission completed.
+      example: '2026-07-05T10:12:30Z'
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the completed event was recorded.
+      example: '2026-07-05T10:12:30Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking completion to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+MissionFailedV1:
+  type: object
+  description: >-
+    Payload emitted when a mission reaches the FAILED terminal state. Carried as
+    the `data` field of the platform EventEnvelope with `event_type` equal to
+    `mission.failed.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - mission_id
+    - robot_id
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Stable public identifier of the failed mission.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Public identifier of the robot that was executing the mission.
+      example: rbt_01J00000000000000000000001
+    failed_reason:
+      type: string
+      description: Reason text explaining why the mission failed.
+      example: Step 2 skill execution timed out
+    failed_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the mission failed.
+      example: '2026-07-05T10:08:00Z'
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the failed event was recorded.
+      example: '2026-07-05T10:08:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the failure to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+MissionCancelledV1:
+  type: object
+  description: >-
+    Payload emitted when a mission is cancelled from a non-terminal state.
+    Carried as the `data` field of the platform EventEnvelope with `event_type`
+    equal to `mission.cancelled.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - mission_id
+    - robot_id
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Stable public identifier of the cancelled mission.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Public identifier of the robot assigned to the mission.
+      example: rbt_01J00000000000000000000001
+    previous_status:
+      type: string
+      description: Mission status immediately before cancellation.
+      enum:
+        - PENDING
+        - PLANNING
+        - READY
+        - EXECUTING
+        - PAUSED
+      example: EXECUTING
+    cancelled_by:
+      type: string
+      description: Identifier of the actor that cancelled the mission.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    cancelled_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the mission was cancelled.
+      example: '2026-07-05T10:05:00Z'
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the cancelled event was recorded.
+      example: '2026-07-05T10:05:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the cancellation to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

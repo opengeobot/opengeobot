@@ -1,0 +1,112 @@
+# Function: Robot registry event payload schemas for F-ROBOT-001
+# Time: 2026-07-05
+# Author: AxeXie
+RobotRegisteredV1:
+  type: object
+  description: >-
+    Payload emitted when a new robot is registered. Carried as the `data`
+    field of the platform EventEnvelope with `event_type` equal to
+    `robot.registered.v1`. `trace_id` links the registration to the
+    end-to-end trace context. All field names use snake_case.
+  required:
+    - event_id
+    - robot_id
+    - name
+    - model_id
+    - org_id
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Stable public identifier of the newly registered robot.
+      example: rbt_01J00000000000000000000001
+    name:
+      type: string
+      description: Human-friendly display name of the robot.
+      example: Pioneer-01
+    model_id:
+      type: string
+      description: Identifier of the robot model this robot belongs to.
+      example: mdl_01J00000000000000000000001
+    org_id:
+      type: string
+      description: Organization that owns the robot.
+      example: org_01J00000000000000000000001
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the registration occurred.
+      example: '2026-07-05T08:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the registration to logs, metrics
+        and audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+RobotStatusChangedV1:
+  type: object
+  description: >-
+    Payload emitted when a robot operational status transitions. Carried as
+    the `data` field of the platform EventEnvelope with `event_type` equal to
+    `robot.status_changed.v1`. `trace_id` links the transition to the
+    end-to-end trace context. All field names use snake_case.
+  required:
+    - event_id
+    - robot_id
+    - old_status
+    - new_status
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Stable public identifier of the robot whose status changed.
+      example: rbt_01J00000000000000000000001
+    old_status:
+      type: string
+      description: Previous operational status of the robot.
+      enum:
+        - ONLINE
+        - OFFLINE
+        - BUSY
+        - ERROR
+        - MAINTENANCE
+      example: ONLINE
+    new_status:
+      type: string
+      description: New operational status of the robot after the transition.
+      enum:
+        - ONLINE
+        - OFFLINE
+        - BUSY
+        - ERROR
+        - MAINTENANCE
+      example: MAINTENANCE
+    reason:
+      type: string
+      description: >-
+        Machine-readable reason for the status transition. Recorded in the
+        status history and audit log.
+      example: ADMIN_MAINTENANCE
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the status transition occurred.
+      example: '2026-07-05T08:30:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the transition to logs, metrics
+        and audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

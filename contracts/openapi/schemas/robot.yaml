@@ -1,0 +1,235 @@
+# Function: Robot registry schemas for F-ROBOT-001
+# Time: 2026-07-05
+# Author: AxeXie
+
+RobotStatus:
+  type: string
+  description: >-
+    Canonical robot operational status for the SM-ROBOT-001 state machine.
+    This is a code contract governed by the platform, not editable dictionary
+    data. Values are the canonical states of the robot lifecycle.
+  enum:
+    - ONLINE
+    - OFFLINE
+    - BUSY
+    - ERROR
+    - MAINTENANCE
+  example: ONLINE
+
+RobotCapability:
+  type: object
+  description: >-
+    A capability declared by a robot. `capability_type` is a stable code
+    (e.g. navigation, manipulation, perception) and `capability_value` is a
+    machine-readable scalar or flag. `details` carries capability-specific
+    structured metadata. All field names use snake_case.
+  required: [capability_type, capability_value]
+  additionalProperties: false
+  properties:
+    capability_type:
+      type: string
+      description: Stable capability type code declared by the robot.
+      example: navigation
+    capability_value:
+      type: string
+      description: Machine-readable capability value or flag.
+      example: enabled
+    details:
+      type: object
+      description: >-
+        Capability-specific structured metadata. Keys and values are
+        capability-defined and validated against the capability manifest.
+      additionalProperties: true
+      example:
+        max_speed: 1.5
+        localization: amcl
+
+Robot:
+  type: object
+  description: >-
+    Registered robot with its identity, model, organizational owner,
+    operational status and declared capabilities. The `status` field is a
+    code contract governed by the SM-ROBOT-001 state machine. All field names
+    use snake_case.
+  required: [robot_id, name, model_id, serial_number, status, org_id, created_at, updated_at]
+  additionalProperties: false
+  properties:
+    robot_id:
+      type: string
+      description: Stable public identifier of the robot (ULID-based).
+      example: rbt_01J00000000000000000000001
+    name:
+      type: string
+      description: Human-friendly display name of the robot.
+      example: Pioneer-01
+    model_id:
+      type: string
+      description: Identifier of the robot model this robot belongs to.
+      example: mdl_01J00000000000000000000001
+    serial_number:
+      type: string
+      description: Unique hardware serial number of the robot.
+      example: SN-PIONEER-0001
+    status:
+      $ref: '#/RobotStatus'
+    org_id:
+      type: string
+      description: Organization that owns this robot.
+      example: org_01J00000000000000000000001
+    capabilities:
+      type: array
+      description: Capabilities currently declared by the robot.
+      items:
+        $ref: '#/RobotCapability'
+      example:
+        - capability_type: navigation
+          capability_value: enabled
+          details:
+            max_speed: 1.5
+    last_seen_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of the last heartbeat received from the robot.
+      example: '2026-07-05T08:00:00Z'
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the robot was registered.
+      example: '2026-07-05T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the robot record was last updated.
+      example: '2026-07-05T08:00:00Z'
+
+RobotPage:
+  type: object
+  description: Paginated response wrapper for robot entries.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Robot'
+    total:
+      type: integer
+      format: int64
+      description: Total number of matching records.
+      example: 42
+    page:
+      type: integer
+      description: Current page number.
+      example: 1
+    page_size:
+      type: integer
+      description: Number of items per page.
+      example: 20
+
+CreateRobotRequest:
+  type: object
+  description: >-
+    Request body for registering a new robot. The `serial_number` must be
+    unique. Capabilities declared at registration time are stored alongside
+    the robot record. All field names use snake_case.
+  required: [name, model_id, serial_number, org_id]
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Human-friendly display name of the robot.
+      example: Pioneer-01
+    model_id:
+      type: string
+      description: Identifier of the robot model this robot belongs to.
+      example: mdl_01J00000000000000000000001
+    serial_number:
+      type: string
+      description: Unique hardware serial number of the robot.
+      example: SN-PIONEER-0001
+    org_id:
+      type: string
+      description: Organization that owns this robot.
+      example: org_01J00000000000000000000001
+    capabilities:
+      type: array
+      description: Capabilities declared by the robot at registration time.
+      items:
+        $ref: '#/RobotCapability'
+      example:
+        - capability_type: navigation
+          capability_value: enabled
+
+UpdateRobotRequest:
+  type: object
+  description: >-
+    Request body for updating mutable robot fields. Identity fields
+    (`robot_id`, `serial_number`, `model_id`) are not editable through this
+    endpoint. Only supplied fields are updated. All field names use snake_case.
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Human-friendly display name of the robot.
+      example: Pioneer-01-Renamed
+    org_id:
+      type: string
+      description: Organization that owns this robot.
+      example: org_01J00000000000000000000001
+
+UpdateRobotStatusRequest:
+  type: object
+  description: >-
+    Request body for transitioning the robot operational status. The `reason`
+    is recorded in the status history and audit log. All field names use
+    snake_case.
+  required: [status]
+  additionalProperties: false
+  properties:
+    status:
+      $ref: '#/RobotStatus'
+    reason:
+      type: string
+      description: >-
+        Machine-readable reason for the status transition. Recorded in the
+        status history and audit log.
+      example: ADMIN_MAINTENANCE
+
+RobotCapabilityList:
+  type: object
+  description: >-
+    Response wrapper for the capabilities declared by a single robot. All
+    field names use snake_case.
+  required: [robot_id, capabilities]
+  additionalProperties: false
+  properties:
+    robot_id:
+      type: string
+      description: Stable public identifier of the robot.
+      example: rbt_01J00000000000000000000001
+    capabilities:
+      type: array
+      items:
+        $ref: '#/RobotCapability'
+      example:
+        - capability_type: navigation
+          capability_value: enabled
+
+UpdateRobotCapabilitiesRequest:
+  type: object
+  description: >-
+    Request body for replacing the full set of capabilities declared by a
+    robot. The previous capabilities are removed and replaced by the supplied
+    list. All field names use snake_case.
+  required: [capabilities]
+  additionalProperties: false
+  properties:
+    capabilities:
+      type: array
+      items:
+        $ref: '#/RobotCapability'
+      example:
+        - capability_type: navigation
+          capability_value: enabled
+        - capability_type: manipulation
+          capability_value: enabled

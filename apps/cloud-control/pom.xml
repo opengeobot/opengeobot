@@ -26,6 +26,7 @@
         <module>platform-common</module>
         <module>platform-iam</module>
         <module>platform-governance</module>
+        <module>platform-robot</module>
         <module>bootstrap</module>
     </modules>
 

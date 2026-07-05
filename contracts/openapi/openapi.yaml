@@ -46,6 +46,18 @@ tags:
     description: Operation audit log queries (F-PLATFORM-004)
   - name: export
     description: Asynchronous data export (F-PLATFORM-004)
+  - name: skill
+    description: >-
+      Skill lifecycle management — registration, versioning, publish, enable
+      and disable (F-SKILL-001).
+  - name: mission
+    description: >-
+      Mission creation, planning, approval, templates and execution control
+      (F-MISSION-001/002/003).
+  - name: robot
+    description: >-
+      Robot registration, status transitions and capability management
+      (F-ROBOT-001).
 paths:
   /health/live:
     get:
@@ -198,6 +210,48 @@ paths:
     $ref: './paths/export.yaml#/exportById'
   /exports/{exportId}/download:
     $ref: './paths/export.yaml#/exportDownload'
+  /robots:
+    $ref: './paths/robot.yaml#/robotsCollection'
+  /robots/{robotId}:
+    $ref: './paths/robot.yaml#/robotItem'
+  /robots/{robotId}/status:
+    $ref: './paths/robot.yaml#/robotStatus'
+  /robots/{robotId}/capabilities:
+    $ref: './paths/robot.yaml#/robotCapabilities'
+  /missions:
+    $ref: './paths/mission.yaml#/missionsCollection'
+  /missions/{missionId}:
+    $ref: './paths/mission.yaml#/missionItem'
+  /missions/{missionId}/plan:
+    $ref: './paths/mission.yaml#/missionPlan'
+  /missions/{missionId}/start:
+    $ref: './paths/mission.yaml#/missionStart'
+  /missions/{missionId}/pause:
+    $ref: './paths/mission.yaml#/missionPause'
+  /missions/{missionId}/resume:
+    $ref: './paths/mission.yaml#/missionResume'
+  /missions/{missionId}/cancel:
+    $ref: './paths/mission.yaml#/missionCancel'
+  /missions/{missionId}/submit-approval:
+    $ref: './paths/mission.yaml#/missionSubmitApproval'
+  /missions/{missionId}/approve:
+    $ref: './paths/mission.yaml#/missionApprove'
+  /missions/{missionId}/reject:
+    $ref: './paths/mission.yaml#/missionReject'
+  /mission-templates:
+    $ref: './paths/mission.yaml#/missionTemplatesCollection'
+  /skills:
+    $ref: './paths/skill.yaml#/skillsCollection'
+  /skills/{skillId}:
+    $ref: './paths/skill.yaml#/skillItem'
+  /skills/{skillId}/publish:
+    $ref: './paths/skill.yaml#/skillPublish'
+  /skills/{skillId}/disable:
+    $ref: './paths/skill.yaml#/skillDisable'
+  /skills/{skillId}/enable:
+    $ref: './paths/skill.yaml#/skillEnable'
+  /skills/{skillId}/versions:
+    $ref: './paths/skill.yaml#/skillVersions'
 components:
   securitySchemes:
     bearerAuth:
@@ -275,6 +329,56 @@ components:
       $ref: './schemas/export.yaml#/CreateExportRequest'
     ExportTask:
       $ref: './schemas/export.yaml#/ExportTask'
+    Robot:
+      $ref: './schemas/robot.yaml#/Robot'
+    RobotPage:
+      $ref: './schemas/robot.yaml#/RobotPage'
+    RobotStatus:
+      $ref: './schemas/robot.yaml#/RobotStatus'
+    RobotCapability:
+      $ref: './schemas/robot.yaml#/RobotCapability'
+    CreateRobotRequest:
+      $ref: './schemas/robot.yaml#/CreateRobotRequest'
+    UpdateRobotRequest:
+      $ref: './schemas/robot.yaml#/UpdateRobotRequest'
+    UpdateRobotStatusRequest:
+      $ref: './schemas/robot.yaml#/UpdateRobotStatusRequest'
+    RobotCapabilityList:
+      $ref: './schemas/robot.yaml#/RobotCapabilityList'
+    UpdateRobotCapabilitiesRequest:
+      $ref: './schemas/robot.yaml#/UpdateRobotCapabilitiesRequest'
+    MissionStatus:
+      $ref: './schemas/mission.yaml#/MissionStatus'
+    Mission:
+      $ref: './schemas/mission.yaml#/Mission'
+    MissionDetail:
+      $ref: './schemas/mission.yaml#/MissionDetail'
+    MissionPage:
+      $ref: './schemas/mission.yaml#/MissionPage'
+    MissionStep:
+      $ref: './schemas/mission.yaml#/MissionStep'
+    CreateMissionRequest:
+      $ref: './schemas/mission.yaml#/CreateMissionRequest'
+    UpdateMissionRequest:
+      $ref: './schemas/mission.yaml#/UpdateMissionRequest'
+    RevisePlanRequest:
+      $ref: './schemas/mission.yaml#/RevisePlanRequest'
+    MissionTemplate:
+      $ref: './schemas/mission.yaml#/MissionTemplate'
+    CreateMissionTemplateRequest:
+      $ref: './schemas/mission.yaml#/CreateMissionTemplateRequest'
+    MissionApproval:
+      $ref: './schemas/mission.yaml#/MissionApproval'
+    ApprovalRequest:
+      $ref: './schemas/mission.yaml#/ApprovalRequest'
+    Skill:
+      $ref: './schemas/skill.yaml#/Skill'
+    SkillVersion:
+      $ref: './schemas/skill.yaml#/SkillVersion'
+    CreateSkillRequest:
+      $ref: './schemas/skill.yaml#/CreateSkillRequest'
+    UpdateSkillRequest:
+      $ref: './schemas/skill.yaml#/UpdateSkillRequest'
     VersionInfo:
       type: object
       description: Build and runtime version information.

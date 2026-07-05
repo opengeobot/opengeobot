@@ -1,0 +1,207 @@
+# Function: Skill lifecycle schemas for F-SKILL-001 skill registry
+# Time: 2026-07-05
+# Author: AxeXie
+Skill:
+  type: object
+  description: >-
+    A registered skill backed by the `skill_registry.skill` table. Skills follow
+    the SM-SKILL-001 state machine (DRAFT → PUBLISHED → DEPRECATED/DISABLED).
+    The `current_version` points to the active published version; `input_schema`
+    and `output_schema` are JSON Schema documents describing the skill contract.
+    All field names use snake_case.
+  required:
+    - skill_id
+    - name
+    - module
+    - status
+    - current_version
+    - created_at
+    - updated_at
+  additionalProperties: false
+  properties:
+    skill_id:
+      type: string
+      description: Unique, prefixed public identifier of the skill (ULID-based).
+      example: skl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable skill name (e.g. stand_up, move_forward).
+      pattern: '^[a-z][a-z0-9_]*$'
+      example: stand_up
+    module:
+      type: string
+      description: Logical module that owns the skill (e.g. locomotion, perception).
+      example: locomotion
+    description:
+      type: string
+      description: Human-readable explanation of what the skill does.
+      example: Commands the robot to stand up from a seated or prone position.
+    status:
+      type: string
+      description: >-
+        Lifecycle status of the skill. `DRAFT` skills are not yet executable;
+        `PUBLISHED` skills are active; `DEPRECATED` skills are superseded;
+        `DISABLED` skills are administratively turned off.
+      enum:
+        - DRAFT
+        - PUBLISHED
+        - DEPRECATED
+        - DISABLED
+      example: PUBLISHED
+    current_version:
+      type: integer
+      description: >-
+        Version number of the currently active published version. Starts at 0
+        for a freshly created draft with no published version yet.
+      minimum: 0
+      example: 1
+    input_schema:
+      type: object
+      description: >-
+        JSON Schema document describing the input parameters the skill accepts.
+        Stored as a jsonb column. Nullable when the skill takes no input.
+      additionalProperties: true
+    output_schema:
+      type: object
+      description: >-
+        JSON Schema document describing the output the skill produces. Stored as
+        a jsonb column. Nullable when the skill produces no structured output.
+      additionalProperties: true
+    created_by:
+      type: string
+      description: Identifier of the actor that created the skill.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    updated_by:
+      type: string
+      description: Identifier of the actor that last updated the skill.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the skill was created.
+      example: '2026-07-05T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the skill was last updated.
+      example: '2026-07-05T09:30:00Z'
+SkillVersion:
+  type: object
+  description: >-
+    A published version snapshot of a skill, backed by the
+    `skill_registry.skill_version` table. Each publish action appends a new row
+    with an incremented `version`. The `input_schema` and `output_schema` at
+    the time of publishing are captured immutably. All field names use
+    snake_case.
+  required:
+    - skill_id
+    - version
+    - status
+    - created_at
+  additionalProperties: false
+  properties:
+    skill_id:
+      type: string
+      description: Identifier of the parent skill.
+      example: skl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    version:
+      type: integer
+      description: Monotonic version number. Starts at 1 for the first publish.
+      minimum: 1
+      example: 1
+    status:
+      type: string
+      description: >-
+        Lifecycle status of this version. `PUBLISHED` versions are active;
+        `DEPRECATED` versions are superseded by a newer published version.
+      enum:
+        - PUBLISHED
+        - DEPRECATED
+      example: PUBLISHED
+    changelog:
+      type: string
+      description: Human-readable summary of changes in this version.
+      example: Initial published version with stand-up motion parameters.
+    input_schema:
+      type: object
+      description: >-
+        JSON Schema document describing input parameters, captured at publish
+        time. Stored as jsonb.
+      additionalProperties: true
+    output_schema:
+      type: object
+      description: >-
+        JSON Schema document describing output, captured at publish time.
+        Stored as jsonb.
+      additionalProperties: true
+    published_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when this version was published.
+      example: '2026-07-05T10:00:00Z'
+    published_by:
+      type: string
+      description: Identifier of the actor that published this version.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when this version row was created.
+      example: '2026-07-05T10:00:00Z'
+CreateSkillRequest:
+  type: object
+  description: >-
+    Request body for registering a new skill. The `name` must be unique within
+    the platform; a duplicate returns `SKILL_ALREADY_EXISTS`. A freshly created
+    skill starts in `DRAFT` status with `current_version` 0. All field names
+    use snake_case.
+  required:
+    - name
+    - module
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Unique skill name in snake_case.
+      pattern: '^[a-z][a-z0-9_]*$'
+      example: stand_up
+    module:
+      type: string
+      description: Logical module that owns the skill.
+      example: locomotion
+    description:
+      type: string
+      description: Optional human-readable explanation of the skill.
+      example: Commands the robot to stand up from a seated or prone position.
+    input_schema:
+      type: object
+      description: >-
+        Optional JSON Schema describing the input parameters the skill accepts.
+        Stored as jsonb.
+      additionalProperties: true
+    output_schema:
+      type: object
+      description: >-
+        Optional JSON Schema describing the output the skill produces. Stored
+        as jsonb.
+      additionalProperties: true
+UpdateSkillRequest:
+  type: object
+  description: >-
+    Request body for updating a skill's metadata and schemas. The `status`
+    field is not set directly here; use the publish/disable/enable endpoints
+    for state transitions. All field names use snake_case.
+  additionalProperties: false
+  properties:
+    description:
+      type: string
+      description: Updated human-readable explanation of the skill.
+      example: Commands the robot to stand up from a seated or prone position.
+    input_schema:
+      type: object
+      description: Updated JSON Schema describing the input parameters.
+      additionalProperties: true
+    output_schema:
+      type: object
+      description: Updated JSON Schema describing the output.
+      additionalProperties: true

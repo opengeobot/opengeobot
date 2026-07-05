@@ -1,0 +1,114 @@
+# Function: Skill lifecycle event payload schemas for F-SKILL-001
+# Time: 2026-07-05
+# Author: AxeXie
+
+SkillRegisteredV1:
+  type: object
+  description: >-
+    Event emitted when a new skill is registered in the skill registry. The
+    payload is wrapped in the platform EventEnvelope whose `event_type` is
+    `skill.registered.v1`. Consumers may use this to invalidate skill caches or
+    trigger edge distribution of the new skill definition. `trace_id` links the
+    registration to the end-to-end trace context. All field names use
+    snake_case.
+  required:
+    - event_id
+    - skill_id
+    - name
+    - module
+    - version
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    skill_id:
+      type: string
+      description: Public identifier of the newly registered skill.
+      example: skl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Unique skill name in snake_case.
+      example: stand_up
+    module:
+      type: string
+      description: Logical module that owns the skill.
+      example: locomotion
+    version:
+      type: integer
+      format: int32
+      minimum: 0
+      description: >-
+        Current version of the skill at the time of registration. Always 0 for
+        a newly created draft.
+      example: 0
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the skill was registered.
+      example: '2026-07-05T08:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the registration to logs, metrics
+        and audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+
+SkillStatusChangedV1:
+  type: object
+  description: >-
+    Event emitted when a skill transitions between lifecycle states
+    (DRAFT → PUBLISHED → DEPRECATED/DISABLED and back to PUBLISHED/DRAFT).
+    The payload is wrapped in the platform EventEnvelope whose `event_type` is
+    `skill.status_changed.v1`. Consumers use this to enable or disable skill
+    execution at the edge. `trace_id` links the transition to the end-to-end
+    trace context. All field names use snake_case.
+  required:
+    - event_id
+    - skill_id
+    - old_status
+    - new_status
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    skill_id:
+      type: string
+      description: Public identifier of the skill whose status changed.
+      example: skl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    old_status:
+      type: string
+      description: Previous lifecycle status of the skill.
+      enum:
+        - DRAFT
+        - PUBLISHED
+        - DEPRECATED
+        - DISABLED
+      example: DRAFT
+    new_status:
+      type: string
+      description: New lifecycle status of the skill after the transition.
+      enum:
+        - DRAFT
+        - PUBLISHED
+        - DEPRECATED
+        - DISABLED
+      example: PUBLISHED
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the status transition occurred.
+      example: '2026-07-05T10:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the status change to logs, metrics
+        and audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

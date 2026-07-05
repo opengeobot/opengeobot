@@ -1,0 +1,470 @@
+# Function: Mission management schemas for F-MISSION-001/002/003
+# Time: 2026-07-05
+# Author: AxeXie
+MissionStatus:
+  type: string
+  description: >-
+    Canonical mission lifecycle states for the SM-MISSION-001 state machine.
+    This is a code contract, not editable dictionary data. Transitions:
+    PENDING -> PLANNING -> READY -> EXECUTING -> COMPLETED/FAILED;
+    EXECUTING -> PAUSED -> EXECUTING (resume); any non-terminal -> CANCELLED.
+  enum:
+    - PENDING
+    - PLANNING
+    - READY
+    - EXECUTING
+    - PAUSED
+    - COMPLETED
+    - FAILED
+    - CANCELLED
+  example: READY
+MissionStepStatus:
+  type: string
+  description: >-
+    Canonical step lifecycle states. Stored per mission_step row and governed
+    by the SM-MISSION-002 state machine. This is a code contract.
+  enum:
+    - PENDING
+    - EXECUTING
+    - COMPLETED
+    - FAILED
+    - SKIPPED
+  example: PENDING
+MissionPriority:
+  type: string
+  description: Scheduling priority of a mission relative to other missions for the same robot.
+  enum:
+    - LOW
+    - NORMAL
+    - HIGH
+    - URGENT
+  example: NORMAL
+Mission:
+  type: object
+  description: >-
+    A mission is the unit of robot work submitted for planning and execution.
+    Each mission owns an ordered list of steps that reference registered
+    skills. The `status` field follows the SM-MISSION-001 state machine and is
+    a code contract. All field names use snake_case.
+  required:
+    - mission_id
+    - name
+    - robot_id
+    - status
+    - priority
+    - created_at
+    - updated_at
+  additionalProperties: false
+  properties:
+    mission_id:
+      type: string
+      description: Stable public identifier of the mission (prefixed ULID).
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable name of the mission.
+      example: Patrol perimeter zone A
+    description:
+      type: string
+      description: Optional longer description of the mission goal.
+      example: Sweep the north perimeter and report anomalies.
+    robot_id:
+      type: string
+      description: Public identifier of the robot assigned to execute the mission.
+      example: rbt_01J00000000000000000000001
+    status:
+      $ref: '#/MissionStatus'
+    priority:
+      $ref: '#/MissionPriority'
+    scheduled_at:
+      type: string
+      format: date-time
+      description: Optional UTC timestamp at which the mission should start.
+      example: '2026-07-05T10:00:00Z'
+    started_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when execution began. Present after the first start.
+      example: '2026-07-05T10:00:05Z'
+    completed_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the mission reached a terminal state (COMPLETED/FAILED/CANCELLED).
+      example: '2026-07-05T10:12:30Z'
+    failed_reason:
+      type: string
+      description: Reason text when the mission failed. Present only when status is FAILED.
+      example: Step 2 skill execution timed out
+    created_by:
+      type: string
+      description: Identifier of the actor that created the mission.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the mission was created.
+      example: '2026-07-05T09:55:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the mission was last updated.
+      example: '2026-07-05T10:00:05Z'
+    trace_id:
+      type: string
+      description: Trace identifier linking the latest state transition to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+MissionStep:
+  type: object
+  description: >-
+    A single ordered step within a mission. Each step references a registered
+    skill and carries input parameters and output results as JSONB documents.
+    The `status` field follows the SM-MISSION-002 state machine.
+  required:
+    - step_id
+    - mission_id
+    - skill_id
+    - step_order
+    - status
+  additionalProperties: false
+  properties:
+    step_id:
+      type: string
+      description: Stable public identifier of the step (prefixed ULID).
+      example: stp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    mission_id:
+      type: string
+      description: Public identifier of the owning mission.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    skill_id:
+      type: string
+      description: Public identifier of the registered skill to invoke.
+      example: skl_01J00000000000000000000001
+    step_order:
+      type: integer
+      description: Zero-based execution order within the mission.
+      minimum: 0
+      example: 0
+    input_params:
+      type: object
+      description: >-
+        Skill input parameters as a JSON object. Schema is enforced by the
+        referenced skill definition before execution.
+      additionalProperties: true
+      example:
+        target_zone: zone_a
+        repeat: 3
+    output_result:
+      type: object
+      description: Skill output result as a JSON object. Populated after the step completes.
+      additionalProperties: true
+      example:
+        anomalies_detected: 0
+        distance_m: 420.5
+    status:
+      $ref: '#/MissionStepStatus'
+    started_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the step started executing.
+      example: '2026-07-05T10:00:05Z'
+    completed_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the step reached a terminal state.
+      example: '2026-07-05T10:03:10Z'
+    error_message:
+      type: string
+      description: Error text when the step failed. Present only when status is FAILED.
+      example: Skill timed out after 30s
+MissionDetail:
+  type: object
+  description: Mission detail including its ordered steps.
+  required:
+    - mission_id
+    - name
+    - robot_id
+    - status
+    - priority
+    - steps
+    - created_at
+    - updated_at
+  additionalProperties: false
+  properties:
+    mission_id:
+      type: string
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      example: Patrol perimeter zone A
+    description:
+      type: string
+      example: Sweep the north perimeter and report anomalies.
+    robot_id:
+      type: string
+      example: rbt_01J00000000000000000000001
+    status:
+      $ref: '#/MissionStatus'
+    priority:
+      $ref: '#/MissionPriority'
+    scheduled_at:
+      type: string
+      format: date-time
+      example: '2026-07-05T10:00:00Z'
+    started_at:
+      type: string
+      format: date-time
+      example: '2026-07-05T10:00:05Z'
+    completed_at:
+      type: string
+      format: date-time
+      example: '2026-07-05T10:12:30Z'
+    failed_reason:
+      type: string
+      example: null
+    created_by:
+      type: string
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    created_at:
+      type: string
+      format: date-time
+      example: '2026-07-05T09:55:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      example: '2026-07-05T10:00:05Z'
+    trace_id:
+      type: string
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    steps:
+      type: array
+      description: Ordered list of mission steps.
+      items:
+        $ref: '#/MissionStep'
+MissionPage:
+  type: object
+  description: Paginated response wrapper for mission entries.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Mission'
+    total:
+      type: integer
+      format: int64
+      example: 42
+    page:
+      type: integer
+      example: 1
+    page_size:
+      type: integer
+      example: 20
+MissionStepDto:
+  type: object
+  description: Step definition supplied when creating or revising a mission plan.
+  required:
+    - skill_id
+    - step_order
+  additionalProperties: false
+  properties:
+    skill_id:
+      type: string
+      description: Public identifier of the registered skill to invoke.
+      example: skl_01J00000000000000000000001
+    step_order:
+      type: integer
+      description: Zero-based execution order within the mission.
+      minimum: 0
+      example: 0
+    input_params:
+      type: object
+      description: Skill input parameters as a JSON object.
+      additionalProperties: true
+      example:
+        target_zone: zone_a
+        repeat: 3
+CreateMissionRequest:
+  type: object
+  description: >-
+    Request body for creating a new mission. The mission is created in the
+    PENDING state with the supplied steps. All field names use snake_case.
+  required:
+    - name
+    - robot_id
+    - steps
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Human-readable name of the mission.
+      example: Patrol perimeter zone A
+    description:
+      type: string
+      description: Optional longer description of the mission goal.
+      example: Sweep the north perimeter and report anomalies.
+    robot_id:
+      type: string
+      description: Public identifier of the robot assigned to execute the mission.
+      example: rbt_01J00000000000000000000001
+    priority:
+      $ref: '#/MissionPriority'
+    scheduled_at:
+      type: string
+      format: date-time
+      description: Optional UTC timestamp at which the mission should start.
+      example: '2026-07-05T10:00:00Z'
+    steps:
+      type: array
+      description: Ordered list of skill steps that form the mission plan.
+      minItems: 1
+      items:
+        $ref: '#/MissionStepDto'
+UpdateMissionRequest:
+  type: object
+  description: Request body for updating mutable mission metadata before execution.
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      example: Patrol perimeter zone A (revised)
+    description:
+      type: string
+      example: Sweep the north and east perimeter.
+    priority:
+      $ref: '#/MissionPriority'
+    scheduled_at:
+      type: string
+      format: date-time
+      example: '2026-07-05T11:00:00Z'
+RevisePlanRequest:
+  type: object
+  description: >-
+    Request body for revising the plan (steps) of a mission that is in PLANNING
+    or PENDING state. Replaces the entire step list.
+  required:
+    - steps
+  additionalProperties: false
+  properties:
+    steps:
+      type: array
+      description: New ordered list of skill steps that form the revised mission plan.
+      minItems: 1
+      items:
+        $ref: '#/MissionStepDto'
+MissionTemplate:
+  type: object
+  description: >-
+    A reusable mission template whose `steps` JSONB document is a blueprint for
+    creating missions. Templates are versioned and audited.
+  required:
+    - template_id
+    - name
+    - steps
+    - created_at
+  additionalProperties: false
+  properties:
+    template_id:
+      type: string
+      description: Stable public identifier of the template (prefixed ULID).
+      example: mtp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable name of the template.
+      example: Standard perimeter patrol
+    description:
+      type: string
+      description: Optional longer description of the template.
+      example: Reusable two-step patrol template.
+    steps:
+      type: array
+      description: Blueprint step list stored as JSONB.
+      items:
+        $ref: '#/MissionStepDto'
+    created_by:
+      type: string
+      description: Identifier of the actor that created the template.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the template was created.
+      example: '2026-07-05T09:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the template was last updated.
+      example: '2026-07-05T09:00:00Z'
+CreateMissionTemplateRequest:
+  type: object
+  description: Request body for creating a new mission template.
+  required:
+    - name
+    - steps
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      example: Standard perimeter patrol
+    description:
+      type: string
+      example: Reusable two-step patrol template.
+    steps:
+      type: array
+      minItems: 1
+      items:
+        $ref: '#/MissionStepDto'
+MissionApproval:
+  type: object
+  description: >-
+    An approval decision recorded for a mission. Approvals gate high-risk
+    missions before execution (SM-APPROVAL-001). The `status` field is a code
+    contract: PENDING, APPROVED, REJECTED.
+  required:
+    - mission_id
+    - approver_id
+    - status
+    - created_at
+  additionalProperties: false
+  properties:
+    mission_id:
+      type: string
+      description: Public identifier of the mission under approval.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    approver_id:
+      type: string
+      description: Identifier of the actor that recorded the decision.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    status:
+      type: string
+      description: Approval decision. This is a code contract.
+      enum:
+        - PENDING
+        - APPROVED
+        - REJECTED
+      example: APPROVED
+    comment:
+      type: string
+      description: Optional reviewer comment.
+      example: Plan reviewed, safe to execute.
+    approved_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the decision was recorded.
+      example: '2026-07-05T09:58:00Z'
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the approval record was created.
+      example: '2026-07-05T09:57:00Z'
+ApprovalRequest:
+  type: object
+  description: Request body for recording an approval or rejection decision.
+  required:
+    - comment
+  additionalProperties: false
+  properties:
+    comment:
+      type: string
+      description: Reviewer comment explaining the decision.
+      example: Plan reviewed, safe to execute.

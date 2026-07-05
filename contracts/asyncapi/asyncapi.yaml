@@ -153,6 +153,94 @@ channels:
     messages:
       exportCompleted:
         $ref: '#/components/messages/ExportCompletedEvent'
+  robotRegistered:
+    address: opengeobot.dev.robot.event.robot_registered.v1
+    description: >-
+      Emitted when a new robot is registered. The payload is a platform
+      EventEnvelope whose `event_type` is `robot.registered.v1`.
+    messages:
+      robotRegistered:
+        $ref: '#/components/messages/RobotRegisteredEvent'
+  robotStatusChanged:
+    address: opengeobot.dev.robot.event.robot_status_changed.v1
+    description: >-
+      Emitted when a robot operational status transitions. The payload is a
+      platform EventEnvelope whose `event_type` is
+      `robot.status_changed.v1`.
+    messages:
+      robotStatusChanged:
+        $ref: '#/components/messages/RobotStatusChangedEvent'
+  missionCreated:
+    address: opengeobot.dev.mission.event.mission_created.v1
+    description: >-
+      Emitted when a new mission is created. The payload is a platform
+      EventEnvelope whose `event_type` is `mission.created.v1`.
+    messages:
+      missionCreated:
+        $ref: '#/components/messages/MissionCreatedEvent'
+  missionPlanRevised:
+    address: opengeobot.dev.mission.event.mission_plan_revised.v1
+    description: >-
+      Emitted when a mission plan (step list) is revised. The payload is a
+      platform EventEnvelope whose `event_type` is `mission.plan_revised.v1`.
+    messages:
+      missionPlanRevised:
+        $ref: '#/components/messages/MissionPlanRevisedEvent'
+  missionStarted:
+    address: opengeobot.dev.mission.event.mission_started.v1
+    description: >-
+      Emitted when a mission transitions to EXECUTING. The payload is a platform
+      EventEnvelope whose `event_type` is `mission.started.v1`.
+    messages:
+      missionStarted:
+        $ref: '#/components/messages/MissionStartedEvent'
+  missionCompleted:
+    address: opengeobot.dev.mission.event.mission_completed.v1
+    description: >-
+      Emitted when a mission reaches the COMPLETED terminal state. The payload
+      is a platform EventEnvelope whose `event_type` is
+      `mission.completed.v1`.
+    messages:
+      missionCompleted:
+        $ref: '#/components/messages/MissionCompletedEvent'
+  missionFailed:
+    address: opengeobot.dev.mission.event.mission_failed.v1
+    description: >-
+      Emitted when a mission reaches the FAILED terminal state. The payload is a
+      platform EventEnvelope whose `event_type` is `mission.failed.v1`.
+    messages:
+      missionFailed:
+        $ref: '#/components/messages/MissionFailedEvent'
+  missionCancelled:
+    address: opengeobot.dev.mission.event.mission_cancelled.v1
+    description: >-
+      Emitted when a mission is cancelled from a non-terminal state. The payload
+      is a platform EventEnvelope whose `event_type` is
+      `mission.cancelled.v1`.
+    messages:
+      missionCancelled:
+        $ref: '#/components/messages/MissionCancelledEvent'
+  skillRegistered:
+    address: opengeobot.dev.skill.event.skill_registered.v1
+    description: >-
+      Emitted when a new skill is registered in the skill registry. The payload
+      is a platform EventEnvelope whose `event_type` is
+      `skill.registered.v1`. Consumers may invalidate skill caches or trigger
+      edge distribution of the new skill definition.
+    messages:
+      skillRegistered:
+        $ref: '#/components/messages/SkillRegisteredEvent'
+  skillStatusChanged:
+    address: opengeobot.dev.skill.event.skill_status_changed.v1
+    description: >-
+      Emitted when a skill transitions between lifecycle states
+      (DRAFT → PUBLISHED → DEPRECATED/DISABLED and back). The payload is a
+      platform EventEnvelope whose `event_type` is
+      `skill.status_changed.v1`. Consumers use this to enable or disable skill
+      execution at the edge.
+    messages:
+      skillStatusChanged:
+        $ref: '#/components/messages/SkillStatusChangedEvent'
 operations:
   publishHealthChanged:
     action: send
@@ -259,6 +347,76 @@ operations:
       $ref: '#/channels/exportCompleted'
     messages:
       - $ref: '#/components/messages/ExportCompletedEvent'
+  publishRobotRegistered:
+    action: send
+    title: Publish robot registered event
+    channel:
+      $ref: '#/channels/robotRegistered'
+    messages:
+      - $ref: '#/components/messages/RobotRegisteredEvent'
+  publishRobotStatusChanged:
+    action: send
+    title: Publish robot status changed event
+    channel:
+      $ref: '#/channels/robotStatusChanged'
+    messages:
+      - $ref: '#/components/messages/RobotStatusChangedEvent'
+  publishMissionCreated:
+    action: send
+    title: Publish mission created event
+    channel:
+      $ref: '#/channels/missionCreated'
+    messages:
+      - $ref: '#/components/messages/MissionCreatedEvent'
+  publishMissionPlanRevised:
+    action: send
+    title: Publish mission plan revised event
+    channel:
+      $ref: '#/channels/missionPlanRevised'
+    messages:
+      - $ref: '#/components/messages/MissionPlanRevisedEvent'
+  publishMissionStarted:
+    action: send
+    title: Publish mission started event
+    channel:
+      $ref: '#/channels/missionStarted'
+    messages:
+      - $ref: '#/components/messages/MissionStartedEvent'
+  publishMissionCompleted:
+    action: send
+    title: Publish mission completed event
+    channel:
+      $ref: '#/channels/missionCompleted'
+    messages:
+      - $ref: '#/components/messages/MissionCompletedEvent'
+  publishMissionFailed:
+    action: send
+    title: Publish mission failed event
+    channel:
+      $ref: '#/channels/missionFailed'
+    messages:
+      - $ref: '#/components/messages/MissionFailedEvent'
+  publishMissionCancelled:
+    action: send
+    title: Publish mission cancelled event
+    channel:
+      $ref: '#/channels/missionCancelled'
+    messages:
+      - $ref: '#/components/messages/MissionCancelledEvent'
+  publishSkillRegistered:
+    action: send
+    title: Publish skill registered event
+    channel:
+      $ref: '#/channels/skillRegistered'
+    messages:
+      - $ref: '#/components/messages/SkillRegisteredEvent'
+  publishSkillStatusChanged:
+    action: send
+    title: Publish skill status changed event
+    channel:
+      $ref: '#/channels/skillStatusChanged'
+    messages:
+      - $ref: '#/components/messages/SkillStatusChangedEvent'
 components:
   messages:
     EventEnvelope:
@@ -647,4 +805,315 @@ components:
                 user_id: usr_01J00000000000000000000001
                 change_type: USER_ROLES_CHANGED
                 occurred_at: '2026-07-04T10:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    RobotRegisteredEvent:
+      description: >-
+        Robot registered event. The payload is a platform EventEnvelope whose
+        `event_type` is `robot.registered.v1` and whose `data` carries the
+        RobotRegisteredV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/robot-events.yaml#/RobotRegisteredV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: robot.registered.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T08:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                robot_id: rbt_01J00000000000000000000001
+                name: Pioneer-01
+                model_id: mdl_01J00000000000000000000001
+                org_id: org_01J00000000000000000000001
+                occurred_at: '2026-07-05T08:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    RobotStatusChangedEvent:
+      description: >-
+        Robot status changed event. The payload is a platform EventEnvelope
+        whose `event_type` is `robot.status_changed.v1` and whose `data`
+        carries the RobotStatusChangedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/robot-events.yaml#/RobotStatusChangedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: robot.status_changed.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T08:30:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                robot_id: rbt_01J00000000000000000000001
+                old_status: ONLINE
+                new_status: MAINTENANCE
+                reason: ADMIN_MAINTENANCE
+                occurred_at: '2026-07-05T08:30:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    MissionCreatedEvent:
+      description: >-
+        Mission created event. The payload is a platform EventEnvelope whose
+        `event_type` is `mission.created.v1` and whose `data` carries the
+        MissionCreatedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/mission-events.yaml#/MissionCreatedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: mission.created.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T09:55:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                name: Patrol perimeter zone A
+                robot_id: rbt_01J00000000000000000000001
+                status: PENDING
+                priority: NORMAL
+                created_by: usr_01J00000000000000000000001
+                occurred_at: '2026-07-05T09:55:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    MissionPlanRevisedEvent:
+      description: >-
+        Mission plan revised event. The payload is a platform EventEnvelope
+        whose `event_type` is `mission.plan_revised.v1` and whose `data`
+        carries the MissionPlanRevisedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/mission-events.yaml#/MissionPlanRevisedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: mission.plan_revised.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T09:56:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                status: READY
+                step_count: 2
+                revised_by: usr_01J00000000000000000000001
+                occurred_at: '2026-07-05T09:56:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    MissionStartedEvent:
+      description: >-
+        Mission started event. The payload is a platform EventEnvelope whose
+        `event_type` is `mission.started.v1` and whose `data` carries the
+        MissionStartedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/mission-events.yaml#/MissionStartedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: mission.started.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T10:00:05Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                robot_id: rbt_01J00000000000000000000001
+                started_by: usr_01J00000000000000000000001
+                started_at: '2026-07-05T10:00:05Z'
+                occurred_at: '2026-07-05T10:00:05Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    MissionCompletedEvent:
+      description: >-
+        Mission completed event. The payload is a platform EventEnvelope whose
+        `event_type` is `mission.completed.v1` and whose `data` carries the
+        MissionCompletedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/mission-events.yaml#/MissionCompletedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: mission.completed.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T10:12:30Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: service
+                id: cloud-control
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                robot_id: rbt_01J00000000000000000000001
+                completed_at: '2026-07-05T10:12:30Z'
+                occurred_at: '2026-07-05T10:12:30Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    MissionFailedEvent:
+      description: >-
+        Mission failed event. The payload is a platform EventEnvelope whose
+        `event_type` is `mission.failed.v1` and whose `data` carries the
+        MissionFailedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/mission-events.yaml#/MissionFailedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: mission.failed.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T10:08:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: service
+                id: cloud-control
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                robot_id: rbt_01J00000000000000000000001
+                failed_reason: Step 2 skill execution timed out
+                failed_at: '2026-07-05T10:08:00Z'
+                occurred_at: '2026-07-05T10:08:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    MissionCancelledEvent:
+      description: >-
+        Mission cancelled event. The payload is a platform EventEnvelope whose
+        `event_type` is `mission.cancelled.v1` and whose `data` carries the
+        MissionCancelledV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/mission-events.yaml#/MissionCancelledV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: mission.cancelled.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T10:05:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                mission_id: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                robot_id: rbt_01J00000000000000000000001
+                previous_status: EXECUTING
+                cancelled_by: usr_01J00000000000000000000001
+                cancelled_at: '2026-07-05T10:05:00Z'
+                occurred_at: '2026-07-05T10:05:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    SkillRegisteredEvent:
+      description: >-
+        Skill registered event. The payload is a platform EventEnvelope whose
+        `event_type` is `skill.registered.v1` and whose `data` carries the
+        SkillRegisteredV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/skill-events.yaml#/SkillRegisteredV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: skill.registered.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T08:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                skill_id: skl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                name: stand_up
+                module: locomotion
+                version: 0
+                occurred_at: '2026-07-05T08:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    SkillStatusChangedEvent:
+      description: >-
+        Skill status changed event. The payload is a platform EventEnvelope
+        whose `event_type` is `skill.status_changed.v1` and whose `data`
+        carries the SkillStatusChangedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/skill-events.yaml#/SkillStatusChangedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: skill.status_changed.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T10:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                skill_id: skl_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                old_status: DRAFT
+                new_status: PUBLISHED
+                occurred_at: '2026-07-05T10:00:00Z'
                 trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
