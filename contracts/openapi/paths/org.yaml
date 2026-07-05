@@ -1,0 +1,283 @@
+# Function: Organization management endpoint paths for F-PLATFORM-002
+# Time: 2026-07-04
+# Author: AxeXie
+
+orgsCollection:
+  get:
+    tags: [organization]
+    summary: List organizations as a tree
+    description: >-
+      Returns the organization tree rooted at the top-level organizations. Each
+      node includes its children, allowing the client to render the full tree
+      in a single response. Requires the `platform.user.read` permission
+      (organizations are part of the user management domain).
+    operationId: listOrgs
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Organization tree.
+        content:
+          application/json:
+            schema:
+              type: array
+              description: Root organization nodes with nested children.
+              items:
+                $ref: '../schemas/iam.yaml#/OrgTreeNode'
+            example:
+              - org_id: org_01J00000000000000000000001
+                org_name: OpenGeoBot
+                org_code: OPENGEOBOT
+                parent_id: null
+                sort_order: 0
+                status: ACTIVE
+                description: Root organization
+                children:
+                  - org_id: org_01J00000000000000000000002
+                    org_name: Engineering
+                    org_code: ENG
+                    parent_id: org_01J00000000000000000000001
+                    sort_order: 1
+                    status: ACTIVE
+                    description: Engineering division
+                    children: []
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.user.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [organization]
+    summary: Create an organization
+    description: >-
+      Creates a new organization node. The `org_code` must be unique. When
+      `parent_id` is supplied the new org is created as a child of that
+      organization. Requires the `platform.org.manage` permission. Supports
+      idempotency via the `Idempotency-Key` header.
+    operationId: createOrg
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: >-
+          Optional idempotency key. When provided, duplicate requests with the
+          same key return the original response instead of creating duplicates.
+        example: org-create-eng-20260704
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/iam.yaml#/CreateOrgRequest'
+          example:
+            org_name: Engineering
+            org_code: ENG
+            parent_id: org_01J00000000000000000000001
+            sort_order: 1
+    responses:
+      '201':
+        description: Organization created.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/Organization'
+            example:
+              org_id: org_01J00000000000000000000002
+              org_name: Engineering
+              org_code: ENG
+              parent_id: org_01J00000000000000000000001
+              path: /org_01J00000000000000000000001/org_01J00000000000000000000002
+              sort_order: 1
+              status: ACTIVE
+              description: Engineering division
+              created_at: '2026-07-04T09:00:00Z'
+              updated_at: '2026-07-04T09:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.org.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: An organization with the same org_code already exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+orgItem:
+  parameters:
+    - name: orgId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the organization.
+      example: org_01J00000000000000000000001
+  get:
+    tags: [organization]
+    summary: Get organization detail
+    description: >-
+      Returns a single organization by its `org_id`. Requires the
+      `platform.user.read` permission.
+    operationId: getOrg
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Organization detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/Organization'
+            example:
+              org_id: org_01J00000000000000000000001
+              org_name: OpenGeoBot
+              org_code: OPENGEOBOT
+              parent_id: null
+              path: /org_01J00000000000000000000001
+              sort_order: 0
+              status: ACTIVE
+              description: Root organization
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T08:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.user.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Organization not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  put:
+    tags: [organization]
+    summary: Update an organization
+    description: >-
+      Updates the mutable fields of an organization. The `org_code` cannot be
+      changed. Requires the `platform.org.manage` permission. Supports
+      idempotency via the `Idempotency-Key` header.
+    operationId: updateOrg
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: org-update-20260704
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/iam.yaml#/UpdateOrgRequest'
+          example:
+            org_name: Engineering
+            sort_order: 1
+            status: ACTIVE
+            description: Engineering division
+    responses:
+      '200':
+        description: Updated organization detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/Organization'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.org.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Organization not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  delete:
+    tags: [organization]
+    summary: Delete an organization
+    description: >-
+      Deletes an organization. The organization must have no children and no
+      assigned users. Requires the `platform.org.manage` permission.
+    operationId: deleteOrg
+    security:
+      - bearerAuth: []
+    responses:
+      '204':
+        description: Organization deleted.
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.org.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Organization not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: >-
+          Organization has children or assigned users and cannot be deleted.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

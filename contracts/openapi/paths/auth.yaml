@@ -1,0 +1,218 @@
+# Function: Authentication and profile endpoint paths for F-PLATFORM-001
+# Time: 2026-07-04
+# Author: AxeXie
+login:
+  post:
+    tags: [auth]
+    summary: Authenticate a user and start a session
+    description: >-
+      Verifies the supplied credentials and, on success, issues an access token
+      and a refresh token bound to a new session. The access token is a
+      short-lived JWT; the refresh token is a long-lived opaque token. On
+      failure a 401 is returned with a stable error code. A `UserLoggedIn`
+      event is emitted on success.
+    operationId: login
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/auth.yaml#/LoginRequest'
+          example:
+            username: admin
+            password: admin123
+    responses:
+      '200':
+        description: Authentication succeeded
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/auth.yaml#/TokenResponse'
+            example:
+              access_token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.signature
+              refresh_token: rt_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              token_type: Bearer
+              expires_in: 1800
+      '401':
+        description: Invalid credentials
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Invalid credentials
+              status: 401
+              code: AUTH_INVALID_CREDENTIALS
+              message_key: error.auth.invalid_credentials
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /auth/login
+refresh:
+  post:
+    tags: [auth]
+    summary: Refresh an access token
+    description: >-
+      Exchanges a valid refresh token for a new access token. The refresh
+      token is rotated on use. On success a `SessionRefreshed` event is
+      emitted. Revoked or expired refresh tokens return 401.
+    operationId: refreshToken
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/auth.yaml#/RefreshRequest'
+          example:
+            refresh_token: rt_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Token refreshed
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/auth.yaml#/TokenResponse'
+            example:
+              access_token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.signature
+              refresh_token: rt_01JX2Q3R4T5V6W7X8Y9Z0A1B2D
+              token_type: Bearer
+              expires_in: 1800
+      '401':
+        description: Refresh token is invalid, revoked or expired
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Invalid refresh token
+              status: 401
+              code: AUTH_INVALID_REFRESH_TOKEN
+              message_key: error.auth.invalid_refresh_token
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /auth/refresh
+logout:
+  post:
+    tags: [auth]
+    summary: Revoke the current session
+    description: >-
+      Revokes the refresh token bound to the current session and invalidates
+      the session. A `SessionRevoked` event with reason `USER_LOGOUT` is
+      emitted. Returns 204 with no body on success.
+    operationId: logout
+    responses:
+      '204':
+        description: Session revoked successfully
+      '401':
+        description: Missing or invalid access token
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Unauthorized
+              status: 401
+              code: AUTH_UNAUTHORIZED
+              message_key: error.auth.unauthorized
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /auth/logout
+profile:
+  get:
+    tags: [auth]
+    summary: Get the authenticated user's profile
+    description: >-
+      Returns the public profile of the currently authenticated user.
+      Sensitive fields such as the password hash are never exposed.
+    operationId: getProfile
+    responses:
+      '200':
+        description: User profile
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/auth.yaml#/UserProfile'
+            example:
+              id: usr_01J00000000000000000000001
+              username: admin
+              display_name: System Administrator
+              email: admin@opengeobot.io
+              phone: '+8613800000000'
+              avatar: /avatars/usr_01J00000000000000000000001.png
+              status: ACTIVE
+              created_at: '2026-07-03T08:00:00Z'
+      '401':
+        description: Missing or invalid access token
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Unauthorized
+              status: 401
+              code: AUTH_UNAUTHORIZED
+              message_key: error.auth.unauthorized
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /profile
+  put:
+    tags: [auth]
+    summary: Update the authenticated user's profile
+    description: >-
+      Updates the mutable profile fields of the currently authenticated user.
+      Identity fields (`id`, `username`) are not editable through this
+      endpoint. Only supplied fields are updated.
+    operationId: updateProfile
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/auth.yaml#/UpdateProfileRequest'
+          example:
+            display_name: System Administrator
+            email: admin@opengeobot.io
+            phone: '+8613800000000'
+    responses:
+      '200':
+        description: Updated user profile
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/auth.yaml#/UserProfile'
+            example:
+              id: usr_01J00000000000000000000001
+              username: admin
+              display_name: System Administrator
+              email: admin@opengeobot.io
+              phone: '+8613800000000'
+              avatar: /avatars/usr_01J00000000000000000000001.png
+              status: ACTIVE
+              created_at: '2026-07-03T08:00:00Z'
+      '401':
+        description: Missing or invalid access token
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Unauthorized
+              status: 401
+              code: AUTH_UNAUTHORIZED
+              message_key: error.auth.unauthorized
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /profile
+      '422':
+        description: Profile validation failed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Validation failed
+              status: 422
+              code: VALIDATION_FAILED
+              message_key: error.validation_failed
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /profile

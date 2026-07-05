@@ -1,0 +1,508 @@
+# Function: Dictionary and i18n resource schemas for F-PLATFORM-003
+# Time: 2026-07-04
+# Author: AxeXie
+
+DictType:
+  type: object
+  description: >-
+    Dictionary type definition backing the SM-VERSIONED-CONFIG state machine.
+    The `status` field is a code contract governed by the platform, not editable
+    dictionary data. A type is versioned via `version` and `published_version`
+    so that consumers can pin a stable snapshot. All field names use snake_case.
+  required: [type_code, type_name, status, version, created_at, updated_at]
+  additionalProperties: false
+  properties:
+    type_code:
+      type: string
+      description: >-
+        Stable, unique code identifying the dictionary type. Used as the
+        partition key for all items belonging to this type.
+      example: user_status
+    type_name:
+      type: string
+      description: Human-readable name of the dictionary type.
+      example: 用户状态
+    description:
+      type: string
+      description: Optional explanation of the dictionary type purpose.
+      example: User status enum
+    status:
+      type: string
+      description: >-
+        Lifecycle status of the dictionary type. Values are the canonical states
+        of the SM-VERSIONED-CONFIG state machine.
+      enum:
+        - DRAFT
+        - PUBLISHED
+        - ARCHIVED
+      example: PUBLISHED
+    version:
+      type: integer
+      format: int32
+      minimum: 1
+      description: Current working version number of the dictionary type.
+      example: 1
+    published_version:
+      type: integer
+      format: int32
+      minimum: 1
+      description: >-
+        Last published version number. Null when the type has never been
+        published.
+      example: 1
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp the dictionary type was created.
+      example: '2026-07-04T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp the dictionary type was last updated.
+      example: '2026-07-04T08:00:00Z'
+    created_by:
+      type: string
+      description: Identifier of the actor that created the dictionary type.
+      example: user:admin-001
+    updated_by:
+      type: string
+      description: Identifier of the actor that last updated the dictionary type.
+      example: user:admin-001
+
+DictItem:
+  type: object
+  description: >-
+    A single entry within a dictionary type. Items carry the canonical value
+    plus localized labels. The `status` field is a code contract governed by
+    the platform. All field names use snake_case.
+  required: [type_code, item_code, item_value, sort_order, status, version]
+  additionalProperties: false
+  properties:
+    type_code:
+      type: string
+      description: Code of the parent dictionary type.
+      example: user_status
+    item_code:
+      type: string
+      description: Stable, unique code of the item within its type.
+      example: active
+    item_value:
+      type: string
+      description: Canonical machine-readable value of the dictionary item.
+      example: ACTIVE
+    label_zh_cn:
+      type: string
+      description: Simplified Chinese display label for the item.
+      example: 启用
+    label_en_us:
+      type: string
+      description: English (United States) display label for the item.
+      example: Active
+    sort_order:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Sort order for client-side ordering within the type.
+      example: 1
+    status:
+      type: string
+      description: >-
+        Lifecycle status of the dictionary item. Values are the canonical states
+        of the SM-VERSIONED-CONFIG item state.
+      enum:
+        - ACTIVE
+        - INACTIVE
+        - ARCHIVED
+      example: ACTIVE
+    extra:
+      type: object
+      description: Optional extension payload for type-specific metadata.
+      additionalProperties: true
+    version:
+      type: integer
+      format: int32
+      minimum: 1
+      description: Current version number of the dictionary item.
+      example: 1
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp the dictionary item was created.
+      example: '2026-07-04T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp the dictionary item was last updated.
+      example: '2026-07-04T08:00:00Z'
+
+I18nResource:
+  type: object
+  description: >-
+    A single internationalization translation entry keyed by `resource_key`
+    and `locale`. The platform resolves frontend-visible text via these
+    entries; backends return stable `message_key` references that clients
+    resolve through this store. All field names use snake_case.
+  required: [resource_key, locale, resource_value, module]
+  additionalProperties: false
+  properties:
+    resource_key:
+      type: string
+      description: >-
+        Dotted i18n resource key used to look up the localized value.
+      example: error.health.not_ready
+    locale:
+      type: string
+      description: >-
+        BCP 47 locale tag for the translation. Examples: `zh-CN`, `en-US`.
+      example: zh-CN
+    resource_value:
+      type: string
+      description: Localized text for the resource key and locale.
+      example: 服务未就绪
+    module:
+      type: string
+      description: >-
+        Logical module that owns the resource key, used for scoped loading.
+      example: platform
+    description:
+      type: string
+      description: Optional explanation of the resource key purpose.
+      example: Error shown when the service is not ready
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp the i18n resource was created.
+      example: '2026-07-04T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp the i18n resource was last updated.
+      example: '2026-07-04T08:00:00Z'
+
+BatchI18nRequest:
+  type: object
+  description: >-
+    Batch import request for i18n resources. Each entry is upserted by
+    `resource_key` + `locale`. The operation is idempotent: re-importing the
+    same payload produces the same final state. All field names use snake_case.
+  required: [resources]
+  additionalProperties: false
+  properties:
+    resources:
+      type: array
+      description: i18n resource entries to upsert.
+      minItems: 1
+      items:
+        $ref: '#/I18nResourceEntry'
+      example:
+        - resource_key: error.health.not_ready
+          locale: zh-CN
+          resource_value: 服务未就绪
+          module: platform
+        - resource_key: error.health.not_ready
+          locale: en-US
+          resource_value: Service not ready
+          module: platform
+
+I18nResourceEntry:
+  type: object
+  description: A single upsertable i18n resource entry inside a batch request.
+  required: [resource_key, locale, resource_value, module]
+  additionalProperties: false
+  properties:
+    resource_key:
+      type: string
+      description: Dotted i18n resource key.
+      example: error.health.not_ready
+    locale:
+      type: string
+      description: BCP 47 locale tag for the translation.
+      example: zh-CN
+    resource_value:
+      type: string
+      description: Localized text for the resource key and locale.
+      example: 服务未就绪
+    module:
+      type: string
+      description: Logical module that owns the resource key.
+      example: platform
+    description:
+      type: string
+      description: Optional explanation of the resource key purpose.
+      example: Error shown when the service is not ready
+
+CreateDictTypeRequest:
+  type: object
+  description: Request body for creating a dictionary type.
+  required: [type_code, type_name]
+  additionalProperties: false
+  properties:
+    type_code:
+      type: string
+      description: Stable, unique code identifying the dictionary type.
+      example: user_status
+    type_name:
+      type: string
+      description: Human-readable name of the dictionary type.
+      example: 用户状态
+    description:
+      type: string
+      description: Optional explanation of the dictionary type purpose.
+      example: User status enum
+
+UpdateDictTypeRequest:
+  type: object
+  description: Request body for updating a dictionary type.
+  additionalProperties: false
+  properties:
+    type_name:
+      type: string
+      description: Human-readable name of the dictionary type.
+      example: 用户状态
+    description:
+      type: string
+      description: Optional explanation of the dictionary type purpose.
+      example: User status enum
+
+CreateDictItemRequest:
+  type: object
+  description: Request body for creating a dictionary item.
+  required: [item_code, item_value]
+  additionalProperties: false
+  properties:
+    item_code:
+      type: string
+      description: Stable, unique code of the item within its type.
+      example: active
+    item_value:
+      type: string
+      description: Canonical machine-readable value of the dictionary item.
+      example: ACTIVE
+    label_zh_cn:
+      type: string
+      description: Simplified Chinese display label for the item.
+      example: 启用
+    label_en_us:
+      type: string
+      description: English (United States) display label for the item.
+      example: Active
+    sort_order:
+      type: integer
+      format: int32
+      minimum: 0
+      default: 0
+      description: Sort order for client-side ordering within the type.
+      example: 1
+    extra:
+      type: object
+      description: Optional extension payload for type-specific metadata.
+      additionalProperties: true
+
+UpdateDictItemRequest:
+  type: object
+  description: Request body for updating a dictionary item.
+  additionalProperties: false
+  properties:
+    item_value:
+      type: string
+      description: Canonical machine-readable value of the dictionary item.
+      example: ACTIVE
+    label_zh_cn:
+      type: string
+      description: Simplified Chinese display label for the item.
+      example: 启用
+    label_en_us:
+      type: string
+      description: English (United States) display label for the item.
+      example: Active
+    sort_order:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Sort order for client-side ordering within the type.
+      example: 1
+    status:
+      type: string
+      enum: [ACTIVE, INACTIVE, ARCHIVED]
+      description: Lifecycle status of the dictionary item.
+      example: ACTIVE
+    extra:
+      type: object
+      description: Optional extension payload for type-specific metadata.
+      additionalProperties: true
+
+CreateI18nResourceRequest:
+  type: object
+  description: Request body for creating an i18n resource.
+  required: [resource_key, locale, resource_value, module]
+  additionalProperties: false
+  properties:
+    resource_key:
+      type: string
+      description: Dotted i18n resource key.
+      example: error.health.not_ready
+    locale:
+      type: string
+      description: BCP 47 locale tag for the translation.
+      example: zh-CN
+    resource_value:
+      type: string
+      description: Localized text for the resource key and locale.
+      example: 服务未就绪
+    module:
+      type: string
+      description: Logical module that owns the resource key.
+      example: platform
+    description:
+      type: string
+      description: Optional explanation of the resource key purpose.
+      example: Error shown when the service is not ready
+
+UpdateI18nResourceRequest:
+  type: object
+  description: Request body for updating an i18n resource.
+  required: [resource_value]
+  additionalProperties: false
+  properties:
+    resource_value:
+      type: string
+      description: Localized text for the resource key and locale.
+      example: 服务未就绪
+    module:
+      type: string
+      description: Logical module that owns the resource key.
+      example: platform
+    description:
+      type: string
+      description: Optional explanation of the resource key purpose.
+      example: Error shown when the service is not ready
+
+DictTypePage:
+  type: object
+  description: Paginated list of dictionary types.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      description: Dictionary types in the current page.
+      items:
+        $ref: '#/DictType'
+    total:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Total number of matching dictionary types.
+      example: 3
+    page:
+      type: integer
+      format: int32
+      minimum: 1
+      description: Current page number (1-based).
+      example: 1
+    page_size:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 100
+      description: Number of items per page.
+      example: 20
+    total_pages:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Total number of pages.
+      example: 1
+
+DictItemPage:
+  type: object
+  description: Paginated list of dictionary items.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      description: Dictionary items in the current page.
+      items:
+        $ref: '#/DictItem'
+    total:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Total number of matching dictionary items.
+      example: 3
+    page:
+      type: integer
+      format: int32
+      minimum: 1
+      description: Current page number (1-based).
+      example: 1
+    page_size:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 100
+      description: Number of items per page.
+      example: 20
+    total_pages:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Total number of pages.
+      example: 1
+
+I18nResourcePage:
+  type: object
+  description: Paginated list of i18n resources.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      description: i18n resources in the current page.
+      items:
+        $ref: '#/I18nResource'
+    total:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Total number of matching i18n resources.
+      example: 2
+    page:
+      type: integer
+      format: int32
+      minimum: 1
+      description: Current page number (1-based).
+      example: 1
+    page_size:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 100
+      description: Number of items per page.
+      example: 20
+    total_pages:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Total number of pages.
+      example: 1
+
+BatchI18nResult:
+  type: object
+  description: Result of a batch i18n import operation.
+  required: [imported, skipped]
+  additionalProperties: false
+  properties:
+    imported:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Number of resources created or updated.
+      example: 2
+    skipped:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Number of resources skipped due to validation errors.
+      example: 0

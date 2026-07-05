@@ -1,0 +1,205 @@
+# Function: OpenAPI path items for F-PLATFORM-004 data export API
+# Time: 2026-07-04
+# Author: AxeXie
+exports:
+  post:
+    tags: [export]
+    summary: Create a data export task
+    description: >-
+      Creates an asynchronous export task. The task is queued and processed by
+      the export worker. An `export_requested.v1` event is published via the
+      transactional outbox, followed by `export_completed.v1` when the export
+      reaches a terminal state.
+    operationId: createExport
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/export.yaml#/CreateExportRequest'
+          example:
+            resource_type: audit_log
+            format: csv
+            filter:
+              actor_id: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              occurred_from: '2026-07-01T00:00:00Z'
+              occurred_to: '2026-07-04T00:00:00Z'
+    responses:
+      '202':
+        description: Export task accepted and queued.
+        headers:
+          Location:
+            description: URL to poll the export task status.
+            schema:
+              type: string
+              format: uri
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/export.yaml#/ExportTask'
+            example:
+              export_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              resource_type: audit_log
+              format: csv
+              status: PENDING
+              requested_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              created_at: '2026-07-04T08:00:00Z'
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to export the requested resource.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '422':
+        description: The requested resource_type or filter is not supported.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Unsupported export resource
+              status: 422
+              code: EXPORT_RESOURCE_UNSUPPORTED
+              message_key: error.export.resource_unsupported
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /exports
+exportById:
+  get:
+    tags: [export]
+    summary: Get export task status
+    description: >-
+      Returns the current state of an export task. Poll this endpoint until
+      `status` reaches a terminal state (`SUCCEEDED`, `FAILED`, `CANCELLED`).
+    operationId: getExport
+    parameters:
+      - name: exportId
+        in: path
+        description: Unique export task identifier.
+        required: true
+        schema:
+          type: string
+        example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: The current state of the export task.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/export.yaml#/ExportTask'
+            example:
+              export_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              resource_type: audit_log
+              format: csv
+              status: SUCCEEDED
+              file_url: https://minio.local/opengeobot/exports/01JX2Q3R4T5V6W7X8Y9Z0A1B2C.csv
+              file_size: 204800
+              requested_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              started_at: '2026-07-04T08:00:05Z'
+              completed_at: '2026-07-04T08:00:12Z'
+              created_at: '2026-07-04T08:00:00Z'
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to view this export task.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No export task found for the given identifier.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Export not found
+              status: 404
+              code: EXPORT_NOT_FOUND
+              message_key: error.export.not_found
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /exports/01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+exportDownload:
+  get:
+    tags: [export]
+    summary: Download an export file
+    description: >-
+      Downloads the generated export file. Only available when the export task
+      status is `SUCCEEDED`. Returns a pre-signed URL redirect (302) or streams
+      the file directly depending on deployment configuration.
+    operationId: downloadExport
+    parameters:
+      - name: exportId
+        in: path
+        description: Unique export task identifier.
+        required: true
+        schema:
+          type: string
+        example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: The exported file streamed directly.
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '302':
+        description: Redirect to a pre-signed download URL.
+        headers:
+          Location:
+            description: Pre-signed URL for the exported file.
+            schema:
+              type: string
+              format: uri
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to download this export.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Export task or file not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Export file is not ready for download.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Export not ready
+              status: 409
+              code: EXPORT_NOT_READY
+              message_key: error.export.not_ready
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /exports/01JX2Q3R4T5V6W7X8Y9Z0A1B2C/download

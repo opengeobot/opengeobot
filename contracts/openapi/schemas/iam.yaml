@@ -1,0 +1,630 @@
+# Function: IAM RBAC schemas for F-PLATFORM-002 user/org/role/permission
+# Time: 2026-07-04
+# Author: AxeXie
+
+User:
+  type: object
+  description: >-
+    User account with organization and role assignments. Sensitive fields such as
+    the password hash are never exposed. The `status` field is a code contract
+    governed by the platform user lifecycle. All field names use snake_case.
+  required: [user_id, username, status, created_at, updated_at]
+  additionalProperties: false
+  properties:
+    user_id:
+      type: string
+      description: Stable public identifier of the user (ULID-based).
+      example: usr_01J00000000000000000000001
+    username:
+      type: string
+      description: Unique login name of the user.
+      example: admin
+    display_name:
+      type: string
+      description: Human-friendly display name shown in the UI.
+      example: System Administrator
+    email:
+      type: string
+      format: email
+      description: Contact email address of the user.
+      example: admin@opengeobot.io
+    phone:
+      type: string
+      description: Contact phone number of the user.
+      example: '+8613800000000'
+    avatar:
+      type: string
+      format: uri-reference
+      description: URI reference to the user's avatar image.
+      example: /avatars/usr_01J00000000000000000000001.png
+    status:
+      type: string
+      description: >-
+        Account status of the user. Values are the canonical states of the user
+        account lifecycle.
+      enum:
+        - ACTIVE
+        - DISABLED
+        - LOCKED
+      example: ACTIVE
+    org_ids:
+      type: array
+      description: >-
+        Organization identifiers the user belongs to. The first entry is the
+        primary organization when `is_primary` is set on the association.
+      items:
+        type: string
+      example:
+        - org_01J00000000000000000000001
+    role_ids:
+      type: array
+      description: Role identifiers assigned to the user.
+      items:
+        type: string
+      example:
+        - rol_01J00000000000000000000001
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the user account was created.
+      example: '2026-07-04T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the user account was last updated.
+      example: '2026-07-04T08:00:00Z'
+
+UserPage:
+  type: object
+  description: Paginated response wrapper for user entries.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/User'
+    total:
+      type: integer
+      format: int64
+      description: Total number of matching records.
+      example: 42
+    page:
+      type: integer
+      description: Current page number.
+      example: 1
+    page_size:
+      type: integer
+      description: Number of items per page.
+      example: 20
+
+CreateUserRequest:
+  type: object
+  description: >-
+    Request body for creating a new user. The `username` must be unique. The
+    `password` is hashed with BCrypt before persistence and never returned.
+    All field names use snake_case.
+  required: [username, password]
+  additionalProperties: false
+  properties:
+    username:
+      type: string
+      description: Unique login name of the user.
+      example: newuser
+    display_name:
+      type: string
+      description: Human-friendly display name shown in the UI.
+      example: New User
+    email:
+      type: string
+      format: email
+      description: Contact email address of the user.
+      example: newuser@opengeobot.io
+    phone:
+      type: string
+      description: Contact phone number of the user.
+      example: '+8613800000001'
+    password:
+      type: string
+      format: password
+      writeOnly: true
+      description: >-
+        Plain-text password supplied by the caller. Only used to produce the
+        stored BCrypt hash; never persisted or logged.
+      example: StrongPass123!
+    org_ids:
+      type: array
+      description: >-
+        Organization identifiers to assign the user to. The first entry is
+        treated as the primary organization.
+      items:
+        type: string
+      example:
+        - org_01J00000000000000000000001
+    role_ids:
+      type: array
+      description: Role identifiers to assign to the user.
+      items:
+        type: string
+      example:
+        - rol_01J00000000000000000000002
+
+UpdateUserRequest:
+  type: object
+  description: >-
+    Mutable profile fields that an administrator may update. Identity fields
+    (`user_id`, `username`) are not editable through this request. All field
+    names use snake_case.
+  additionalProperties: false
+  properties:
+    display_name:
+      type: string
+      description: Human-friendly display name shown in the UI.
+      example: System Administrator
+    email:
+      type: string
+      format: email
+      description: Contact email address of the user.
+      example: admin@opengeobot.io
+    phone:
+      type: string
+      description: Contact phone number of the user.
+      example: '+8613800000000'
+    avatar:
+      type: string
+      format: uri-reference
+      description: URI reference to the user's avatar image.
+      example: /avatars/usr_01J00000000000000000000001.png
+
+UpdateUserStatusRequest:
+  type: object
+  description: >-
+    Request body for transitioning the user account status. The `status` is a
+    code contract; `reason` is a machine-readable audit code, not localized
+    text. All field names use snake_case.
+  required: [status]
+  additionalProperties: false
+  properties:
+    status:
+      type: string
+      description: Target account status.
+      enum:
+        - ACTIVE
+        - DISABLED
+        - LOCKED
+      example: DISABLED
+    reason:
+      type: string
+      description: >-
+        Machine-readable reason for the status transition. Recorded in the
+        audit log and the emitted `UserStatusChanged` event.
+      example: ADMIN_DISABLED
+
+AssignRolesRequest:
+  type: object
+  description: >-
+    Request body for replacing the full set of roles assigned to a user. The
+    previous assignments are removed and replaced by the supplied list. All
+    field names use snake_case.
+  required: [role_ids]
+  additionalProperties: false
+  properties:
+    role_ids:
+      type: array
+      description: Role identifiers to assign to the user.
+      items:
+        type: string
+      example:
+        - rol_01J00000000000000000000001
+
+AssignOrgsRequest:
+  type: object
+  description: >-
+    Request body for replacing the full set of organizations a user belongs to.
+    The first entry is marked as the primary organization. All field names use
+    snake_case.
+  required: [org_ids]
+  additionalProperties: false
+  properties:
+    org_ids:
+      type: array
+      description: Organization identifiers to assign the user to.
+      items:
+        type: string
+      example:
+        - org_01J00000000000000000000001
+
+RoleAssignment:
+  type: object
+  description: >-
+    Role identifiers currently assigned to a user. All field names use
+    snake_case.
+  required: [user_id, role_ids]
+  additionalProperties: false
+  properties:
+    user_id:
+      type: string
+      description: Stable public identifier of the user.
+      example: usr_01J00000000000000000000001
+    role_ids:
+      type: array
+      description: Role identifiers assigned to the user.
+      items:
+        type: string
+      example:
+        - rol_01J00000000000000000000001
+
+Organization:
+  type: object
+  description: >-
+    Organization node in the platform org tree. Organizations form a tree via
+    `parent_id` and `path`. The `status` field is a code contract. All field
+    names use snake_case.
+  required: [org_id, org_name, org_code, sort_order, status, created_at]
+  additionalProperties: false
+  properties:
+    org_id:
+      type: string
+      description: Stable public identifier of the organization (ULID-based).
+      example: org_01J00000000000000000000001
+    org_name:
+      type: string
+      description: Human-readable name of the organization.
+      example: OpenGeoBot
+    org_code:
+      type: string
+      description: Unique, stable code identifying the organization.
+      example: OPENGEOBOT
+    parent_id:
+      type: string
+      description: >-
+        Identifier of the parent organization. Null for the root organization.
+      example: null
+    path:
+      type: string
+      description: >-
+        Materialized path from the root to this organization, used for subtree
+        queries.
+      example: /org_01J00000000000000000000001
+    sort_order:
+      type: integer
+      format: int32
+      description: Sort order among siblings.
+      example: 0
+    status:
+      type: string
+      description: Lifecycle status of the organization.
+      enum:
+        - ACTIVE
+        - DISABLED
+      example: ACTIVE
+    description:
+      type: string
+      description: Optional explanation of the organization purpose.
+      example: Root organization
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the organization was created.
+      example: '2026-07-04T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the organization was last updated.
+      example: '2026-07-04T08:00:00Z'
+
+OrgTreeNode:
+  type: object
+  description: >-
+    Organization node enriched with its children, used to build the org tree in
+    a single response. All field names use snake_case.
+  required: [org_id, org_name, org_code, sort_order, status]
+  additionalProperties: false
+  properties:
+    org_id:
+      type: string
+      description: Stable public identifier of the organization.
+      example: org_01J00000000000000000000001
+    org_name:
+      type: string
+      description: Human-readable name of the organization.
+      example: OpenGeoBot
+    org_code:
+      type: string
+      description: Unique, stable code identifying the organization.
+      example: OPENGEOBOT
+    parent_id:
+      type: string
+      description: Identifier of the parent organization. Null for the root.
+      example: null
+    sort_order:
+      type: integer
+      format: int32
+      description: Sort order among siblings.
+      example: 0
+    status:
+      type: string
+      description: Lifecycle status of the organization.
+      enum:
+        - ACTIVE
+        - DISABLED
+      example: ACTIVE
+    description:
+      type: string
+      description: Optional explanation of the organization purpose.
+      example: Root organization
+    children:
+      type: array
+      description: Child organization nodes.
+      items:
+        $ref: '#/OrgTreeNode'
+
+CreateOrgRequest:
+  type: object
+  description: >-
+    Request body for creating a new organization. The `org_code` must be
+    unique. When `parent_id` is supplied the new org is created as a child of
+    that organization. All field names use snake_case.
+  required: [org_name, org_code]
+  additionalProperties: false
+  properties:
+    org_name:
+      type: string
+      description: Human-readable name of the organization.
+      example: Engineering
+    org_code:
+      type: string
+      description: Unique, stable code identifying the organization.
+      example: ENG
+    parent_id:
+      type: string
+      description: Identifier of the parent organization. Null for a root org.
+      example: org_01J00000000000000000000001
+    sort_order:
+      type: integer
+      format: int32
+      description: Sort order among siblings.
+      example: 1
+
+UpdateOrgRequest:
+  type: object
+  description: >-
+    Mutable fields of an organization. The `org_code` cannot be changed. All
+    field names use snake_case.
+  additionalProperties: false
+  properties:
+    org_name:
+      type: string
+      description: Human-readable name of the organization.
+      example: Engineering
+    sort_order:
+      type: integer
+      format: int32
+      description: Sort order among siblings.
+      example: 1
+    status:
+      type: string
+      description: Lifecycle status of the organization.
+      enum:
+        - ACTIVE
+        - DISABLED
+      example: ACTIVE
+    description:
+      type: string
+      description: Optional explanation of the organization purpose.
+      example: Engineering division
+
+Role:
+  type: object
+  description: >-
+    Role definition bundling a set of permissions. The `role_code` is a stable
+    contract used by the authorization module; the `status` field is a code
+    contract. Built-in roles cannot be deleted. All field names use
+    snake_case.
+  required: [role_id, role_name, role_code, status, built_in, created_at, updated_at]
+  additionalProperties: false
+  properties:
+    role_id:
+      type: string
+      description: Stable public identifier of the role (ULID-based).
+      example: rol_01J00000000000000000000001
+    role_name:
+      type: string
+      description: Human-readable name of the role.
+      example: System Administrator
+    role_code:
+      type: string
+      description: Stable, unique code identifying the role.
+      example: SYS_ADMIN
+    description:
+      type: string
+      description: Optional explanation of the role purpose.
+      example: Full system access
+    status:
+      type: string
+      description: Lifecycle status of the role.
+      enum:
+        - ACTIVE
+        - DISABLED
+      example: ACTIVE
+    built_in:
+      type: boolean
+      description: >-
+        Whether the role is built-in and cannot be deleted. Built-in roles may
+        still be updated in scoped ways.
+      example: true
+    permission_codes:
+      type: array
+      description: Permission codes granted by this role.
+      items:
+        type: string
+      example:
+        - platform.user.read
+        - platform.user.manage
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the role was created.
+      example: '2026-07-04T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the role was last updated.
+      example: '2026-07-04T08:00:00Z'
+
+RolePage:
+  type: object
+  description: Paginated response wrapper for role entries.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Role'
+    total:
+      type: integer
+      format: int64
+      description: Total number of matching records.
+      example: 2
+    page:
+      type: integer
+      description: Current page number.
+      example: 1
+    page_size:
+      type: integer
+      description: Number of items per page.
+      example: 20
+
+CreateRoleRequest:
+  type: object
+  description: >-
+    Request body for creating a new role. The `role_code` must be unique. All
+    field names use snake_case.
+  required: [role_name, role_code]
+  additionalProperties: false
+  properties:
+    role_name:
+      type: string
+      description: Human-readable name of the role.
+      example: Fleet Operator
+    role_code:
+      type: string
+      description: Stable, unique code identifying the role.
+      example: FLEET_OPERATOR
+    description:
+      type: string
+      description: Optional explanation of the role purpose.
+      example: Operates the robot fleet
+
+UpdateRoleRequest:
+  type: object
+  description: >-
+    Mutable fields of a role. The `role_code` cannot be changed. All field
+    names use snake_case.
+  additionalProperties: false
+  properties:
+    role_name:
+      type: string
+      description: Human-readable name of the role.
+      example: Fleet Operator
+    description:
+      type: string
+      description: Optional explanation of the role purpose.
+      example: Operates the robot fleet
+    status:
+      type: string
+      description: Lifecycle status of the role.
+      enum:
+        - ACTIVE
+        - DISABLED
+      example: ACTIVE
+
+AssignPermissionsRequest:
+  type: object
+  description: >-
+    Request body for replacing the full set of permissions granted to a role.
+    The previous grants are removed and replaced by the supplied list. All
+    field names use snake_case.
+  required: [permission_codes]
+  additionalProperties: false
+  properties:
+    permission_codes:
+      type: array
+      description: Permission codes to grant to the role.
+      items:
+        type: string
+      example:
+        - platform.user.read
+        - platform.user.manage
+
+PermissionAssignment:
+  type: object
+  description: >-
+    Permission codes currently granted to a role. All field names use
+    snake_case.
+  required: [role_id, permission_codes]
+  additionalProperties: false
+  properties:
+    role_id:
+      type: string
+      description: Stable public identifier of the role.
+      example: rol_01J00000000000000000000001
+    permission_codes:
+      type: array
+      description: Permission codes granted to the role.
+      items:
+        type: string
+      example:
+        - platform.user.read
+        - platform.user.manage
+
+Permission:
+  type: object
+  description: >-
+    A single permission code. Permission codes are code contracts used by the
+    authorization module; they are not editable dictionary data. The
+    `risk_level` classifies the permission for safety review. All field names
+    use snake_case.
+  required: [permission_code, permission_name, module]
+  additionalProperties: false
+  properties:
+    permission_code:
+      type: string
+      description: >-
+        Stable, unique permission code. Checked server-side by the
+        authorization module.
+      example: platform.user.read
+    permission_name:
+      type: string
+      description: Human-readable name of the permission.
+      example: View Users
+    module:
+      type: string
+      description: Logical module that owns the permission.
+      example: iam
+    description:
+      type: string
+      description: Optional explanation of the permission.
+      example: View user list
+    risk_level:
+      type: string
+      description: >-
+        Safety risk level of the permission. R1 permissions are non-motion and
+        do not affect robot safety.
+      enum:
+        - R1_NON_MOTION
+        - R2_CONFIGURATION
+        - R3_MOTION
+      example: R1_NON_MOTION
+
+PermissionList:
+  type: object
+  description: List response wrapper for permission entries.
+  required: [items]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Permission'

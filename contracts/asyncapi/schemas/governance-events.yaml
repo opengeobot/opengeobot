@@ -1,0 +1,113 @@
+# Function: Governance domain event schemas for dictionary and i18n changes
+# Time: 2026-07-04
+# Author: AxeXie
+
+PlatformDictionaryChangedV1:
+  type: object
+  description: >-
+    Event emitted when a platform dictionary type or its items change. The
+    payload is wrapped in the platform EventEnvelope whose `event_type` is
+    `platform.dictionary.changed.v1`. Consumers reload the affected dictionary
+    type at the given version. All field names use snake_case.
+  required:
+    - event_id
+    - type_code
+    - version
+    - action
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    type_code:
+      type: string
+      description: Code of the dictionary type that changed.
+      example: user_status
+    version:
+      type: integer
+      format: int32
+      minimum: 1
+      description: Published version of the dictionary type after the change.
+      example: 1
+    action:
+      type: string
+      description: >-
+        Action that triggered the event. Values are code contracts, not
+        editable dictionary data.
+      enum:
+        - CREATED
+        - UPDATED
+        - PUBLISHED
+        - ARCHIVED
+        - DELETED
+      example: PUBLISHED
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the change occurred.
+      example: '2026-07-04T08:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the event to logs, metrics and
+        audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+
+PlatformI18nChangedV1:
+  type: object
+  description: >-
+    Event emitted when platform i18n resources change. The payload is wrapped
+    in the platform EventEnvelope whose `event_type` is
+    `platform.i18n.changed.v1`. Consumers reload the affected resource keys
+    for the given locale. All field names use snake_case.
+  required:
+    - event_id
+    - locale
+    - resource_keys
+    - action
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    locale:
+      type: string
+      description: BCP 47 locale tag of the affected translations.
+      example: zh-CN
+    resource_keys:
+      type: array
+      description: Resource keys affected by the change.
+      minItems: 1
+      items:
+        type: string
+      example:
+        - error.health.not_ready
+        - error.health.not_alive
+    action:
+      type: string
+      description: >-
+        Action that triggered the event. Values are code contracts, not
+        editable dictionary data.
+      enum:
+        - CREATED
+        - UPDATED
+        - BATCH_IMPORTED
+        - DELETED
+      example: UPDATED
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the change occurred.
+      example: '2026-07-04T08:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the event to logs, metrics and
+        audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

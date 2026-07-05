@@ -1,0 +1,220 @@
+# Function: SysConfig schemas for F-PLATFORM-004 platform config management
+# Time: 2026-07-04
+# Author: AxeXie
+SysConfig:
+  type: object
+  description: >-
+    A platform configuration entry stored in sys_config. Configs are versioned;
+    each successful update increments `version` and appends a row to
+    sys_config_history. Encrypted configs return a masked `config_value` and
+    must be decrypted server-side only by authorized callers. All field names
+    use snake_case.
+  required:
+    - config_key
+    - config_value
+    - value_type
+    - module
+    - encrypted
+    - version
+    - status
+    - created_at
+    - updated_at
+  additionalProperties: false
+  properties:
+    config_key:
+      type: string
+      description: >-
+        Unique, dotted configuration key (e.g. `platform.session.timeout_minutes`).
+      pattern: '^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$'
+      example: platform.session.timeout_minutes
+    config_value:
+      type: string
+      description: >-
+        Configuration value serialized as a string. The interpretation is driven
+        by `value_type`. For encrypted configs the value is masked on read.
+      example: '120'
+    value_type:
+      type: string
+      description: Primitive type used to interpret `config_value`.
+      enum:
+        - string
+        - number
+        - boolean
+        - json
+      example: number
+    module:
+      type: string
+      description: >-
+        Logical module that owns the config (e.g. platform, iam, governance).
+      example: iam
+    description:
+      type: string
+      description: Human-readable explanation of the config entry.
+      example: Session timeout in minutes
+    encrypted:
+      type: boolean
+      description: >-
+        Whether the config value is stored encrypted. Encrypted values are
+        masked in API responses.
+      example: false
+    version:
+      type: integer
+      description: >-
+        Monotonic version number incremented on each update. Starts at 1.
+      minimum: 1
+      example: 3
+    status:
+      type: string
+      description: >-
+        Lifecycle status of the config entry. `ACTIVE` configs are served to
+        callers; `INACTIVE` configs are retained for history.
+      enum:
+        - ACTIVE
+        - INACTIVE
+      example: ACTIVE
+    created_by:
+      type: string
+      description: Identifier of the actor that created the config.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    updated_by:
+      type: string
+      description: Identifier of the actor that last updated the config.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the config was created.
+      example: '2026-07-04T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the config was last updated.
+      example: '2026-07-04T09:30:00Z'
+CreateConfigRequest:
+  type: object
+  description: >-
+    Request body for creating a new platform config entry. The `config_key` must
+    be unique; a duplicate returns `CONFIG_KEY_EXISTS`. All field names use
+    snake_case.
+  required:
+    - config_key
+    - config_value
+    - value_type
+    - module
+  additionalProperties: false
+  properties:
+    config_key:
+      type: string
+      description: Unique dotted configuration key for the new entry.
+      pattern: '^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$'
+      example: platform.session.timeout_minutes
+    config_value:
+      type: string
+      description: >-
+        Configuration value serialized as a string, interpreted via `value_type`.
+      example: '120'
+    value_type:
+      type: string
+      description: Primitive type used to interpret `config_value`.
+      enum:
+        - string
+        - number
+        - boolean
+        - json
+      default: string
+      example: number
+    module:
+      type: string
+      description: Logical module that owns the config.
+      example: iam
+    description:
+      type: string
+      description: Optional human-readable explanation of the config entry.
+      example: Session timeout in minutes
+    encrypted:
+      type: boolean
+      description: >-
+        Whether the config value should be stored encrypted. Defaults to false.
+      default: false
+      example: false
+UpdateConfigRequest:
+  type: object
+  description: >-
+    Request body for updating an existing config entry. On success the
+    `version` is incremented and a history row is appended. All field names
+    use snake_case.
+  required:
+    - config_value
+  additionalProperties: false
+  properties:
+    config_value:
+      type: string
+      description: New configuration value serialized as a string.
+      example: '90'
+    description:
+      type: string
+      description: Optional updated human-readable explanation.
+      example: Session timeout in minutes (reduced)
+ConfigHistory:
+  type: object
+  description: >-
+    A single version snapshot of a config entry from sys_config_history. The
+    table is append-only; `version` identifies the historical state. All field
+    names use snake_case.
+  required:
+    - config_key
+    - config_value
+    - value_type
+    - module
+    - version
+    - updated_by
+    - updated_at
+  additionalProperties: false
+  properties:
+    config_key:
+      type: string
+      description: Configuration key the snapshot belongs to.
+      example: platform.session.timeout_minutes
+    config_value:
+      type: string
+      description: Config value at this version.
+      example: '120'
+    value_type:
+      type: string
+      description: Primitive type used to interpret `config_value`.
+      enum:
+        - string
+        - number
+        - boolean
+        - json
+      example: number
+    module:
+      type: string
+      description: Logical module that owned the config at this version.
+      example: iam
+    version:
+      type: integer
+      description: Version number of this snapshot.
+      minimum: 1
+      example: 2
+    change_type:
+      type: string
+      description: Type of change that produced this snapshot.
+      enum:
+        - CREATED
+        - UPDATED
+        - DELETED
+      example: UPDATED
+    updated_by:
+      type: string
+      description: Identifier of the actor that produced this version.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when this version was recorded.
+      example: '2026-07-04T09:30:00Z'
+    trace_id:
+      type: string
+      description: Trace identifier linking this change to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

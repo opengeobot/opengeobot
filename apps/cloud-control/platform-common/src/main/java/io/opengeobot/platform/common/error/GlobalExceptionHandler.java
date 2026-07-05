@@ -38,6 +38,15 @@ public class GlobalExceptionHandler {
         return buildResponse(envelope, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(PlatformException.class)
+    public ResponseEntity<ErrorEnvelope> handlePlatformException(
+            PlatformException ex, HttpServletRequest request) {
+        ErrorCode errorCode = ex.getErrorCode();
+        log.warn("Platform exception: {} {}", errorCode.code(), ex.getMessage());
+        ErrorEnvelope envelope = ErrorEnvelope.of(errorCode, resolveTraceId(), request.getRequestURI());
+        return buildResponse(envelope, HttpStatus.valueOf(errorCode.status()));
+    }
+
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ErrorEnvelope> handleNotFound(
             NoHandlerFoundException ex, HttpServletRequest request) {

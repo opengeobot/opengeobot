@@ -1,0 +1,130 @@
+# Function: OpenAPI path items for F-PLATFORM-004 operation audit API
+# Time: 2026-07-04
+# Author: AxeXie
+audits:
+  get:
+    tags: [audit]
+    summary: List operation audit logs
+    description: >-
+      Returns a paginated list of operation audit records from
+      sys_operation_audit. Records are append-only and ordered by `occurred_at`
+      descending. Results can be filtered by actor, action, resource, trace_id
+      and time range.
+    operationId: listAudits
+    parameters:
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: actor_id
+        in: query
+        description: Filter by actor identifier.
+        schema:
+          type: string
+        example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+      - name: action
+        in: query
+        description: Filter by action identifier.
+        schema:
+          type: string
+        example: config.update
+      - name: resource_type
+        in: query
+        description: Filter by resource type.
+        schema:
+          type: string
+        example: sys_config
+      - name: resource_id
+        in: query
+        description: Filter by resource identifier.
+        schema:
+          type: string
+        example: platform.session.timeout_minutes
+      - name: trace_id
+        in: query
+        description: Filter by end-to-end trace identifier.
+        schema:
+          type: string
+        example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+      - name: occurred_from
+        in: query
+        description: Include records at or after this timestamp.
+        schema:
+          type: string
+          format: date-time
+        example: '2026-07-01T00:00:00Z'
+      - name: occurred_to
+        in: query
+        description: Include records at or before this timestamp.
+        schema:
+          type: string
+          format: date-time
+        example: '2026-07-04T23:59:59Z'
+    responses:
+      '200':
+        description: Paginated list of audit records.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Paginated response wrapper for audit records.
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/audit.yaml#/AuditLog'
+                total:
+                  type: integer
+                  format: int64
+                  description: Total number of matching records.
+                  example: 128
+                page:
+                  type: integer
+                  description: Current page number.
+                  example: 1
+                page_size:
+                  type: integer
+                  description: Number of items per page.
+                  example: 20
+            example:
+              items:
+                - audit_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  occurred_at: '2026-07-04T10:00:00Z'
+                  actor_type: user
+                  actor_id: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  action: config.update
+                  resource_type: sys_config
+                  resource_id: platform.session.timeout_minutes
+                  result: SUCCESS
+                  trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  source_ip: 192.168.1.42
+              total: 128
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to read audit logs.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

@@ -1,0 +1,138 @@
+# Function: Authentication and session schemas for F-PLATFORM-001
+# Time: 2026-07-04
+# Author: AxeXie
+LoginRequest:
+  type: object
+  description: >-
+    Credentials submitted by a user to start a new authenticated session. All
+    field names use snake_case. The platform never returns the password in any
+    response and passwords are hashed with BCrypt before persistence.
+  required: [username, password]
+  additionalProperties: false
+  properties:
+    username:
+      type: string
+      description: Unique login name of the user.
+      example: admin
+    password:
+      type: string
+      description: >-
+        Plain-text password supplied by the caller. Only used to verify against
+        the stored BCrypt hash; never persisted or logged.
+      format: password
+      writeOnly: true
+TokenResponse:
+  type: object
+  description: >-
+    Tokens issued after a successful login or refresh. `access_token` is a
+    short-lived JWT used for API authorization; `refresh_token` is a
+    long-lived opaque token used to obtain new access tokens. All field names
+    use snake_case.
+  required: [access_token, refresh_token, token_type, expires_in]
+  additionalProperties: false
+  properties:
+    access_token:
+      type: string
+      description: Short-lived JWT used to authenticate API requests.
+      example: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.signature
+    refresh_token:
+      type: string
+      description: Long-lived opaque token used to obtain new access tokens.
+      example: rt_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    token_type:
+      type: string
+      description: Token type indicating how the access token should be used.
+      default: Bearer
+      example: Bearer
+    expires_in:
+      type: integer
+      format: int32
+      description: Lifetime of the access token in seconds.
+      example: 1800
+RefreshRequest:
+  type: object
+  description: >-
+    Refresh token submitted to obtain a new access token without re-entering
+    credentials. All field names use snake_case.
+  required: [refresh_token]
+  additionalProperties: false
+  properties:
+    refresh_token:
+      type: string
+      description: Previously issued refresh token.
+      example: rt_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+UserProfile:
+  type: object
+  description: >-
+    Public profile of the authenticated user. Sensitive fields such as the
+    password hash are never exposed. All field names use snake_case.
+  required: [id, username, display_name, status, created_at]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      description: Stable public identifier of the user (ULID-based).
+      example: usr_01J00000000000000000000001
+    username:
+      type: string
+      description: Unique login name of the user.
+      example: admin
+    display_name:
+      type: string
+      description: Human-friendly display name shown in the UI.
+      example: System Administrator
+    email:
+      type: string
+      format: email
+      description: Contact email address of the user.
+      example: admin@opengeobot.io
+    phone:
+      type: string
+      description: Contact phone number of the user.
+      example: '+8613800000000'
+    avatar:
+      type: string
+      format: uri-reference
+      description: URI reference to the user's avatar image.
+      example: /avatars/usr_01J00000000000000000000001.png
+    status:
+      type: string
+      description: >-
+        Account status of the user. Values are the canonical states of the
+        user account lifecycle.
+      enum:
+        - ACTIVE
+        - DISABLED
+        - LOCKED
+      example: ACTIVE
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the user account was created.
+      example: '2026-07-03T08:00:00Z'
+UpdateProfileRequest:
+  type: object
+  description: >-
+    Mutable profile fields that the authenticated user may update. Identity
+    fields (`id`, `username`) are not editable through this request. All field
+    names use snake_case.
+  additionalProperties: false
+  properties:
+    display_name:
+      type: string
+      description: Human-friendly display name shown in the UI.
+      example: System Administrator
+    email:
+      type: string
+      format: email
+      description: Contact email address of the user.
+      example: admin@opengeobot.io
+    phone:
+      type: string
+      description: Contact phone number of the user.
+      example: '+8613800000000'
+    avatar:
+      type: string
+      format: uri-reference
+      description: URI reference to the user's avatar image.
+      example: /avatars/usr_01J00000000000000000000001.png

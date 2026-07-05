@@ -1,0 +1,430 @@
+# Function: Role management endpoint paths for F-PLATFORM-002
+# Time: 2026-07-04
+# Author: AxeXie
+
+rolesCollection:
+  get:
+    tags: [role]
+    summary: List roles
+    description: >-
+      Returns a paginated list of roles. Requires the `platform.role.read`
+      permission.
+    operationId: listRoles
+    parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 1
+        description: Page number (1-based).
+        example: 1
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of items per page.
+        example: 20
+      - name: keyword
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Case-insensitive partial match on role_name or role_code.
+        example: admin
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Paginated list of roles.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/RolePage'
+            example:
+              items:
+                - role_id: rol_01J00000000000000000000001
+                  role_name: System Administrator
+                  role_code: SYS_ADMIN
+                  description: Full system access
+                  status: ACTIVE
+                  built_in: true
+                  permission_codes:
+                    - platform.user.read
+                    - platform.user.manage
+                  created_at: '2026-07-04T08:00:00Z'
+                  updated_at: '2026-07-04T08:00:00Z'
+                - role_id: rol_01J00000000000000000000002
+                  role_name: Platform User
+                  role_code: PLATFORM_USER
+                  description: Basic platform user
+                  status: ACTIVE
+                  built_in: true
+                  permission_codes:
+                    - platform.profile.read
+                    - platform.profile.manage
+                  created_at: '2026-07-04T08:00:00Z'
+                  updated_at: '2026-07-04T08:00:00Z'
+              total: 2
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.role.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [role]
+    summary: Create a role
+    description: >-
+      Creates a new role. The `role_code` must be unique. Emits a
+      `RoleChanged` event with action CREATED. Requires the
+      `platform.role.manage` permission. Supports idempotency via the
+      `Idempotency-Key` header.
+    operationId: createRole
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: >-
+          Optional idempotency key. When provided, duplicate requests with the
+          same key return the original response instead of creating duplicates.
+        example: role-create-operator-20260704
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/iam.yaml#/CreateRoleRequest'
+          example:
+            role_name: Fleet Operator
+            role_code: FLEET_OPERATOR
+            description: Operates the robot fleet
+    responses:
+      '201':
+        description: Role created.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/Role'
+            example:
+              role_id: rol_01J00000000000000000000003
+              role_name: Fleet Operator
+              role_code: FLEET_OPERATOR
+              description: Operates the robot fleet
+              status: ACTIVE
+              built_in: false
+              permission_codes: []
+              created_at: '2026-07-04T09:00:00Z'
+              updated_at: '2026-07-04T09:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.role.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: A role with the same role_code already exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+roleItem:
+  parameters:
+    - name: roleId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the role.
+      example: rol_01J00000000000000000000001
+  get:
+    tags: [role]
+    summary: Get role detail
+    description: >-
+      Returns a single role by its `role_id`, including its permission codes.
+      Requires the `platform.role.read` permission.
+    operationId: getRole
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Role detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/Role'
+            example:
+              role_id: rol_01J00000000000000000000001
+              role_name: System Administrator
+              role_code: SYS_ADMIN
+              description: Full system access
+              status: ACTIVE
+              built_in: true
+              permission_codes:
+                - platform.user.read
+                - platform.user.manage
+                - platform.org.manage
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T08:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.role.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Role not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  put:
+    tags: [role]
+    summary: Update a role
+    description: >-
+      Updates the mutable fields of a role. The `role_code` cannot be changed.
+      Emits a `RoleChanged` event with action UPDATED. Requires the
+      `platform.role.manage` permission. Supports idempotency via the
+      `Idempotency-Key` header.
+    operationId: updateRole
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: role-update-20260704
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/iam.yaml#/UpdateRoleRequest'
+          example:
+            role_name: Fleet Operator
+            description: Operates the robot fleet
+            status: ACTIVE
+    responses:
+      '200':
+        description: Updated role detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/Role'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.role.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Role not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  delete:
+    tags: [role]
+    summary: Delete a role
+    description: >-
+      Deletes a role. Built-in roles cannot be deleted. The role must have no
+      assigned users. Emits a `RoleChanged` event with action DELETED.
+      Requires the `platform.role.manage` permission.
+    operationId: deleteRole
+    security:
+      - bearerAuth: []
+    responses:
+      '204':
+        description: Role deleted.
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.role.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Role not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Role is built-in or has assigned users and cannot be deleted.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+rolePermissions:
+  parameters:
+    - name: roleId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the role.
+      example: rol_01J00000000000000000000001
+  get:
+    tags: [role]
+    summary: Get role's permissions
+    description: >-
+      Returns the permission codes currently granted to the role. Requires the
+      `platform.role.read` permission.
+    operationId: getRolePermissions
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Permission codes granted to the role.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/PermissionAssignment'
+            example:
+              role_id: rol_01J00000000000000000000001
+              permission_codes:
+                - platform.user.read
+                - platform.user.manage
+                - platform.org.manage
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.role.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Role not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  put:
+    tags: [role]
+    summary: Assign permissions to role
+    description: >-
+      Replaces the full set of permissions granted to a role. The previous
+      grants are removed and replaced by the supplied list. Emits a
+      `RoleChanged` event with action PERMISSIONS_UPDATED and an
+      `AuthorizationChanged` event for each affected user. Requires the
+      `platform.role.manage` permission. Supports idempotency via the
+      `Idempotency-Key` header.
+    operationId: assignRolePermissions
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: role-perms-20260704
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/iam.yaml#/AssignPermissionsRequest'
+          example:
+            permission_codes:
+              - platform.user.read
+              - platform.user.manage
+    responses:
+      '200':
+        description: Updated permission assignment.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/PermissionAssignment'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.role.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Role not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

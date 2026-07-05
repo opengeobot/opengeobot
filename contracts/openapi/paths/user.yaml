@@ -1,0 +1,549 @@
+# Function: User management endpoint paths for F-PLATFORM-002
+# Time: 2026-07-04
+# Author: AxeXie
+
+usersCollection:
+  get:
+    tags: [user]
+    summary: List users
+    description: >-
+      Returns a paginated list of users. Results can be filtered by
+      `org_id`, `status` and a case-insensitive `keyword` match on username or
+      display name. Requires the `platform.user.read` permission.
+    operationId: listUsers
+    parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 1
+        description: Page number (1-based).
+        example: 1
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of items per page.
+        example: 20
+      - name: org_id
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter users belonging to the given organization.
+        example: org_01J00000000000000000000001
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [ACTIVE, DISABLED, LOCKED]
+        description: Filter users by account status.
+        example: ACTIVE
+      - name: keyword
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Case-insensitive partial match on username or display name.
+        example: admin
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Paginated list of users.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/UserPage'
+            example:
+              items:
+                - user_id: usr_01J00000000000000000000001
+                  username: admin
+                  display_name: System Administrator
+                  email: admin@opengeobot.io
+                  phone: '+8613800000000'
+                  avatar: /avatars/usr_01J00000000000000000000001.png
+                  status: ACTIVE
+                  org_ids:
+                    - org_01J00000000000000000000001
+                  role_ids:
+                    - rol_01J00000000000000000000001
+                  created_at: '2026-07-04T08:00:00Z'
+                  updated_at: '2026-07-04T08:00:00Z'
+              total: 1
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.user.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [user]
+    summary: Create a user
+    description: >-
+      Creates a new user account. The `username` must be unique. The supplied
+      `password` is hashed with BCrypt before persistence. Optionally assigns
+      the user to organizations and roles in the same transaction. Emits a
+      `iam.user_created.v1` event on success. Requires the
+      `platform.user.manage` permission. Supports idempotency via the
+      `Idempotency-Key` header.
+    operationId: createUser
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: >-
+          Optional idempotency key. When provided, duplicate requests with the
+          same key return the original response instead of creating duplicates.
+        example: user-create-newuser-20260704
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/iam.yaml#/CreateUserRequest'
+          example:
+            username: newuser
+            display_name: New User
+            email: newuser@opengeobot.io
+            phone: '+8613800000001'
+            password: StrongPass123!
+            org_ids:
+              - org_01J00000000000000000000001
+            role_ids:
+              - rol_01J00000000000000000000002
+    responses:
+      '201':
+        description: User created.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/User'
+            example:
+              user_id: usr_01J00000000000000000000002
+              username: newuser
+              display_name: New User
+              email: newuser@opengeobot.io
+              phone: '+8613800000001'
+              status: ACTIVE
+              org_ids:
+                - org_01J00000000000000000000001
+              role_ids:
+                - rol_01J00000000000000000000002
+              created_at: '2026-07-04T09:00:00Z'
+              updated_at: '2026-07-04T09:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.user.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: A user with the same username or email already exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+userItem:
+  parameters:
+    - name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the user.
+      example: usr_01J00000000000000000000001
+  get:
+    tags: [user]
+    summary: Get user detail
+    description: >-
+      Returns the full user detail, including organization and role
+      assignments. Requires the `platform.user.read` permission.
+    operationId: getUser
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: User detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/User'
+            example:
+              user_id: usr_01J00000000000000000000001
+              username: admin
+              display_name: System Administrator
+              email: admin@opengeobot.io
+              phone: '+8613800000000'
+              avatar: /avatars/usr_01J00000000000000000000001.png
+              status: ACTIVE
+              org_ids:
+                - org_01J00000000000000000000001
+              role_ids:
+                - rol_01J00000000000000000000001
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T08:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.user.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: User not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  put:
+    tags: [user]
+    summary: Update user
+    description: >-
+      Updates the mutable profile fields of a user. Identity fields
+      (`user_id`, `username`) are not editable through this endpoint. Only
+      supplied fields are updated. Requires the `platform.user.manage`
+      permission. Supports idempotency via the `Idempotency-Key` header.
+    operationId: updateUser
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: user-update-20260704
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/iam.yaml#/UpdateUserRequest'
+          example:
+            display_name: System Administrator
+            email: admin@opengeobot.io
+            phone: '+8613800000000'
+    responses:
+      '200':
+        description: Updated user detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/User'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.user.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: User not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+userStatus:
+  parameters:
+    - name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the user.
+      example: usr_01J00000000000000000000001
+  put:
+    tags: [user]
+    summary: Update user status
+    description: >-
+      Transitions the user account status (enable, disable or lock). The
+      `reason` is recorded in the audit log and a `UserStatusChanged` event is
+      emitted. Active sessions of disabled or locked users are revoked.
+      Requires the `platform.user.manage` permission. Supports idempotency via
+      the `Idempotency-Key` header.
+    operationId: updateUserStatus
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: user-status-20260704
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/iam.yaml#/UpdateUserStatusRequest'
+          example:
+            status: DISABLED
+            reason: ADMIN_DISABLED
+    responses:
+      '200':
+        description: Updated user detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/User'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.user.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: User not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+userRoles:
+  parameters:
+    - name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the user.
+      example: usr_01J00000000000000000000001
+  get:
+    tags: [user]
+    summary: Get user's roles
+    description: >-
+      Returns the role identifiers currently assigned to the user. Requires
+      the `platform.user.read` permission.
+    operationId: getUserRoles
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Role identifiers assigned to the user.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/RoleAssignment'
+            example:
+              user_id: usr_01J00000000000000000000001
+              role_ids:
+                - rol_01J00000000000000000000001
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.user.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: User not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  put:
+    tags: [user]
+    summary: Assign roles to user
+    description: >-
+      Replaces the full set of roles assigned to a user. The previous
+      assignments are removed and replaced by the supplied list. Emits a
+      `UserRolesChanged` event and an `AuthorizationChanged` event. Requires
+      the `platform.user.manage` permission. Supports idempotency via the
+      `Idempotency-Key` header.
+    operationId: assignUserRoles
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: user-roles-20260704
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/iam.yaml#/AssignRolesRequest'
+          example:
+            role_ids:
+              - rol_01J00000000000000000000001
+    responses:
+      '200':
+        description: Updated role assignment.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/RoleAssignment'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.user.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: User not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+userOrgs:
+  parameters:
+    - name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the user.
+      example: usr_01J00000000000000000000001
+  put:
+    tags: [user]
+    summary: Assign user to organizations
+    description: >-
+      Replaces the full set of organizations a user belongs to. The first entry
+      is marked as the primary organization. Requires the
+      `platform.user.manage` permission. Supports idempotency via the
+      `Idempotency-Key` header.
+    operationId: assignUserOrgs
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: user-orgs-20260704
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/iam.yaml#/AssignOrgsRequest'
+          example:
+            org_ids:
+              - org_01J00000000000000000000001
+    responses:
+      '200':
+        description: Updated user detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/User'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.user.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: User or organization not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

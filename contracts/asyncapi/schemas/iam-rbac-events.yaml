@@ -1,0 +1,252 @@
+# Function: IAM RBAC event payload schemas for F-PLATFORM-002
+# Time: 2026-07-04
+# Author: AxeXie
+UserCreatedV1:
+  type: object
+  description: >-
+    Payload emitted when a new user account is created. Carried as the `data`
+    field of the platform EventEnvelope with `event_type` equal to
+    `iam.user_created.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - user_id
+    - username
+    - org_ids
+    - role_ids
+    - created_by
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    user_id:
+      type: string
+      description: Stable public identifier of the newly created user.
+      example: usr_01J00000000000000000000002
+    username:
+      type: string
+      description: Unique login name of the newly created user.
+      example: newuser
+    org_ids:
+      type: array
+      description: Organization identifiers the user was assigned to.
+      items:
+        type: string
+      example:
+        - org_01J00000000000000000000001
+    role_ids:
+      type: array
+      description: Role identifiers assigned to the user at creation time.
+      items:
+        type: string
+      example:
+        - rol_01J00000000000000000000002
+    created_by:
+      type: string
+      description: Identifier of the actor that created the user.
+      example: usr_01J00000000000000000000001
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the user creation occurred.
+      example: '2026-07-04T09:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the creation to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+UserStatusChangedV1:
+  type: object
+  description: >-
+    Payload emitted when a user account status transitions (enable, disable or
+    lock). Carried as the `data` field of the platform EventEnvelope with
+    `event_type` equal to `iam.user_status_changed.v1`. All field names use
+    snake_case.
+  required:
+    - event_id
+    - user_id
+    - old_status
+    - new_status
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    user_id:
+      type: string
+      description: Stable public identifier of the user whose status changed.
+      example: usr_01J00000000000000000000001
+    old_status:
+      type: string
+      description: Previous account status.
+      enum:
+        - ACTIVE
+        - DISABLED
+        - LOCKED
+      example: ACTIVE
+    new_status:
+      type: string
+      description: New account status after the transition.
+      enum:
+        - ACTIVE
+        - DISABLED
+        - LOCKED
+      example: DISABLED
+    reason:
+      type: string
+      description: >-
+        Machine-readable reason for the status transition. Recorded in the
+        audit log.
+      example: ADMIN_DISABLED
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the status transition occurred.
+      example: '2026-07-04T09:30:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the transition to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+UserRolesChangedV1:
+  type: object
+  description: >-
+    Payload emitted when the set of roles assigned to a user is replaced.
+    Carried as the `data` field of the platform EventEnvelope with
+    `event_type` equal to `iam.user_roles_changed.v1`. All field names use
+    snake_case.
+  required:
+    - event_id
+    - user_id
+    - old_role_ids
+    - new_role_ids
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    user_id:
+      type: string
+      description: Stable public identifier of the user whose roles changed.
+      example: usr_01J00000000000000000000001
+    old_role_ids:
+      type: array
+      description: Role identifiers assigned before the change.
+      items:
+        type: string
+      example:
+        - rol_01J00000000000000000000002
+    new_role_ids:
+      type: array
+      description: Role identifiers assigned after the change.
+      items:
+        type: string
+      example:
+        - rol_01J00000000000000000000001
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the role change occurred.
+      example: '2026-07-04T10:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the change to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+RoleChangedV1:
+  type: object
+  description: >-
+    Payload emitted when a role is created, updated, deleted or has its
+    permissions replaced. Carried as the `data` field of the platform
+    EventEnvelope with `event_type` equal to `iam.role_changed.v1`. All field
+    names use snake_case.
+  required:
+    - event_id
+    - role_id
+    - action
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    role_id:
+      type: string
+      description: Stable public identifier of the role that changed.
+      example: rol_01J00000000000000000000003
+    action:
+      type: string
+      description: >-
+        Machine-readable action describing the change. This is a code contract,
+        not localized text.
+      enum:
+        - CREATED
+        - UPDATED
+        - DELETED
+        - PERMISSIONS_UPDATED
+      example: CREATED
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the role change occurred.
+      example: '2026-07-04T10:30:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the change to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+AuthorizationChangedV1:
+  type: object
+  description: >-
+    Payload emitted when the effective authorization of a user changes, either
+    because the user's roles were reassigned or because a role the user holds
+    had its permissions replaced. Consumers should invalidate cached
+    authorization decisions for the affected user. Carried as the `data` field
+    of the platform EventEnvelope with `event_type` equal to
+    `iam.authorization_changed.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - user_id
+    - change_type
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    user_id:
+      type: string
+      description: Stable public identifier of the user whose authorization changed.
+      example: usr_01J00000000000000000000001
+    change_type:
+      type: string
+      description: >-
+        Machine-readable cause of the authorization change. This is a code
+        contract, not localized text.
+      enum:
+        - USER_ROLES_CHANGED
+        - ROLE_PERMISSIONS_CHANGED
+      example: USER_ROLES_CHANGED
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the authorization change occurred.
+      example: '2026-07-04T10:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the change to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

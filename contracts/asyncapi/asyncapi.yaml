@@ -1,5 +1,5 @@
 # Function: OpenGeoBot event streams contract (AsyncAPI 3.0.0)
-# Time: 2026-07-03
+# Time: 2026-07-04
 # Author: AxeXie
 asyncapi: 3.0.0
 info:
@@ -38,6 +38,121 @@ channels:
     messages:
       eventEnvelope:
         $ref: '#/components/messages/EventEnvelope'
+  userLoggedIn:
+    address: opengeobot.dev.iam.event.user_logged_in.v1
+    description: >-
+      Emitted when a user successfully authenticates and a new session is
+      issued. The payload is a platform EventEnvelope whose `event_type` is
+      `iam.user_logged_in.v1`.
+    messages:
+      userLoggedIn:
+        $ref: '#/components/messages/UserLoggedInEvent'
+  sessionRefreshed:
+    address: opengeobot.dev.iam.event.session_refreshed.v1
+    description: >-
+      Emitted when a session is refreshed via a refresh token. The payload is
+      a platform EventEnvelope whose `event_type` is
+      `iam.session_refreshed.v1`.
+    messages:
+      sessionRefreshed:
+        $ref: '#/components/messages/SessionRefreshedEvent'
+  sessionRevoked:
+    address: opengeobot.dev.iam.event.session_revoked.v1
+    description: >-
+      Emitted when a session is revoked, either by an explicit logout or by
+      an administrative/forced revocation. The payload is a platform
+      EventEnvelope whose `event_type` is `iam.session_revoked.v1`.
+    messages:
+      sessionRevoked:
+        $ref: '#/components/messages/SessionRevokedEvent'
+  userCreated:
+    address: opengeobot.dev.iam.event.user_created.v1
+    description: >-
+      Emitted when a new user account is created. The payload is a platform
+      EventEnvelope whose `event_type` is `iam.user_created.v1`.
+    messages:
+      userCreated:
+        $ref: '#/components/messages/UserCreatedEvent'
+  userStatusChanged:
+    address: opengeobot.dev.iam.event.user_status_changed.v1
+    description: >-
+      Emitted when a user account status transitions (enable, disable or lock).
+      The payload is a platform EventEnvelope whose `event_type` is
+      `iam.user_status_changed.v1`.
+    messages:
+      userStatusChanged:
+        $ref: '#/components/messages/UserStatusChangedEvent'
+  userRolesChanged:
+    address: opengeobot.dev.iam.event.user_roles_changed.v1
+    description: >-
+      Emitted when the set of roles assigned to a user is replaced. The
+      payload is a platform EventEnvelope whose `event_type` is
+      `iam.user_roles_changed.v1`.
+    messages:
+      userRolesChanged:
+        $ref: '#/components/messages/UserRolesChangedEvent'
+  roleChanged:
+    address: opengeobot.dev.iam.event.role_changed.v1
+    description: >-
+      Emitted when a role is created, updated, deleted or has its permissions
+      replaced. The payload is a platform EventEnvelope whose `event_type` is
+      `iam.role_changed.v1`.
+    messages:
+      roleChanged:
+        $ref: '#/components/messages/RoleChangedEvent'
+  authorizationChanged:
+    address: opengeobot.dev.iam.event.authorization_changed.v1
+    description: >-
+      Emitted when the effective authorization of a user changes, either
+      because the user's roles were reassigned or because a role the user holds
+      had its permissions replaced. Consumers should invalidate cached
+      authorization decisions for the affected user. The payload is a platform
+      EventEnvelope whose `event_type` is `iam.authorization_changed.v1`.
+    messages:
+      authorizationChanged:
+        $ref: '#/components/messages/AuthorizationChangedEvent'
+  platformDictionaryChanged:
+    address: opengeobot.dev.governance.event.platform_dictionary_changed.v1
+    description: >-
+      Emitted when a platform dictionary type or its items change (created,
+      updated, published, archived or deleted). Consumers reload the affected
+      dictionary type at the given version.
+    messages:
+      platformDictionaryChanged:
+        $ref: '#/components/messages/PlatformDictionaryChangedEvent'
+  platformI18nChanged:
+    address: opengeobot.dev.governance.event.platform_i18n_changed.v1
+    description: >-
+      Emitted when platform i18n resources change (created, updated,
+      batch-imported or deleted). Consumers reload the affected resource keys
+      for the given locale.
+    messages:
+      platformI18nChanged:
+        $ref: '#/components/messages/PlatformI18nChangedEvent'
+  platformConfigChanged:
+    address: opengeobot.dev.governance.event.platform_config_changed.v1
+    description: >-
+      Emitted when a platform config entry is created or updated via the config
+      API. Consumers reload the affected config key at the new version.
+    messages:
+      platformConfigChanged:
+        $ref: '#/components/messages/PlatformConfigChangedEvent'
+  exportRequested:
+    address: opengeobot.dev.governance.event.export_requested.v1
+    description: >-
+      Emitted when an asynchronous export task is created and queued for
+      processing. Consumers may use this to track export lifecycle.
+    messages:
+      exportRequested:
+        $ref: '#/components/messages/ExportRequestedEvent'
+  exportCompleted:
+    address: opengeobot.dev.governance.event.export_completed.v1
+    description: >-
+      Emitted when an export task reaches a terminal state (SUCCEEDED or
+      FAILED). Consumers may notify the requester or clean up resources.
+    messages:
+      exportCompleted:
+        $ref: '#/components/messages/ExportCompletedEvent'
 operations:
   publishHealthChanged:
     action: send
@@ -53,6 +168,97 @@ operations:
       $ref: '#/channels/webEvents'
     messages:
       - $ref: '#/components/messages/EventEnvelope'
+  publishUserLoggedIn:
+    action: send
+    title: Publish user logged in event
+    channel:
+      $ref: '#/channels/userLoggedIn'
+    messages:
+      - $ref: '#/components/messages/UserLoggedInEvent'
+  publishSessionRefreshed:
+    action: send
+    title: Publish session refreshed event
+    channel:
+      $ref: '#/channels/sessionRefreshed'
+    messages:
+      - $ref: '#/components/messages/SessionRefreshedEvent'
+  publishSessionRevoked:
+    action: send
+    title: Publish session revoked event
+    channel:
+      $ref: '#/channels/sessionRevoked'
+    messages:
+      - $ref: '#/components/messages/SessionRevokedEvent'
+  publishUserCreated:
+    action: send
+    title: Publish user created event
+    channel:
+      $ref: '#/channels/userCreated'
+    messages:
+      - $ref: '#/components/messages/UserCreatedEvent'
+  publishUserStatusChanged:
+    action: send
+    title: Publish user status changed event
+    channel:
+      $ref: '#/channels/userStatusChanged'
+    messages:
+      - $ref: '#/components/messages/UserStatusChangedEvent'
+  publishUserRolesChanged:
+    action: send
+    title: Publish user roles changed event
+    channel:
+      $ref: '#/channels/userRolesChanged'
+    messages:
+      - $ref: '#/components/messages/UserRolesChangedEvent'
+  publishRoleChanged:
+    action: send
+    title: Publish role changed event
+    channel:
+      $ref: '#/channels/roleChanged'
+    messages:
+      - $ref: '#/components/messages/RoleChangedEvent'
+  publishAuthorizationChanged:
+    action: send
+    title: Publish authorization changed event
+    channel:
+      $ref: '#/channels/authorizationChanged'
+    messages:
+      - $ref: '#/components/messages/AuthorizationChangedEvent'
+  publishPlatformDictionaryChanged:
+    action: send
+    title: Publish platform dictionary changed event
+    channel:
+      $ref: '#/channels/platformDictionaryChanged'
+    messages:
+      - $ref: '#/components/messages/PlatformDictionaryChangedEvent'
+  publishPlatformI18nChanged:
+    action: send
+    title: Publish platform i18n changed event
+    channel:
+      $ref: '#/channels/platformI18nChanged'
+    messages:
+      - $ref: '#/components/messages/PlatformI18nChangedEvent'
+  publishPlatformConfigChanged:
+    action: send
+    title: Publish platform config changed event
+    channel:
+      $ref: '#/channels/platformConfigChanged'
+    messages:
+      - $ref: '#/components/messages/PlatformConfigChangedEvent'
+  publishExportRequested:
+    action: send
+    title: Publish export requested event
+    channel:
+      $ref: '#/channels/exportRequested'
+    messages:
+      - $ref: '#/components/messages/ExportRequestedEvent'
+  publishExportCompleted:
+    action: send
+    title: Publish export completed event
+    channel:
+      $ref: '#/channels/exportCompleted'
+    messages:
+      - $ref: '#/components/messages/ExportCompletedEvent'
 components:
   messages:
     EventEnvelope:
@@ -103,3 +309,342 @@ components:
                   - name: nats
                     state: UNHEALTHY
                 version: 1.0.0
+    PlatformConfigChangedEvent:
+      description: >-
+        Platform config changed event. The payload is a platform EventEnvelope
+        whose `event_type` is `governance.platform_config_changed.v1` and whose
+        `data` carries the PlatformConfigChangedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/config-events.yaml#/PlatformConfigChangedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: governance.platform_config_changed.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T10:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                config_key: platform.session.timeout_minutes
+                old_value: '120'
+                new_value: '90'
+                module: iam
+                occurred_at: '2026-07-04T10:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    ExportRequestedEvent:
+      description: >-
+        Export requested event. The payload is a platform EventEnvelope whose
+        `event_type` is `governance.export_requested.v1` and whose `data`
+        carries the ExportRequestedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/config-events.yaml#/ExportRequestedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: governance.export_requested.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T08:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                export_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                resource_type: audit_log
+                format: csv
+                requested_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                occurred_at: '2026-07-04T08:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    ExportCompletedEvent:
+      description: >-
+        Export completed event. The payload is a platform EventEnvelope whose
+        `event_type` is `governance.export_completed.v1` and whose `data`
+        carries the ExportCompletedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/config-events.yaml#/ExportCompletedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: governance.export_completed.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T08:00:12Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: service
+                id: cloud-control
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                export_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                status: SUCCEEDED
+                file_url: https://minio.local/opengeobot/exports/01JX2Q3R4T5V6W7X8Y9Z0A1B2C.csv
+                file_size: 204800
+                occurred_at: '2026-07-04T08:00:12Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    UserLoggedInEvent:
+      description: >-
+        User logged in event. The payload is a platform EventEnvelope whose
+        `event_type` is `iam.user_logged_in.v1` and whose `data` carries the
+        UserLoggedInV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/iam-events.yaml#/UserLoggedInV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: iam.user_logged_in.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T08:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                user_id: usr_01J00000000000000000000001
+                username: admin
+                session_id: sess_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                occurred_at: '2026-07-04T08:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                source_ip: 192.168.1.42
+                user_agent: Mozilla/5.0 (X11; Linux x86_64) Chrome/126.0
+    SessionRefreshedEvent:
+      description: >-
+        Session refreshed event. The payload is a platform EventEnvelope whose
+        `event_type` is `iam.session_refreshed.v1` and whose `data` carries
+        the SessionRefreshedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/iam-events.yaml#/SessionRefreshedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: iam.session_refreshed.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T08:15:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                user_id: usr_01J00000000000000000000001
+                session_id: sess_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                occurred_at: '2026-07-04T08:15:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    SessionRevokedEvent:
+      description: >-
+        Session revoked event. The payload is a platform EventEnvelope whose
+        `event_type` is `iam.session_revoked.v1` and whose `data` carries the
+        SessionRevokedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/iam-events.yaml#/SessionRevokedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: iam.session_revoked.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T08:30:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                user_id: usr_01J00000000000000000000001
+                session_id: sess_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                reason: USER_LOGOUT
+                occurred_at: '2026-07-04T08:30:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    UserCreatedEvent:
+      description: >-
+        User created event. The payload is a platform EventEnvelope whose
+        `event_type` is `iam.user_created.v1` and whose `data` carries the
+        UserCreatedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/iam-rbac-events.yaml#/UserCreatedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: iam.user_created.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T09:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                user_id: usr_01J00000000000000000000002
+                username: newuser
+                org_ids:
+                  - org_01J00000000000000000000001
+                role_ids:
+                  - rol_01J00000000000000000000002
+                created_by: usr_01J00000000000000000000001
+                occurred_at: '2026-07-04T09:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    UserStatusChangedEvent:
+      description: >-
+        User status changed event. The payload is a platform EventEnvelope whose
+        `event_type` is `iam.user_status_changed.v1` and whose `data` carries
+        the UserStatusChangedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/iam-rbac-events.yaml#/UserStatusChangedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: iam.user_status_changed.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T09:30:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                user_id: usr_01J00000000000000000000001
+                old_status: ACTIVE
+                new_status: DISABLED
+                reason: ADMIN_DISABLED
+                occurred_at: '2026-07-04T09:30:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    UserRolesChangedEvent:
+      description: >-
+        User roles changed event. The payload is a platform EventEnvelope whose
+        `event_type` is `iam.user_roles_changed.v1` and whose `data` carries
+        the UserRolesChangedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/iam-rbac-events.yaml#/UserRolesChangedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: iam.user_roles_changed.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T10:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                user_id: usr_01J00000000000000000000001
+                old_role_ids:
+                  - rol_01J00000000000000000000002
+                new_role_ids:
+                  - rol_01J00000000000000000000001
+                occurred_at: '2026-07-04T10:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    RoleChangedEvent:
+      description: >-
+        Role changed event. The payload is a platform EventEnvelope whose
+        `event_type` is `iam.role_changed.v1` and whose `data` carries the
+        RoleChangedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/iam-rbac-events.yaml#/RoleChangedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: iam.role_changed.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T10:30:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                role_id: rol_01J00000000000000000000003
+                action: CREATED
+                occurred_at: '2026-07-04T10:30:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    AuthorizationChangedEvent:
+      description: >-
+        Authorization changed event. The payload is a platform EventEnvelope
+        whose `event_type` is `iam.authorization_changed.v1` and whose `data`
+        carries the AuthorizationChangedV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/iam-rbac-events.yaml#/AuthorizationChangedV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: iam.authorization_changed.v1
+              event_version: '1'
+              occurred_at: '2026-07-04T10:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                user_id: usr_01J00000000000000000000001
+                change_type: USER_ROLES_CHANGED
+                occurred_at: '2026-07-04T10:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

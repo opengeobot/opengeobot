@@ -1,0 +1,107 @@
+# Function: Permission query endpoint paths for F-PLATFORM-002
+# Time: 2026-07-04
+# Author: AxeXie
+
+permissionsCollection:
+  get:
+    tags: [permission]
+    summary: List all permission codes
+    description: >-
+      Returns all permission codes known to the platform. Permission codes are
+      code contracts used by the authorization module; they are not editable
+      dictionary data. Requires the `platform.permission.read` permission.
+    operationId: listPermissions
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: All permission codes.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/PermissionList'
+            example:
+              items:
+                - permission_code: platform.profile.read
+                  permission_name: View Profile
+                  module: iam
+                  description: View own profile
+                  risk_level: R1_NON_MOTION
+                - permission_code: platform.user.read
+                  permission_name: View Users
+                  module: iam
+                  description: View user list
+                  risk_level: R1_NON_MOTION
+                - permission_code: platform.user.manage
+                  permission_name: Manage Users
+                  module: iam
+                  description: Create/edit/disable users
+                  risk_level: R1_NON_MOTION
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.permission.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+permissionsByModule:
+  parameters:
+    - name: module
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Logical module to filter by.
+      example: iam
+  get:
+    tags: [permission]
+    summary: List permissions by module
+    description: >-
+      Returns permission codes belonging to the given module. Requires the
+      `platform.permission.read` permission.
+    operationId: listPermissionsByModule
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Permission codes for the module.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/iam.yaml#/PermissionList'
+            example:
+              items:
+                - permission_code: platform.profile.read
+                  permission_name: View Profile
+                  module: iam
+                  description: View own profile
+                  risk_level: R1_NON_MOTION
+                - permission_code: platform.profile.manage
+                  permission_name: Manage Profile
+                  module: iam
+                  description: Manage own profile
+                  risk_level: R1_NON_MOTION
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.permission.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No permissions found for the given module.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

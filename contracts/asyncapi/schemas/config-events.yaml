@@ -1,0 +1,156 @@
+# Function: Config and export event payload schemas for F-PLATFORM-004
+# Time: 2026-07-04
+# Author: AxeXie
+PlatformConfigChangedV1:
+  type: object
+  description: >-
+    Payload for the `governance.event.platform_config_changed.v1` event. Emitted
+    when a platform config entry is created or updated via the config API. The
+    `old_value` is absent when the config was just created. `trace_id` links the
+    change to the end-to-end trace context. All field names use snake_case.
+  required:
+    - event_id
+    - config_key
+    - new_value
+    - module
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    config_key:
+      type: string
+      description: Configuration key that was changed.
+      example: platform.session.timeout_minutes
+    old_value:
+      type: string
+      description: Previous config value. Absent when the config was created.
+      example: '120'
+    new_value:
+      type: string
+      description: New config value after the change.
+      example: '90'
+    module:
+      type: string
+      description: Logical module that owns the config.
+      example: iam
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the change occurred.
+      example: '2026-07-04T10:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the change to logs, metrics and
+        audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+ExportRequestedV1:
+  type: object
+  description: >-
+    Payload for the `governance.event.export_requested.v1` event. Emitted when
+    an asynchronous export task is created and queued for processing.
+    `trace_id` links the request to the end-to-end trace context. All field
+    names use snake_case.
+  required:
+    - event_id
+    - export_id
+    - resource_type
+    - format
+    - requested_by
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    export_id:
+      type: string
+      description: Unique identifier of the export task.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    resource_type:
+      type: string
+      description: Type of resource being exported.
+      example: audit_log
+    format:
+      type: string
+      description: Output file format for the export.
+      enum:
+        - csv
+        - json
+        - xlsx
+      example: csv
+    requested_by:
+      type: string
+      description: Identifier of the actor that requested the export.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the export was requested.
+      example: '2026-07-04T08:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the export request to logs, metrics
+        and audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+ExportCompletedV1:
+  type: object
+  description: >-
+    Payload for the `governance.event.export_completed.v1` event. Emitted when an
+    export task reaches a terminal state (`SUCCEEDED` or `FAILED`). `file_url`
+    and `file_size` are present only when `status` is `SUCCEEDED`. `trace_id`
+    links the completion to the end-to-end trace context. All field names use
+    snake_case.
+  required:
+    - event_id
+    - export_id
+    - status
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    export_id:
+      type: string
+      description: Unique identifier of the export task.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    status:
+      type: string
+      description: Terminal status of the export task.
+      enum:
+        - SUCCEEDED
+        - FAILED
+      example: SUCCEEDED
+    file_url:
+      type: string
+      format: uri
+      description: >-
+        Pre-signed download URL for the exported file. Present only when
+        `status` is `SUCCEEDED`.
+      example: https://minio.local/opengeobot/exports/01JX2Q3R4T5V6W7X8Y9Z0A1B2C.csv
+    file_size:
+      type: integer
+      format: int64
+      description: Size of the exported file in bytes. Present only on success.
+      example: 204800
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the export completed.
+      example: '2026-07-04T08:00:12Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the export completion to logs,
+        metrics and audit records.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

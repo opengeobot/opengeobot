@@ -1,0 +1,399 @@
+# Function: OpenAPI path items for F-PLATFORM-004 platform config API
+# Time: 2026-07-04
+# Author: AxeXie
+configs:
+  get:
+    tags: [config]
+    summary: List platform configs
+    description: >-
+      Returns a paginated list of platform config entries. Results can be
+      filtered by `module` and by a case-insensitive prefix match on `key`.
+      Encrypted configs have their `config_value` masked.
+    operationId: listConfigs
+    parameters:
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: module
+        in: query
+        description: Filter by owning module.
+        schema:
+          type: string
+        example: iam
+      - name: key
+        in: query
+        description: Case-insensitive prefix match on `config_key`.
+        schema:
+          type: string
+        example: platform.session
+    responses:
+      '200':
+        description: Paginated list of config entries.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Paginated response wrapper for config entries.
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/config.yaml#/SysConfig'
+                total:
+                  type: integer
+                  format: int64
+                  description: Total number of matching records.
+                  example: 42
+                page:
+                  type: integer
+                  description: Current page number.
+                  example: 1
+                page_size:
+                  type: integer
+                  description: Number of items per page.
+                  example: 20
+            example:
+              items:
+                - config_key: platform.session.timeout_minutes
+                  config_value: '120'
+                  value_type: number
+                  module: iam
+                  description: Session timeout in minutes
+                  encrypted: false
+                  version: 1
+                  status: ACTIVE
+                  created_at: '2026-07-04T08:00:00Z'
+                  updated_at: '2026-07-04T08:00:00Z'
+              total: 10
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to list configs.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [config]
+    summary: Create a platform config
+    description: >-
+      Creates a new platform config entry. The `config_key` must be unique; a
+      duplicate returns `CONFIG_KEY_EXISTS`. Encrypted configs are encrypted
+      server-side before persistence.
+    operationId: createConfig
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/config.yaml#/CreateConfigRequest'
+          example:
+            config_key: platform.session.timeout_minutes
+            config_value: '120'
+            value_type: number
+            module: iam
+            description: Session timeout in minutes
+            encrypted: false
+    responses:
+      '201':
+        description: Config created successfully.
+        headers:
+          Location:
+            description: URL of the created config.
+            schema:
+              type: string
+              format: uri
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/config.yaml#/SysConfig'
+            example:
+              config_key: platform.session.timeout_minutes
+              config_value: '120'
+              value_type: number
+              module: iam
+              description: Session timeout in minutes
+              encrypted: false
+              version: 1
+              status: ACTIVE
+              created_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              updated_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T08:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to create configs.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: A config with the given key already exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Config key exists
+              status: 409
+              code: CONFIG_KEY_EXISTS
+              message_key: error.config.key_exists
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /configs
+configByKey:
+  get:
+    tags: [config]
+    summary: Get a platform config by key
+    description: >-
+      Returns the current active config entry for the given `configKey`.
+      Encrypted configs have their `config_value` masked.
+    operationId: getConfig
+    parameters:
+      - name: configKey
+        in: path
+        description: Unique configuration key.
+        required: true
+        schema:
+          type: string
+        example: platform.session.timeout_minutes
+    responses:
+      '200':
+        description: The requested config entry.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/config.yaml#/SysConfig'
+            example:
+              config_key: platform.session.timeout_minutes
+              config_value: '120'
+              value_type: number
+              module: iam
+              description: Session timeout in minutes
+              encrypted: false
+              version: 3
+              status: ACTIVE
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T09:30:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to read configs.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No config found for the given key.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Config not found
+              status: 404
+              code: CONFIG_NOT_FOUND
+              message_key: error.config.not_found
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /configs/platform.session.timeout_minutes
+  put:
+    tags: [config]
+    summary: Update a platform config
+    description: >-
+      Updates the value and/or description of an existing config. On success the
+      `version` is incremented and a history row is appended to
+      sys_config_history. A `platform_config_changed.v1` event is published via
+      the transactional outbox.
+    operationId: updateConfig
+    parameters:
+      - name: configKey
+        in: path
+        description: Unique configuration key.
+        required: true
+        schema:
+          type: string
+        example: platform.session.timeout_minutes
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/config.yaml#/UpdateConfigRequest'
+          example:
+            config_value: '90'
+            description: Session timeout in minutes (reduced)
+    responses:
+      '200':
+        description: Config updated successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/config.yaml#/SysConfig'
+            example:
+              config_key: platform.session.timeout_minutes
+              config_value: '90'
+              value_type: number
+              module: iam
+              description: Session timeout in minutes (reduced)
+              encrypted: false
+              version: 4
+              status: ACTIVE
+              updated_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T10:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to update configs.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No config found for the given key.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+configHistory:
+  get:
+    tags: [config]
+    summary: Get config version history
+    description: >-
+      Returns the version history for the given config key, ordered from newest
+      to oldest. The history is read from the append-only sys_config_history
+      table.
+    operationId: getConfigHistory
+    parameters:
+      - name: configKey
+        in: path
+        description: Unique configuration key.
+        required: true
+        schema:
+          type: string
+        example: platform.session.timeout_minutes
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+    responses:
+      '200':
+        description: Paginated version history for the config.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Paginated response wrapper for config history entries.
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/config.yaml#/ConfigHistory'
+                total:
+                  type: integer
+                  format: int64
+                  description: Total number of history records.
+                  example: 4
+                page:
+                  type: integer
+                  description: Current page number.
+                  example: 1
+                page_size:
+                  type: integer
+                  description: Number of items per page.
+                  example: 20
+            example:
+              items:
+                - config_key: platform.session.timeout_minutes
+                  config_value: '90'
+                  value_type: number
+                  module: iam
+                  version: 4
+                  change_type: UPDATED
+                  updated_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                  updated_at: '2026-07-04T10:00:00Z'
+                  trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              total: 4
+              page: 1
+              page_size: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks permission to read config history.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No config found for the given key.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

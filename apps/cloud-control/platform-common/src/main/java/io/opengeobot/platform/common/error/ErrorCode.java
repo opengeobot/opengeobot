@@ -18,7 +18,12 @@ public enum ErrorCode {
     PERMISSION_DENIED("PERMISSION_DENIED", "Permission denied", 403, "error.permission_denied"),
     CONFLICT("CONFLICT", "Resource conflict", 409, "error.conflict"),
     UNPROCESSABLE_ENTITY("UNPROCESSABLE_ENTITY", "Unprocessable entity", 422, "error.unprocessable_entity"),
-    HEALTH_NOT_READY("HEALTH_NOT_READY", "Service not ready", 503, "error.health.not_ready");
+    HEALTH_NOT_READY("HEALTH_NOT_READY", "Service not ready", 503, "error.health.not_ready"),
+    AUTH_INVALID_CREDENTIALS("AUTH_INVALID_CREDENTIALS", "Invalid credentials", 401, "error.auth.invalid_credentials"),
+    AUTH_INVALID_REFRESH_TOKEN("AUTH_INVALID_REFRESH_TOKEN", "Invalid refresh token", 401, "error.auth.invalid_refresh_token"),
+    AUTH_UNAUTHORIZED("AUTH_UNAUTHORIZED", "Unauthorized", 401, "error.auth.unauthorized"),
+    AUTH_ACCOUNT_DISABLED("AUTH_ACCOUNT_DISABLED", "Account is disabled", 403, "error.auth.account_disabled"),
+    AUTH_ACCOUNT_LOCKED("AUTH_ACCOUNT_LOCKED", "Account is locked", 403, "error.auth.account_locked");
 
     private final String code;
     private final String title;

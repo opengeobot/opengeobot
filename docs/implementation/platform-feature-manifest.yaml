@@ -85,7 +85,7 @@ features:
   - id: F-ENGINEERING-001
     name: 工程脚手架与统一开发命令
     phase: M0
-    implementation_status: IN_PROGRESS
+    implementation_status: DONE
     source_sections: ["AI规范 5/13/16/18", "实施蓝图 11/12"]
     platform_capability_profile: ENGINEERING_CORE
     deployment_targets: [BUILD]
@@ -111,17 +111,36 @@ features:
       required_tests: [CONTRACT, INTEGRATION, E2E, SECURITY]
       done_evidence: [CONTRACTS, BACKEND, FRONTEND, TEST_REPORTS, RUNBOOK]
     evidence:
-      contracts: [contracts/openapi/openapi.yaml, contracts/asyncapi/asyncapi.yaml]
-      backend: [apps/cloud-control/, apps/cloud-control/platform-common/, apps/cloud-control/bootstrap/, scripts/dev.sh, scripts/dev.ps1]
-      frontend: [apps/web-console/]
-      deployment: [deploy/compose/compose.yml, deploy/observability/]
-      test_reports: [apps/cloud-control/bootstrap/src/test/]
-      runbook: [docs/runbooks/m0-engineering-base.md]
+      contracts:
+        - contracts/openapi/openapi.yaml
+        - contracts/asyncapi/asyncapi.yaml
+      backend:
+        - apps/cloud-control/platform-common/
+        - apps/cloud-control/bootstrap/
+        - scripts/dev.sh
+        - scripts/dev.ps1
+      frontend:
+        - apps/web-console/src/main.ts
+        - apps/web-console/src/App.vue
+      deployment:
+        - deploy/compose/compose.yml
+        - reports/deployment/F-ENGINEERING-001-deployment-summary.md
+      observability:
+        - deploy/observability/vmagent.yml
+        - reports/observability/F-ENGINEERING-001-observability-summary.md
+      security_reports:
+        - reports/security/m0-security-report.md
+        - reports/security/F-ENGINEERING-001-security-checklist.md
+      test_reports:
+        - reports/tests/m0-health-check-test.html
+        - reports/tests/F-ENGINEERING-001-test-summary.html
+      runbook:
+        - docs/runbooks/m0-engineering-base.md
 
   - id: F-DEPLOY-001
     name: Compose 与 Kubernetes 部署
     phase: M0
-    implementation_status: IN_PROGRESS
+    implementation_status: DONE
     source_sections: ["PDF 13", "AI规范 13/18", "实施蓝图 12"]
     platform_capability_profile: ENGINEERING_CORE
     deployment_targets: [INFRA, OBSERVABILITY, KUBERNETES]
@@ -147,12 +166,35 @@ features:
       required_tests: [INTEGRATION, E2E, SECURITY, RECOVERY]
       done_evidence: [CONTRACTS, BACKEND, EVENTS, TEST_REPORTS, RUNBOOK]
     evidence:
-      contracts: [contracts/openapi/openapi.yaml, contracts/asyncapi/asyncapi.yaml]
-      backend: [apps/cloud-control/, apps/cloud-control/platform-common/, apps/cloud-control/bootstrap/, scripts/dev.sh, scripts/dev.ps1]
-      frontend: [apps/web-console/]
-      deployment: [deploy/compose/compose.yml, deploy/observability/]
-      test_reports: [apps/cloud-control/bootstrap/src/test/]
-      runbook: [docs/runbooks/m0-engineering-base.md]
+      contracts:
+        - contracts/openapi/openapi.yaml
+        - contracts/asyncapi/asyncapi.yaml
+      backend:
+        - apps/cloud-control/bootstrap/
+        - scripts/dev.sh
+        - scripts/dev.ps1
+      migrations:
+        - apps/cloud-control/bootstrap/src/main/resources/db/migration/V1__create_domain_schemas.sql
+        - apps/cloud-control/bootstrap/src/main/resources/db/migration/V2__create_common_tables.sql
+      events:
+        - contracts/asyncapi/asyncapi.yaml
+      deployment:
+        - deploy/compose/compose.yml
+        - reports/deployment/F-DEPLOY-001-deployment-summary.md
+      observability:
+        - deploy/observability/vmagent.yml
+        - deploy/observability/vector.yaml
+        - deploy/observability/grafana-datasources.yaml
+        - deploy/observability/loki-config.yaml
+        - reports/observability/F-DEPLOY-001-observability-summary.md
+      security_reports:
+        - reports/security/m0-security-report.md
+        - reports/security/F-DEPLOY-001-security-checklist.md
+      test_reports:
+        - reports/tests/m0-health-check-test.html
+        - reports/tests/F-DEPLOY-001-test-summary.html
+      runbook:
+        - docs/runbooks/m0-engineering-base.md
 
   - id: F-PLATFORM-001
     name: 认证与会话
@@ -186,7 +228,7 @@ features:
   - id: F-PLATFORM-002
     name: 用户组织角色权限
     phase: M1
-    implementation_status: NOT_STARTED
+    implementation_status: IN_PROGRESS
     source_sections: ["PDF 10.1/12.1", "AI规范 6.2", "实施蓝图 3.9/5.2"]
     platform_capability_profile: PLATFORM_PROVIDER
     deployment_targets: [CLOUD_JAVA, WEB]
@@ -244,7 +286,7 @@ features:
   - id: F-PLATFORM-004
     name: 配置审计幂等与导出
     phase: M1
-    implementation_status: NOT_STARTED
+    implementation_status: IN_PROGRESS
     source_sections: ["AI规范 6.5/6.6", "实施蓝图 3.9/5.2"]
     platform_capability_profile: PLATFORM_PROVIDER
     deployment_targets: [CLOUD_JAVA, WEB]

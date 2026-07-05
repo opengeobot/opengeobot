@@ -10,3 +10,13 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration
+
+platform:
+  jwt:
+    secret: test-secret-key-for-unit-tests-at-least-256-bits-long-for-hs256
+    access-token-expiry-seconds: 1800
+    refresh-token-expiry-days: 7

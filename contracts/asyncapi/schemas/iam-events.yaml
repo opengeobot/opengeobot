@@ -1,0 +1,135 @@
+# Function: IAM event payload schemas for F-PLATFORM-001 authentication and sessions
+# Time: 2026-07-04
+# Author: AxeXie
+UserLoggedInV1:
+  type: object
+  description: >-
+    Payload emitted when a user successfully authenticates and a new session is
+    issued. Carried as the `data` field of the platform EventEnvelope with
+    `event_type` equal to `iam.user_logged_in.v1`. All field names use
+    snake_case.
+  required:
+    - event_id
+    - user_id
+    - username
+    - session_id
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    user_id:
+      type: string
+      description: Stable public identifier of the authenticated user.
+      example: usr_01J00000000000000000000001
+    username:
+      type: string
+      description: Login name of the authenticated user.
+      example: admin
+    session_id:
+      type: string
+      description: Identifier of the session created by this login.
+      example: sess_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the login occurred.
+      example: '2026-07-04T08:00:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the login to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    source_ip:
+      type: string
+      description: Source IP address of the login request.
+      example: 192.168.1.42
+    user_agent:
+      type: string
+      description: User-Agent header of the login request.
+      example: Mozilla/5.0 (X11; Linux x86_64) Chrome/126.0
+SessionRefreshedV1:
+  type: object
+  description: >-
+    Payload emitted when a session is refreshed via a refresh token. Carried as
+    the `data` field of the platform EventEnvelope with `event_type` equal to
+    `iam.session_refreshed.v1`. All field names use snake_case.
+  required:
+    - event_id
+    - user_id
+    - session_id
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    user_id:
+      type: string
+      description: Stable public identifier of the user whose session was refreshed.
+      example: usr_01J00000000000000000000001
+    session_id:
+      type: string
+      description: Identifier of the session that was refreshed.
+      example: sess_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the refresh occurred.
+      example: '2026-07-04T08:15:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the refresh to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+SessionRevokedV1:
+  type: object
+  description: >-
+    Payload emitted when a session is revoked, either by an explicit logout or
+    by an administrative/forced revocation. Carried as the `data` field of the
+    platform EventEnvelope with `event_type` equal to `iam.session_revoked.v1`.
+    All field names use snake_case.
+  required:
+    - event_id
+    - user_id
+    - session_id
+    - reason
+    - occurred_at
+    - trace_id
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the event occurrence (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    user_id:
+      type: string
+      description: Stable public identifier of the user whose session was revoked.
+      example: usr_01J00000000000000000000001
+    session_id:
+      type: string
+      description: Identifier of the session that was revoked.
+      example: sess_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    reason:
+      type: string
+      description: >-
+        Machine-readable reason for the revocation. This is a code contract,
+        not localized text.
+      enum:
+        - USER_LOGOUT
+        - ADMIN_REVOKED
+        - EXPIRED
+        - SECURITY_POLICY
+      example: USER_LOGOUT
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the revocation occurred.
+      example: '2026-07-04T08:30:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the revocation to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

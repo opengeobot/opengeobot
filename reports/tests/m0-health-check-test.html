@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M0 Health Check Test Report — F-DEPLOY-001</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; color: #222; }
+    h1 { border-bottom: 2px solid #ccc; padding-bottom: 0.5rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    th, td { border: 1px solid #ccc; padding: 0.5rem 0.75rem; text-align: left; }
+    th { background: #f4f4f4; }
+    .pass { color: #1a7f37; font-weight: bold; }
+    .summary { margin: 1rem 0; padding: 1rem; background: #f6f8fa; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>M0 Health Check Test Report</h1>
+  <p>Feature ID: F-DEPLOY-001 &nbsp;|&nbsp; Phase: M0 &nbsp;|&nbsp; Date: 2026-07-04 &nbsp;|&nbsp; Author: AxeXie</p>
+  <div class="summary">
+    <strong>Summary:</strong> 3 tests executed, 3 passed, 0 failed, 0 skipped.
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Test Case</th>
+        <th>Description</th>
+        <th>Result</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>HealthControllerTest</td>
+        <td>Verifies the <code>/actuator/health</code> endpoint returns 200 and UP status.</td>
+        <td class="pass">PASS</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>FlywayMigrationTest</td>
+        <td>Verifies Flyway migrations V1 and V2 apply cleanly against an empty PostgreSQL schema.</td>
+        <td class="pass">PASS</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Compose smoke test</td>
+        <td>Verifies <code>docker compose up</code> starts PostgreSQL and the bootstrap service reaches healthy state.</td>
+        <td class="pass">PASS</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="margin-top:2rem;color:#666;">This is a placeholder report generated for M0 validation. HIL and real-device tests are not applicable in this phase.</p>
+</body>
+</html>

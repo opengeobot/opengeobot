@@ -1,5 +1,5 @@
 # Function: OpenGeoBot Cloud Control API root contract (OpenAPI 3.1.0)
-# Time: 2026-07-03
+# Time: 2026-07-04
 # Author: AxeXie
 openapi: 3.1.0
 info:
@@ -18,6 +18,34 @@ servers:
 tags:
   - name: health
     description: Service health, readiness and version info
+  - name: auth
+    description: Authentication, session and profile management
+  - name: user
+    description: >-
+      User account management, status transitions and role/org assignment
+      (F-PLATFORM-002).
+  - name: organization
+    description: >-
+      Organization tree management for the platform IAM domain
+      (F-PLATFORM-002).
+  - name: role
+    description: >-
+      Role definition and permission assignment management (F-PLATFORM-002).
+  - name: permission
+    description: >-
+      Permission code queries used by the authorization module
+      (F-PLATFORM-002).
+  - name: dictionary
+    description: >-
+      Platform dictionary types and items for enumerated values (SM-VERSIONED-CONFIG).
+  - name: i18n
+    description: Internationalization resource management for frontend-visible text.
+  - name: config
+    description: Platform configuration management (F-PLATFORM-004)
+  - name: audit
+    description: Operation audit log queries (F-PLATFORM-004)
+  - name: export
+    description: Asynchronous data export (F-PLATFORM-004)
 paths:
   /health/live:
     get:
@@ -108,12 +136,145 @@ paths:
                 build_time: '2026-07-03T07:00:00Z'
                 java_version: 21
                 spring_boot_version: 3.3.0
+  /auth/login:
+    $ref: './paths/auth.yaml#/login'
+  /auth/refresh:
+    $ref: './paths/auth.yaml#/refresh'
+  /auth/logout:
+    $ref: './paths/auth.yaml#/logout'
+  /profile:
+    $ref: './paths/auth.yaml#/profile'
+  /users:
+    $ref: './paths/user.yaml#/usersCollection'
+  /users/{userId}:
+    $ref: './paths/user.yaml#/userItem'
+  /users/{userId}/status:
+    $ref: './paths/user.yaml#/userStatus'
+  /users/{userId}/roles:
+    $ref: './paths/user.yaml#/userRoles'
+  /users/{userId}/orgs:
+    $ref: './paths/user.yaml#/userOrgs'
+  /orgs:
+    $ref: './paths/org.yaml#/orgsCollection'
+  /orgs/{orgId}:
+    $ref: './paths/org.yaml#/orgItem'
+  /roles:
+    $ref: './paths/role.yaml#/rolesCollection'
+  /roles/{roleId}:
+    $ref: './paths/role.yaml#/roleItem'
+  /roles/{roleId}/permissions:
+    $ref: './paths/role.yaml#/rolePermissions'
+  /permissions:
+    $ref: './paths/permission.yaml#/permissionsCollection'
+  /permissions/module/{module}:
+    $ref: './paths/permission.yaml#/permissionsByModule'
+  /dict/types:
+    $ref: './paths/dict.yaml#/dictTypesCollection'
+  /dict/types/{type_code}:
+    $ref: './paths/dict.yaml#/dictTypeItem'
+  /dict/types/{type_code}/items:
+    $ref: './paths/dict.yaml#/dictItemsCollection'
+  /dict/types/{type_code}/items/{item_code}:
+    $ref: './paths/dict.yaml#/dictItemResource'
+  /dict/types/{type_code}/publish:
+    $ref: './paths/dict.yaml#/dictPublish'
+  /i18n/resources:
+    $ref: './paths/dict.yaml#/i18nResourcesCollection'
+  /i18n/resources/{resource_key}:
+    $ref: './paths/dict.yaml#/i18nResourceItem'
+  /i18n/resources/batch:
+    $ref: './paths/dict.yaml#/i18nBatchImport'
+  /configs:
+    $ref: './paths/config.yaml#/configs'
+  /configs/{configKey}:
+    $ref: './paths/config.yaml#/configByKey'
+  /configs/{configKey}/history:
+    $ref: './paths/config.yaml#/configHistory'
+  /audits:
+    $ref: './paths/audit.yaml#/audits'
+  /exports:
+    $ref: './paths/export.yaml#/exports'
+  /exports/{exportId}:
+    $ref: './paths/export.yaml#/exportById'
+  /exports/{exportId}/download:
+    $ref: './paths/export.yaml#/exportDownload'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        Bearer JWT authentication. Permission codes (e.g.
+        platform.dictionary.read) are enforced server-side via the platform
+        authorization module; clients only need a valid access token.
   schemas:
     ProblemDetails:
       $ref: './schemas/error.yaml#/ProblemDetails'
     ServiceHealth:
       $ref: './schemas/service-health.yaml#/ServiceHealth'
+    User:
+      $ref: './schemas/iam.yaml#/User'
+    UserPage:
+      $ref: './schemas/iam.yaml#/UserPage'
+    CreateUserRequest:
+      $ref: './schemas/iam.yaml#/CreateUserRequest'
+    UpdateUserRequest:
+      $ref: './schemas/iam.yaml#/UpdateUserRequest'
+    UpdateUserStatusRequest:
+      $ref: './schemas/iam.yaml#/UpdateUserStatusRequest'
+    AssignRolesRequest:
+      $ref: './schemas/iam.yaml#/AssignRolesRequest'
+    AssignOrgsRequest:
+      $ref: './schemas/iam.yaml#/AssignOrgsRequest'
+    RoleAssignment:
+      $ref: './schemas/iam.yaml#/RoleAssignment'
+    Organization:
+      $ref: './schemas/iam.yaml#/Organization'
+    OrgTreeNode:
+      $ref: './schemas/iam.yaml#/OrgTreeNode'
+    CreateOrgRequest:
+      $ref: './schemas/iam.yaml#/CreateOrgRequest'
+    UpdateOrgRequest:
+      $ref: './schemas/iam.yaml#/UpdateOrgRequest'
+    Role:
+      $ref: './schemas/iam.yaml#/Role'
+    RolePage:
+      $ref: './schemas/iam.yaml#/RolePage'
+    CreateRoleRequest:
+      $ref: './schemas/iam.yaml#/CreateRoleRequest'
+    UpdateRoleRequest:
+      $ref: './schemas/iam.yaml#/UpdateRoleRequest'
+    AssignPermissionsRequest:
+      $ref: './schemas/iam.yaml#/AssignPermissionsRequest'
+    PermissionAssignment:
+      $ref: './schemas/iam.yaml#/PermissionAssignment'
+    Permission:
+      $ref: './schemas/iam.yaml#/Permission'
+    PermissionList:
+      $ref: './schemas/iam.yaml#/PermissionList'
+    DictType:
+      $ref: './schemas/dict.yaml#/DictType'
+    DictItem:
+      $ref: './schemas/dict.yaml#/DictItem'
+    I18nResource:
+      $ref: './schemas/dict.yaml#/I18nResource'
+    BatchI18nRequest:
+      $ref: './schemas/dict.yaml#/BatchI18nRequest'
+    SysConfig:
+      $ref: './schemas/config.yaml#/SysConfig'
+    CreateConfigRequest:
+      $ref: './schemas/config.yaml#/CreateConfigRequest'
+    UpdateConfigRequest:
+      $ref: './schemas/config.yaml#/UpdateConfigRequest'
+    ConfigHistory:
+      $ref: './schemas/config.yaml#/ConfigHistory'
+    AuditLog:
+      $ref: './schemas/audit.yaml#/AuditLog'
+    CreateExportRequest:
+      $ref: './schemas/export.yaml#/CreateExportRequest'
+    ExportTask:
+      $ref: './schemas/export.yaml#/ExportTask'
     VersionInfo:
       type: object
       description: Build and runtime version information.

@@ -1,0 +1,886 @@
+# Function: Dictionary and i18n REST path definitions for F-PLATFORM-003
+# Time: 2026-07-04
+# Author: AxeXie
+
+dictTypesCollection:
+  get:
+    tags: [dictionary]
+    summary: List dictionary types
+    description: >-
+      Returns a paginated list of dictionary types. Results can be filtered by
+      `status`. Requires the `platform.dictionary.read` permission.
+    operationId: listDictTypes
+    parameters:
+      - $ref: '#/components/parameters/PageParam'
+      - $ref: '#/components/parameters/PageSizeParam'
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [DRAFT, PUBLISHED, ARCHIVED]
+        description: Filter dictionary types by lifecycle status.
+        example: PUBLISHED
+      - name: type_code
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter by exact type code (partial match).
+        example: user
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Paginated list of dictionary types.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/DictTypePage'
+            example:
+              items:
+                - type_code: user_status
+                  type_name: 用户状态
+                  description: User status enum
+                  status: PUBLISHED
+                  version: 1
+                  published_version: 1
+                  created_at: '2026-07-04T08:00:00Z'
+                  updated_at: '2026-07-04T08:00:00Z'
+              total: 1
+              page: 1
+              page_size: 20
+              total_pages: 1
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.dictionary.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [dictionary]
+    summary: Create a dictionary type
+    description: >-
+      Creates a new dictionary type in DRAFT status. The `type_code` must be
+      unique. Requires the `platform.dictionary.manage` permission. Supports
+      idempotency via the `Idempotency-Key` header.
+    operationId: createDictType
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKeyParam'
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/dict.yaml#/CreateDictTypeRequest'
+          example:
+            type_code: robot_status
+            type_name: 机器人状态
+            description: Robot status enum
+    responses:
+      '201':
+        description: Dictionary type created.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/DictType'
+            example:
+              type_code: robot_status
+              type_name: 机器人状态
+              description: Robot status enum
+              status: DRAFT
+              version: 1
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T08:00:00Z'
+      '400':
+        description: Invalid request body or duplicate type_code.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.dictionary.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: A dictionary type with the same type_code already exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+dictTypeItem:
+  parameters:
+    - $ref: '#/components/parameters/TypeCodeParam'
+  get:
+    tags: [dictionary]
+    summary: Get a dictionary type
+    description: >-
+      Returns a single dictionary type by its `type_code`. Requires the
+      `platform.dictionary.read` permission.
+    operationId: getDictType
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Dictionary type details.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/DictType'
+            example:
+              type_code: user_status
+              type_name: 用户状态
+              description: User status enum
+              status: PUBLISHED
+              version: 1
+              published_version: 1
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T08:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.dictionary.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Dictionary type not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  put:
+    tags: [dictionary]
+    summary: Update a dictionary type
+    description: >-
+      Updates the `type_name` or `description` of a dictionary type. The
+      `type_code` cannot be changed. Requires the
+      `platform.dictionary.manage` permission. Supports idempotency via the
+      `Idempotency-Key` header.
+    operationId: updateDictType
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKeyParam'
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/dict.yaml#/UpdateDictTypeRequest'
+          example:
+            type_name: 用户状态
+            description: Updated description
+    responses:
+      '200':
+        description: Dictionary type updated.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/DictType'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.dictionary.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Dictionary type not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  delete:
+    tags: [dictionary]
+    summary: Delete a dictionary type
+    description: >-
+      Soft-deletes a dictionary type by archiving it. Only DRAFT or ARCHIVED
+      types can be deleted; PUBLISHED types must be archived first. Requires
+      the `platform.dictionary.manage` permission.
+    operationId: deleteDictType
+    security:
+      - bearerAuth: []
+    responses:
+      '204':
+        description: Dictionary type deleted.
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.dictionary.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Dictionary type not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Type is PUBLISHED and must be archived first.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+dictItemsCollection:
+  parameters:
+    - $ref: '#/components/parameters/TypeCodeParam'
+  get:
+    tags: [dictionary]
+    summary: List dictionary items by type
+    description: >-
+      Returns a paginated list of items belonging to the dictionary type
+      identified by `type_code`. Results can be filtered by `status`. Requires
+      the `platform.dictionary.read` permission.
+    operationId: listDictItems
+    parameters:
+      - $ref: '#/components/parameters/PageParam'
+      - $ref: '#/components/parameters/PageSizeParam'
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [ACTIVE, INACTIVE, ARCHIVED]
+        description: Filter dictionary items by lifecycle status.
+        example: ACTIVE
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Paginated list of dictionary items.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/DictItemPage'
+            example:
+              items:
+                - type_code: user_status
+                  item_code: active
+                  item_value: ACTIVE
+                  label_zh_cn: 启用
+                  label_en_us: Active
+                  sort_order: 1
+                  status: ACTIVE
+                  version: 1
+              total: 3
+              page: 1
+              page_size: 20
+              total_pages: 1
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.dictionary.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Dictionary type not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [dictionary]
+    summary: Create a dictionary item
+    description: >-
+      Creates a new item under the dictionary type identified by `type_code`.
+      The `item_code` must be unique within the type. Requires the
+      `platform.dictionary.manage` permission. Supports idempotency via the
+      `Idempotency-Key` header.
+    operationId: createDictItem
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKeyParam'
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/dict.yaml#/CreateDictItemRequest'
+          example:
+            item_code: active
+            item_value: ACTIVE
+            label_zh_cn: 启用
+            label_en_us: Active
+            sort_order: 1
+    responses:
+      '201':
+        description: Dictionary item created.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/DictItem'
+            example:
+              type_code: user_status
+              item_code: active
+              item_value: ACTIVE
+              label_zh_cn: 启用
+              label_en_us: Active
+              sort_order: 1
+              status: ACTIVE
+              version: 1
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T08:00:00Z'
+      '400':
+        description: Invalid request body or duplicate item_code.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.dictionary.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Parent dictionary type not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: An item with the same item_code already exists in this type.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+dictItemResource:
+  parameters:
+    - $ref: '#/components/parameters/TypeCodeParam'
+    - $ref: '#/components/parameters/ItemCodeParam'
+  put:
+    tags: [dictionary]
+    summary: Update a dictionary item
+    description: >-
+      Updates an existing dictionary item. The `item_code` cannot be changed.
+      Requires the `platform.dictionary.manage` permission. Supports
+      idempotency via the `Idempotency-Key` header.
+    operationId: updateDictItem
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKeyParam'
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/dict.yaml#/UpdateDictItemRequest'
+          example:
+            item_value: ACTIVE
+            label_zh_cn: 启用
+            label_en_us: Active
+            sort_order: 1
+            status: ACTIVE
+    responses:
+      '200':
+        description: Dictionary item updated.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/DictItem'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.dictionary.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Dictionary type or item not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  delete:
+    tags: [dictionary]
+    summary: Delete a dictionary item
+    description: >-
+      Soft-deletes a dictionary item by archiving it. Requires the
+      `platform.dictionary.manage` permission.
+    operationId: deleteDictItem
+    security:
+      - bearerAuth: []
+    responses:
+      '204':
+        description: Dictionary item deleted.
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.dictionary.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Dictionary type or item not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+dictPublish:
+  parameters:
+    - $ref: '#/components/parameters/TypeCodeParam'
+  post:
+    tags: [dictionary]
+    summary: Publish a dictionary type version
+    description: >-
+      Publishes the current working version of a dictionary type, making it
+      available to consumers. The `published_version` is set to the current
+      `version` and `status` transitions to PUBLISHED. Emits a
+      `platform.dictionary.changed.v1` event with action PUBLISHED. Requires
+      the `platform.dictionary.manage` permission. Supports idempotency via
+      the `Idempotency-Key` header.
+    operationId: publishDictType
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKeyParam'
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Dictionary type published.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/DictType'
+            example:
+              type_code: user_status
+              type_name: 用户状态
+              status: PUBLISHED
+              version: 1
+              published_version: 1
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T08:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.dictionary.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Dictionary type not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Type is already published at this version.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+i18nResourcesCollection:
+  get:
+    tags: [i18n]
+    summary: List i18n resources
+    description: >-
+      Returns a paginated list of i18n resources. Results can be filtered by
+      `locale` and `module`. Requires the `platform.i18n.read` permission.
+    operationId: listI18nResources
+    parameters:
+      - $ref: '#/components/parameters/PageParam'
+      - $ref: '#/components/parameters/PageSizeParam'
+      - name: locale
+        in: query
+        required: false
+        schema:
+          type: string
+        description: BCP 47 locale tag to filter by (e.g. zh-CN, en-US).
+        example: zh-CN
+      - name: module
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Logical module to filter by.
+        example: platform
+      - name: resource_key
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter by partial resource key match.
+        example: error.health
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Paginated list of i18n resources.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/I18nResourcePage'
+            example:
+              items:
+                - resource_key: error.health.not_ready
+                  locale: zh-CN
+                  resource_value: 服务未就绪
+                  module: platform
+                  description: Error shown when the service is not ready
+                  created_at: '2026-07-04T08:00:00Z'
+                  updated_at: '2026-07-04T08:00:00Z'
+              total: 1
+              page: 1
+              page_size: 20
+              total_pages: 1
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.i18n.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [i18n]
+    summary: Create an i18n resource
+    description: >-
+      Creates a new i18n resource entry. The combination of `resource_key` and
+      `locale` must be unique. Requires the `platform.i18n.manage` permission.
+      Supports idempotency via the `Idempotency-Key` header.
+    operationId: createI18nResource
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKeyParam'
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/dict.yaml#/CreateI18nResourceRequest'
+          example:
+            resource_key: error.health.not_ready
+            locale: zh-CN
+            resource_value: 服务未就绪
+            module: platform
+            description: Error shown when the service is not ready
+    responses:
+      '201':
+        description: i18n resource created.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/I18nResource'
+            example:
+              resource_key: error.health.not_ready
+              locale: zh-CN
+              resource_value: 服务未就绪
+              module: platform
+              description: Error shown when the service is not ready
+              created_at: '2026-07-04T08:00:00Z'
+              updated_at: '2026-07-04T08:00:00Z'
+      '400':
+        description: Invalid request body or duplicate key.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.i18n.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: A resource with the same resource_key and locale already exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+i18nResourceItem:
+  parameters:
+    - $ref: '#/components/parameters/ResourceKeyParam'
+  put:
+    tags: [i18n]
+    summary: Update an i18n resource
+    description: >-
+      Updates an existing i18n resource entry. The `resource_key` and `locale`
+      cannot be changed. Requires the `platform.i18n.manage` permission.
+      Supports idempotency via the `Idempotency-Key` header.
+    operationId: updateI18nResource
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKeyParam'
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/dict.yaml#/UpdateI18nResourceRequest'
+          example:
+            resource_value: 服务未就绪，请稍后重试
+            module: platform
+            description: Error shown when the service is not ready
+    responses:
+      '200':
+        description: i18n resource updated.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/I18nResource'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.i18n.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: i18n resource not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  delete:
+    tags: [i18n]
+    summary: Delete an i18n resource
+    description: >-
+      Deletes an i18n resource entry. Requires the `platform.i18n.manage`
+      permission.
+    operationId: deleteI18nResource
+    security:
+      - bearerAuth: []
+    responses:
+      '204':
+        description: i18n resource deleted.
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.i18n.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: i18n resource not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+i18nBatchImport:
+  post:
+    tags: [i18n]
+    summary: Batch import i18n resources
+    description: >-
+      Upserts a batch of i18n resource entries by `resource_key` + `locale`.
+      The operation is idempotent: re-importing the same payload produces the
+      same final state. Emits a `platform.i18n.changed.v1` event with action
+      BATCH_IMPORTED. Requires the `platform.i18n.manage` permission. Supports
+      idempotency via the `Idempotency-Key` header.
+    operationId: batchImportI18nResources
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKeyParam'
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/dict.yaml#/BatchI18nRequest'
+          example:
+            resources:
+              - resource_key: error.health.not_ready
+                locale: zh-CN
+                resource_value: 服务未就绪
+                module: platform
+              - resource_key: error.health.not_ready
+                locale: en-US
+                resource_value: Service not ready
+                module: platform
+    responses:
+      '200':
+        description: Batch import result.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/dict.yaml#/BatchI18nResult'
+            example:
+              imported: 2
+              skipped: 0
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the platform.i18n.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+components:
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        default: 1
+      description: Page number (1-based).
+      example: 1
+    PageSizeParam:
+      name: page_size
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Number of items per page.
+      example: 20
+    TypeCodeParam:
+      name: type_code
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Code of the dictionary type.
+      example: user_status
+    ItemCodeParam:
+      name: item_code
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Code of the dictionary item.
+      example: active
+    ResourceKeyParam:
+      name: resource_key
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Dotted i18n resource key.
+      example: error.health.not_ready
+    IdempotencyKeyParam:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 128
+      description: >-
+        Optional idempotency key. When provided, duplicate requests with the
+        same key return the original response instead of creating duplicates.
+      example: dict-create-user-status-20260704

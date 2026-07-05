@@ -1,0 +1,83 @@
+# Function: AuditLog schema for F-PLATFORM-004 operation audit API
+# Time: 2026-07-04
+# Author: AxeXie
+AuditLog:
+  type: object
+  description: >-
+    A single operation audit record from sys_operation_audit. The table is
+    append-only; records are never modified or deleted, only retained per the
+    `platform.audit.retention_days` policy. `trace_id` links the audit entry to
+    the end-to-end trace context. All field names use snake_case.
+  required:
+    - audit_id
+    - occurred_at
+    - actor_type
+    - actor_id
+    - action
+    - resource_type
+    - result
+  additionalProperties: false
+  properties:
+    audit_id:
+      type: string
+      description: Unique identifier of the audit record (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the audited operation occurred.
+      example: '2026-07-04T08:00:00Z'
+    actor_type:
+      type: string
+      description: Category of the actor that performed the operation.
+      enum:
+        - user
+        - service
+        - agent
+        - system
+      example: user
+    actor_id:
+      type: string
+      description: Stable identifier of the actor (user id, service name, etc.).
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    action:
+      type: string
+      description: >-
+        Dotted action identifier describing the operation (e.g.
+        `config.update`, `export.create`).
+      example: config.update
+    resource_type:
+      type: string
+      description: Type of resource affected by the operation.
+      example: sys_config
+    resource_id:
+      type: string
+      description: Identifier of the affected resource, if applicable.
+      example: platform.session.timeout_minutes
+    result:
+      type: string
+      description: Outcome of the audited operation.
+      enum:
+        - SUCCESS
+        - FAILURE
+        - DENIED
+      example: SUCCESS
+    reason_code:
+      type: string
+      description: >-
+        Stable reason code for non-success results (e.g. `POLICY_DENIED`).
+        Absent when `result` is `SUCCESS`.
+      example: POLICY_DENIED
+    reason_detail:
+      type: string
+      description: Optional human-readable detail complementing `reason_code`.
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the audit entry to logs, metrics
+        and events.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    source_ip:
+      type: string
+      description: Source IP address of the request, when available.
+      example: 192.168.1.42

@@ -1,0 +1,123 @@
+# Function: Export task schemas for F-PLATFORM-004 data export API
+# Time: 2026-07-04
+# Author: AxeXie
+CreateExportRequest:
+  type: object
+  description: >-
+    Request body for creating an asynchronous data export task. The task is
+    queued and processed by the export worker; progress is tracked via the
+    returned `export_id`. The `filter` is an opaque JSON object interpreted by
+    the `resource_type` handler. All field names use snake_case.
+  required:
+    - resource_type
+    - format
+  additionalProperties: false
+  properties:
+    resource_type:
+      type: string
+      description: >-
+        Type of resource to export. Determines the handler and the shape of
+        `filter`.
+      example: audit_log
+    format:
+      type: string
+      description: Output file format for the export.
+      enum:
+        - csv
+        - json
+        - xlsx
+      default: csv
+      example: csv
+    filter:
+      type: object
+      description: >-
+        Resource-specific filter criteria passed to the export handler. The
+        shape is determined by `resource_type`; for `audit_log` it mirrors the
+        list-audit query parameters.
+      additionalProperties: true
+      example:
+        actor_id: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+        occurred_from: '2026-07-01T00:00:00Z'
+        occurred_to: '2026-07-04T00:00:00Z'
+ExportTask:
+  type: object
+  description: >-
+    An asynchronous export task record from export_operation. The `status` field
+    is a code contract governed by the SM-EXPORT-TASK state machine
+    (PENDING/RUNNING/SUCCEEDED/FAILED/CANCELLED). `file_url` is populated only
+    after the task reaches `SUCCEEDED`. All field names use snake_case.
+  required:
+    - export_id
+    - resource_type
+    - format
+    - status
+    - created_at
+  additionalProperties: false
+  properties:
+    export_id:
+      type: string
+      description: Unique identifier of the export task (ULID or UUID).
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    resource_type:
+      type: string
+      description: Type of resource being exported.
+      example: audit_log
+    format:
+      type: string
+      description: Output file format for the export.
+      enum:
+        - csv
+        - json
+        - xlsx
+      example: csv
+    status:
+      type: string
+      description: >-
+        Current state of the export task. Values are the canonical states of
+        the SM-EXPORT-TASK state machine.
+      enum:
+        - PENDING
+        - RUNNING
+        - SUCCEEDED
+        - FAILED
+        - CANCELLED
+      example: SUCCEEDED
+    file_url:
+      type: string
+      format: uri
+      description: >-
+        Pre-signed download URL for the exported file. Populated only when
+        `status` is `SUCCEEDED`.
+      example: https://minio.local/opengeobot/exports/01JX2Q3R4T5V6W7X8Y9Z0A1B2C.csv
+    file_size:
+      type: integer
+      format: int64
+      description: Size of the exported file in bytes, when available.
+      example: 204800
+    error_message:
+      type: string
+      description: Error detail when `status` is `FAILED`.
+    requested_by:
+      type: string
+      description: Identifier of the actor that requested the export.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    started_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the export worker started processing.
+      example: '2026-07-04T08:00:05Z'
+    completed_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the export reached a terminal state.
+      example: '2026-07-04T08:00:12Z'
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the export task was created.
+      example: '2026-07-04T08:00:00Z'
+    trace_id:
+      type: string
+      description: >-
+        End-to-end trace identifier linking the export to logs and audit.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
