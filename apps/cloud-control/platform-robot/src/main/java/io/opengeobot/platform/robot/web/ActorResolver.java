@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * that the robot module remains self-contained without a cross-module
  * dependency on platform-governance.
  */
-@Component
+@Component("robotActorResolver")
 public class ActorResolver {
 
     private static final String DEFAULT_ACTOR = "system";

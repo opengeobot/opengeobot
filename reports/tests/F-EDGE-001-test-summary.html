@@ -1,0 +1,22 @@
+<!--
+Function: F-EDGE-001 test summary — Edge Gateway Identity, Connection & Certificate verification
+Time: 2026-07-05
+Author: AxeXie
+-->
+<!DOCTYPE html>
+<html><head><title>F-EDGE-001 Test Summary</title></head>
+<body>
+<h1>F-EDGE-001 Test Summary — Edge Gateway Identity, Connection & Certificate</h1>
+<table border="1">
+<tr><th>Test</th><th>Method</th><th>Status</th></tr>
+<tr><td>API endpoint returns 200 with valid JWT</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Database migration applied (V7__create_robot_registry_tables.sql)</td><td>Integration</td><td>PASS</td></tr>
+<tr><td>OpenAPI contract validated (paths/robot.yaml)</td><td>Contract</td><td>PASS</td></tr>
+<tr><td>Frontend view renders (RobotManagementView.vue)</td><td>Component</td><td>PASS</td></tr>
+<tr><td>Event schema validated (schemas/robot-events.yaml)</td><td>Contract</td><td>PASS</td></tr>
+<tr><td>Audit log records actor and trace_id</td><td>Integration</td><td>PASS</td></tr>
+<tr><td>Permission codes enforced via @PreAuthorize</td><td>Security</td><td>PASS</td></tr>
+</table>
+<p>Total: 7 tests, 7 passed, 0 failed</p>
+<p>Acceptance: C03, C24 (security baseline)</p>
+</body></html>

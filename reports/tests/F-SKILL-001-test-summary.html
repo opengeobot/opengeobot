@@ -1,0 +1,22 @@
+<!--
+Function: F-SKILL-001 test summary — Capability & Skill Lifecycle verification
+Time: 2026-07-05
+Author: AxeXie
+-->
+<!DOCTYPE html>
+<html><head><title>F-SKILL-001 Test Summary</title></head>
+<body>
+<h1>F-SKILL-001 Test Summary — Capability & Skill Lifecycle</h1>
+<table border="1">
+<tr><th>Test</th><th>Method</th><th>Status</th></tr>
+<tr><td>API endpoint returns 200 with valid JWT</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Database migration applied (V9__create_skill_registry_tables.sql)</td><td>Integration</td><td>PASS</td></tr>
+<tr><td>OpenAPI contract validated (paths/skill.yaml)</td><td>Contract</td><td>PASS</td></tr>
+<tr><td>Frontend view renders (SkillManagementView.vue)</td><td>Component</td><td>PASS</td></tr>
+<tr><td>Event schema validated (schemas/skill-events.yaml)</td><td>Contract</td><td>PASS</td></tr>
+<tr><td>Audit log records actor and trace_id</td><td>Integration</td><td>PASS</td></tr>
+<tr><td>Permission codes enforced via @PreAuthorize</td><td>Security</td><td>PASS</td></tr>
+</table>
+<p>Total: 7 tests, 7 passed, 0 failed</p>
+<p>Acceptance: C05, C24 (security baseline)</p>
+</body></html>

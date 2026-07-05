@@ -56,7 +56,7 @@ public class GovernanceOutboxRepository implements OutboxRepository {
         entity.setEventVersion(event.eventVersion() != null ? Integer.parseInt(event.eventVersion()) : 1);
         entity.setAggregateType(event.aggregateType());
         entity.setAggregateId(event.aggregateId());
-        entity.setAggregateVersion(event.aggregateVersion() != null ? event.aggregateVersion().intValue() : null);
+        entity.setAggregateVersion(event.aggregateVersion() != null ? event.aggregateVersion().intValue() : 0);
         entity.setPayload(event.payload());
         entity.setOccurredAt(java.time.OffsetDateTime.ofInstant(event.occurredAt(), java.time.ZoneOffset.UTC));
         entity.setProducer("platform-governance");
