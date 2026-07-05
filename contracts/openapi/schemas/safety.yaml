@@ -1,0 +1,121 @@
+# Function: Safety schemas for F-SAFETY-001 emergency stop and safety state
+# Time: 2026-07-05
+# Author: AxeXie
+SafetyState:
+  type: object
+  description: >-
+    Current safety state of a robot, backed by the `policy.safety_state` table.
+    The `state` field follows the SM-SAFETY-001 state machine
+    (NORMAL → EMERGENCY_STOPPED → RESETTING → NORMAL). When the state is
+    `EMERGENCY_STOPPED` all physical skill execution must be blocked.
+  required:
+    - robot_id
+    - state
+    - updated_at
+  additionalProperties: false
+  properties:
+    robot_id:
+      type: string
+      description: Identifier of the robot this safety state belongs to. A null robot_id represents the global safety state.
+      example: rbt_01J00000000000000000000001
+    state:
+      type: string
+      description: >-
+        Current safety state. `NORMAL` means the robot is operating normally;
+        `EMERGENCY_STOPPED` means all motion is halted; `RESETTING` means a
+        reset is in progress and will transition back to `NORMAL`.
+      enum:
+        - NORMAL
+        - EMERGENCY_STOPPED
+        - RESETTING
+      example: EMERGENCY_STOPPED
+    last_event_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of the last safety event that changed this state.
+      example: '2026-07-05T10:00:00Z'
+    reason:
+      type: string
+      description: Optional reason for the current state (e.g. the emergency stop reason).
+      example: Operator-triggered emergency stop
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when this state was last updated.
+      example: '2026-07-05T10:00:00Z'
+SafetyEvent:
+  type: object
+  description: >-
+    An immutable safety event record backed by the `policy.safety_event` table.
+    Events are append-only and carry a `trace_id` linking them to the
+    end-to-end trace context.
+  required:
+    - event_id
+    - robot_id
+    - event_type
+    - occurred_at
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique identifier of the safety event (ULID-based).
+      example: sevt_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Identifier of the robot affected by this event.
+      example: rbt_01J00000000000000000000001
+    event_type:
+      type: string
+      description: >-
+        Type of the safety event. `EMERGENCY_STOP` triggers a stop;
+        `RESET` transitions back to normal; `SAFETY_CHECK_PASSED` and
+        `SAFETY_CHECK_FAILED` record pre-mission checks.
+      enum:
+        - EMERGENCY_STOP
+        - RESET
+        - SAFETY_CHECK_PASSED
+        - SAFETY_CHECK_FAILED
+      example: EMERGENCY_STOP
+    reason:
+      type: string
+      description: Human-readable reason for this event.
+      example: Operator-triggered emergency stop
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the event occurred.
+      example: '2026-07-05T10:00:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking this event to logs and metrics.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    actor_id:
+      type: string
+      description: Identifier of the actor that triggered this event.
+      example: usr_01J00000000000000000000001
+EmergencyStopRequest:
+  type: object
+  description: >-
+    Request body for triggering an emergency stop. When `robot_id` is omitted
+    the stop applies to all robots (global emergency stop).
+  additionalProperties: false
+  properties:
+    robot_id:
+      type: string
+      description: Optional robot identifier. If omitted, triggers a global emergency stop.
+      example: rbt_01J00000000000000000000001
+    reason:
+      type: string
+      description: Human-readable reason for the emergency stop.
+      example: Operator-triggered emergency stop
+ResetRequest:
+  type: object
+  description: >-
+    Request body for resetting the safety state. When `robot_id` is omitted
+    the reset applies to all robots in the `EMERGENCY_STOPPED` state.
+  additionalProperties: false
+  properties:
+    robot_id:
+      type: string
+      description: Optional robot identifier. If omitted, resets all stopped robots.
+      example: rbt_01J00000000000000000000001

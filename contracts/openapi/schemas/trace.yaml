@@ -1,0 +1,138 @@
+# Function: Trace schemas for F-TRACE-001 trace and replay API
+# Time: 2026-07-05
+# Author: AxeXie
+TraceSpan:
+  type: object
+  description: >-
+    A trace span backed by the `trace.trace_span` table. Spans capture the
+    timing, operation, service, and tags of a unit of work within a
+    distributed trace. The `trace_id` links all spans in a trace.
+  required:
+    - trace_id
+    - span_id
+    - operation
+    - service
+    - start_time
+    - status
+  additionalProperties: false
+  properties:
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    span_id:
+      type: string
+      description: Unique identifier of this span within the trace.
+      example: spn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    parent_span_id:
+      type: string
+      description: Optional parent span identifier for nested spans.
+      example: spn_01JX2Q3R4T5V6W7X8Y9Z0A1B2A
+    operation:
+      type: string
+      description: Name of the operation performed (e.g. skill invoke, mission start).
+      example: mission.start
+    service:
+      type: string
+      description: Name of the service that executed the span.
+      example: cloud-control
+    start_time:
+      type: string
+      format: date-time
+      description: UTC timestamp when the span started.
+      example: '2026-07-05T10:00:00Z'
+    end_time:
+      type: string
+      format: date-time
+      description: UTC timestamp when the span ended.
+      example: '2026-07-05T10:00:05Z'
+    duration_ms:
+      type: integer
+      format: int64
+      description: Duration of the span in milliseconds.
+      example: 5000
+    tags:
+      type: object
+      description: Key-value tags stored as jsonb (e.g. status, error, robot_id).
+      additionalProperties: true
+    status:
+      type: string
+      description: >-
+        Span status. `OK` for successful, `ERROR` for failed, `CANCELLED` for
+        cancelled operations.
+      enum:
+        - OK
+        - ERROR
+        - CANCELLED
+      example: OK
+    robot_id:
+      type: string
+      description: Optional robot identifier associated with this span.
+      example: rbt_01J00000000000000000000001
+    mission_id:
+      type: string
+      description: Optional mission identifier associated with this span.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+FactEvent:
+  type: object
+  description: >-
+    An immutable fact event backed by the `trace.fact_event` table. Fact events
+    capture discrete occurrences within a trace for replay and audit purposes.
+    The `payload` is stored as jsonb.
+  required:
+    - trace_id
+    - event_type
+    - occurred_at
+  additionalProperties: false
+  properties:
+    trace_id:
+      type: string
+      description: Trace identifier linking this event to the trace context.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    event_type:
+      type: string
+      description: Type of the fact event (e.g. mission_started, skill_invoked, safety_check).
+      example: mission_started
+    payload:
+      type: object
+      description: Event-specific payload stored as jsonb.
+      additionalProperties: true
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the event occurred.
+      example: '2026-07-05T10:00:00Z'
+    actor_id:
+      type: string
+      description: Optional actor that triggered the event.
+      example: usr_01J00000000000000000000001
+    robot_id:
+      type: string
+      description: Optional robot identifier associated with this event.
+      example: rbt_01J00000000000000000000001
+    mission_id:
+      type: string
+      description: Optional mission identifier associated with this event.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+TraceDetail:
+  type: object
+  description: >-
+    Detailed view of a trace including all spans and fact events, used for
+    trace inspection and replay.
+  required:
+    - trace_id
+    - spans
+  additionalProperties: false
+  properties:
+    trace_id:
+      type: string
+      description: The trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    spans:
+      type: array
+      items:
+        $ref: '../schemas/trace.yaml#/TraceSpan'
+    fact_events:
+      type: array
+      items:
+        $ref: '../schemas/trace.yaml#/FactEvent'

@@ -1,0 +1,181 @@
+# Function: MCP tool gateway schemas for F-MCP-001
+# Time: 2026-07-05
+# Author: AxeXie
+McpTool:
+  type: object
+  description: >-
+    A registered MCP tool backed by the `skill_registry.mcp_tool` table. Tools
+    expose a typed input/output contract (JSON Schema) and may carry a
+    `canary_percent` to route a fraction of invocations to a candidate build.
+    The `status` field follows the lifecycle (DRAFT, ACTIVE, DEPRECATED,
+    DISABLED). All field names use snake_case.
+  required:
+    - tool_id
+    - name
+    - status
+    - created_at
+  additionalProperties: false
+  properties:
+    tool_id:
+      type: string
+      description: Unique, prefixed public identifier of the tool (ULID-based).
+      example: mcp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Unique tool name in snake_case.
+      pattern: '^[a-z][a-z0-9_]*$'
+      example: query_robot_status
+    description:
+      type: string
+      description: Human-readable explanation of what the tool does.
+      example: Queries the current status and telemetry of a registered robot.
+    input_schema:
+      type: object
+      description: >-
+        JSON Schema document describing the input parameters the tool accepts.
+        Stored as a jsonb column.
+      additionalProperties: true
+    output_schema:
+      type: object
+      description: >-
+        JSON Schema document describing the output the tool produces. Stored
+        as a jsonb column.
+      additionalProperties: true
+    canary_percent:
+      type: integer
+      description: >-
+        Percentage of invocations routed to a candidate build (0-100). 0 means
+        no canary traffic.
+      minimum: 0
+      maximum: 100
+      default: 0
+      example: 0
+    status:
+      type: string
+      description: >-
+        Lifecycle status of the tool. `DRAFT` tools are not yet invocable;
+        `ACTIVE` tools accept invocations; `DEPRECATED` tools are superseded;
+        `DISABLED` tools are turned off.
+      enum:
+        - DRAFT
+        - ACTIVE
+        - DEPRECATED
+        - DISABLED
+      example: ACTIVE
+    created_by:
+      type: string
+      description: Identifier of the actor that registered the tool.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the tool was created.
+      example: '2026-07-05T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the tool was last updated.
+      example: '2026-07-05T09:30:00Z'
+RegisterToolRequest:
+  type: object
+  description: >-
+    Request body for registering a new MCP tool. The `name` must be unique;
+    a duplicate returns `TOOL_ALREADY_EXISTS`. A freshly created tool starts in
+    `DRAFT` status. All field names use snake_case.
+  required:
+    - name
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Unique tool name in snake_case.
+      pattern: '^[a-z][a-z0-9_]*$'
+      example: query_robot_status
+    description:
+      type: string
+      description: Optional human-readable explanation of the tool.
+      example: Queries the current status and telemetry of a registered robot.
+    input_schema:
+      type: object
+      description: Optional JSON Schema describing the input parameters.
+      additionalProperties: true
+    output_schema:
+      type: object
+      description: Optional JSON Schema describing the output.
+      additionalProperties: true
+    canary_percent:
+      type: integer
+      description: Optional canary routing percentage (0-100).
+      minimum: 0
+      maximum: 100
+      default: 0
+      example: 0
+InvokeToolRequest:
+  type: object
+  description: >-
+    Request body for invoking a registered MCP tool. The `input_params` map is
+    validated against the tool's `input_schema` before execution.
+  required:
+    - input_params
+  additionalProperties: false
+  properties:
+    input_params:
+      type: object
+      description: Key-value input parameters matching the tool's input schema.
+      additionalProperties: true
+      example:
+        robot_id: rbt_01J00000000000000000000001
+InvocationResult:
+  type: object
+  description: >-
+    Result of a tool invocation, backed by the
+    `skill_registry.mcp_invocation_log` table. The `status` field indicates
+    success or failure; `duration_ms` records wall-clock execution time.
+  required:
+    - invocation_id
+    - tool_id
+    - status
+    - invoked_at
+  additionalProperties: false
+  properties:
+    invocation_id:
+      type: string
+      description: Unique identifier of the invocation log entry.
+      example: inv_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    tool_id:
+      type: string
+      description: Identifier of the invoked tool.
+      example: mcp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    status:
+      type: string
+      description: Outcome of the invocation.
+      enum:
+        - SUCCESS
+        - FAILED
+        - TIMEOUT
+      example: SUCCESS
+    output:
+      type: object
+      description: The tool's output payload, present when status is SUCCESS.
+      additionalProperties: true
+    error:
+      type: string
+      description: Error message, present when status is not SUCCESS.
+      example: null
+    duration_ms:
+      type: integer
+      description: Wall-clock execution duration in milliseconds.
+      example: 42
+    invoked_by:
+      type: string
+      description: Actor that invoked the tool.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    invoked_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the invocation was started.
+      example: '2026-07-05T10:00:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier linking the invocation to logs.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

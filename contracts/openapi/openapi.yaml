@@ -50,6 +50,18 @@ tags:
     description: >-
       Skill lifecycle management — registration, versioning, publish, enable
       and disable (F-SKILL-001).
+  - name: safety
+    description: >-
+      Emergency stop, reset and safety state management (F-SAFETY-001).
+  - name: map
+    description: >-
+      Map, area and restricted area management (F-MAP-001).
+  - name: media
+    description: >-
+      Media object upload, download and management (F-MEDIA-001).
+  - name: trace
+    description: >-
+      Trace span and fact event inspection for replay (F-TRACE-001).
   - name: mission
     description: >-
       Mission creation, planning, approval, templates and execution control
@@ -58,6 +70,14 @@ tags:
     description: >-
       Robot registration, status transitions and capability management
       (F-ROBOT-001).
+  - name: mcp-tool
+    description: >-
+      MCP tool gateway — tool registration, invocation and invocation logging
+      (F-MCP-001).
+  - name: policy
+    description: >-
+      Policy management — creation, versioned publishing and mission
+      compliance evaluation (F-POLICY-001).
 paths:
   /health/live:
     get:
@@ -252,6 +272,54 @@ paths:
     $ref: './paths/skill.yaml#/skillEnable'
   /skills/{skillId}/versions:
     $ref: './paths/skill.yaml#/skillVersions'
+  /safety/emergency-stop:
+    $ref: './paths/safety.yaml#/safetyEmergencyStop'
+  /safety/reset:
+    $ref: './paths/safety.yaml#/safetyReset'
+  /safety/state:
+    $ref: './paths/safety.yaml#/safetyState'
+  /safety/events:
+    $ref: './paths/safety.yaml#/safetyEvents'
+  /maps:
+    $ref: './paths/map.yaml#/mapsCollection'
+  /maps/{mapId}:
+    $ref: './paths/map.yaml#/mapItem'
+  /maps/{mapId}/publish:
+    $ref: './paths/map.yaml#/mapPublish'
+  /maps/{mapId}/areas:
+    $ref: './paths/map.yaml#/mapAreas'
+  /maps/{mapId}/restricted-areas:
+    $ref: './paths/map.yaml#/mapRestrictedAreas'
+  /media/upload:
+    $ref: './paths/media.yaml#/mediaUpload'
+  /media:
+    $ref: './paths/media.yaml#/mediaCollection'
+  /media/{mediaId}:
+    $ref: './paths/media.yaml#/mediaItem'
+  /media/{mediaId}/download:
+    $ref: './paths/media.yaml#/mediaDownload'
+  /traces:
+    $ref: './paths/trace.yaml#/tracesCollection'
+  /traces/{traceId}:
+    $ref: './paths/trace.yaml#/traceItem'
+  /traces/{traceId}/replay:
+    $ref: './paths/trace.yaml#/traceReplay'
+  /mcp/tools:
+    $ref: './paths/mcp-tool.yaml#/toolsCollection'
+  /mcp/tools/{toolId}:
+    $ref: './paths/mcp-tool.yaml#/toolItem'
+  /mcp/tools/{toolId}/invoke:
+    $ref: './paths/mcp-tool.yaml#/toolInvoke'
+  /mcp/tools/{toolId}/invocations:
+    $ref: './paths/mcp-tool.yaml#/toolInvocations'
+  /policies:
+    $ref: './paths/policy.yaml#/policiesCollection'
+  /policies/{policyId}:
+    $ref: './paths/policy.yaml#/policyItem'
+  /policies/{policyId}/publish:
+    $ref: './paths/policy.yaml#/policyPublish'
+  /policies/{policyId}/versions:
+    $ref: './paths/policy.yaml#/policyVersions'
 components:
   securitySchemes:
     bearerAuth:
@@ -379,6 +447,52 @@ components:
       $ref: './schemas/skill.yaml#/CreateSkillRequest'
     UpdateSkillRequest:
       $ref: './schemas/skill.yaml#/UpdateSkillRequest'
+    SafetyState:
+      $ref: './schemas/safety.yaml#/SafetyState'
+    SafetyEvent:
+      $ref: './schemas/safety.yaml#/SafetyEvent'
+    EmergencyStopRequest:
+      $ref: './schemas/safety.yaml#/EmergencyStopRequest'
+    ResetRequest:
+      $ref: './schemas/safety.yaml#/ResetRequest'
+    MapInfo:
+      $ref: './schemas/map.yaml#/MapInfo'
+    MapArea:
+      $ref: './schemas/map.yaml#/MapArea'
+    RestrictedArea:
+      $ref: './schemas/map.yaml#/RestrictedArea'
+    CreateMapRequest:
+      $ref: './schemas/map.yaml#/CreateMapRequest'
+    UpdateMapRequest:
+      $ref: './schemas/map.yaml#/UpdateMapRequest'
+    CreateMapAreaRequest:
+      $ref: './schemas/map.yaml#/CreateMapAreaRequest'
+    CreateRestrictedAreaRequest:
+      $ref: './schemas/map.yaml#/CreateRestrictedAreaRequest'
+    MediaObject:
+      $ref: './schemas/media.yaml#/MediaObject'
+    TraceSpan:
+      $ref: './schemas/trace.yaml#/TraceSpan'
+    FactEvent:
+      $ref: './schemas/trace.yaml#/FactEvent'
+    TraceDetail:
+      $ref: './schemas/trace.yaml#/TraceDetail'
+    McpTool:
+      $ref: './schemas/mcp-tool.yaml#/McpTool'
+    RegisterToolRequest:
+      $ref: './schemas/mcp-tool.yaml#/RegisterToolRequest'
+    InvokeToolRequest:
+      $ref: './schemas/mcp-tool.yaml#/InvokeToolRequest'
+    InvocationResult:
+      $ref: './schemas/mcp-tool.yaml#/InvocationResult'
+    Policy:
+      $ref: './schemas/policy.yaml#/Policy'
+    PolicyRule:
+      $ref: './schemas/policy.yaml#/PolicyRule'
+    CreatePolicyRequest:
+      $ref: './schemas/policy.yaml#/CreatePolicyRequest'
+    UpdatePolicyRequest:
+      $ref: './schemas/policy.yaml#/UpdatePolicyRequest'
     VersionInfo:
       type: object
       description: Build and runtime version information.

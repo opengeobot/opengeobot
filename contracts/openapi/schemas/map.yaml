@@ -1,0 +1,268 @@
+# Function: Map/Scene schemas for F-MAP-001 map and area management
+# Time: 2026-07-05
+# Author: AxeXie
+MapInfo:
+  type: object
+  description: >-
+    A map definition backed by the `map_scene.map` table. Maps follow the
+    SM-MAP-001 state machine (DRAFT → PUBLISHED → ARCHIVED). The `metadata`
+    field stores resolution, origin, and other map properties as jsonb.
+  required:
+    - map_id
+    - name
+    - version
+    - status
+    - created_at
+  additionalProperties: false
+  properties:
+    map_id:
+      type: string
+      description: Unique, prefixed public identifier of the map (ULID-based).
+      example: map_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable map name.
+      example: Warehouse Floor 1
+    description:
+      type: string
+      description: Optional human-readable description.
+      example: Indoor map of warehouse floor 1 including aisles and charging stations.
+    version:
+      type: integer
+      description: Published version number. Starts at 0 for a draft.
+      minimum: 0
+      example: 2
+    status:
+      type: string
+      description: >-
+        Lifecycle status of the map. `DRAFT` maps are being edited;
+        `PUBLISHED` maps are active; `ARCHIVED` maps are superseded.
+      enum:
+        - DRAFT
+        - PUBLISHED
+        - ARCHIVED
+      example: PUBLISHED
+    metadata:
+      type: object
+      description: >-
+        Additional map metadata stored as jsonb (e.g. resolution, origin,
+        frame_id, size).
+      additionalProperties: true
+    created_by:
+      type: string
+      description: Actor that created the map.
+      example: usr_01J00000000000000000000001
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of creation.
+      example: '2026-07-05T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of last update.
+      example: '2026-07-05T09:00:00Z'
+MapArea:
+  type: object
+  description: >-
+    A named area within a map, backed by the `map_scene.area` table. The
+    `geometry` field is a GeoJSON geometry stored as jsonb; `properties`
+    holds area-specific attributes.
+  required:
+    - area_id
+    - map_id
+    - name
+    - type
+    - geometry
+  additionalProperties: false
+  properties:
+    area_id:
+      type: string
+      description: Unique identifier of the area.
+      example: area_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    map_id:
+      type: string
+      description: Identifier of the parent map.
+      example: map_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable area name.
+      example: Charging Station A
+    type:
+      type: string
+      description: >-
+        Area type. `ZONE` for general zones, `WAYPOINT` for navigation
+        points, `PATH` for corridors, `DOCK` for docking stations.
+      enum:
+        - ZONE
+        - WAYPOINT
+        - PATH
+        - DOCK
+      example: DOCK
+    geometry:
+      type: object
+      description: GeoJSON geometry object stored as jsonb.
+      additionalProperties: true
+    properties:
+      type: object
+      description: Additional area properties stored as jsonb.
+      additionalProperties: true
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of creation.
+      example: '2026-07-05T08:00:00Z'
+RestrictedArea:
+  type: object
+  description: >-
+    A restricted area within a map, backed by the `map_scene.restricted_area`
+    table. Restricted areas prevent or limit robot access for a time window.
+    The `geometry` field is a GeoJSON geometry stored as jsonb.
+  required:
+    - area_id
+    - map_id
+    - name
+    - restriction_type
+    - geometry
+    - effective_from
+  additionalProperties: false
+  properties:
+    area_id:
+      type: string
+      description: Unique identifier of the restricted area.
+      example: rarea_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    map_id:
+      type: string
+      description: Identifier of the parent map.
+      example: map_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable name of the restricted area.
+      example: Maintenance Zone B
+    restriction_type:
+      type: string
+      description: >-
+        Type of restriction. `NO_ENTRY` blocks all entry; `SPEED_LIMIT`
+        enforces a speed limit; `TIME_WINDOW` allows entry only in a time range.
+      enum:
+        - NO_ENTRY
+        - SPEED_LIMIT
+        - TIME_WINDOW
+      example: NO_ENTRY
+    geometry:
+      type: object
+      description: GeoJSON geometry object stored as jsonb.
+      additionalProperties: true
+    properties:
+      type: object
+      description: Additional restriction properties (e.g. max_speed) stored as jsonb.
+      additionalProperties: true
+    effective_from:
+      type: string
+      format: date-time
+      description: UTC timestamp from which the restriction is active.
+      example: '2026-07-05T00:00:00Z'
+    effective_to:
+      type: string
+      format: date-time
+      description: Optional UTC timestamp after which the restriction expires.
+      example: '2026-07-10T00:00:00Z'
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of creation.
+      example: '2026-07-05T08:00:00Z'
+CreateMapRequest:
+  type: object
+  description: Request body for creating a new map.
+  required:
+    - name
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Human-readable map name.
+      example: Warehouse Floor 1
+    description:
+      type: string
+      description: Optional human-readable description.
+    metadata:
+      type: object
+      description: Optional map metadata (resolution, origin, etc.).
+      additionalProperties: true
+UpdateMapRequest:
+  type: object
+  description: Request body for updating a map's metadata.
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Updated map name.
+    description:
+      type: string
+      description: Updated description.
+    metadata:
+      type: object
+      description: Updated map metadata.
+      additionalProperties: true
+CreateMapAreaRequest:
+  type: object
+  description: Request body for creating a map area.
+  required:
+    - name
+    - type
+    - geometry
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Human-readable area name.
+      example: Charging Station A
+    type:
+      type: string
+      description: Area type (ZONE, WAYPOINT, PATH, DOCK).
+      example: DOCK
+    geometry:
+      type: object
+      description: GeoJSON geometry object.
+      additionalProperties: true
+    properties:
+      type: object
+      description: Additional area properties.
+      additionalProperties: true
+CreateRestrictedAreaRequest:
+  type: object
+  description: Request body for creating a restricted area.
+  required:
+    - name
+    - restriction_type
+    - geometry
+    - effective_from
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Human-readable name.
+      example: Maintenance Zone B
+    restriction_type:
+      type: string
+      description: Type of restriction (NO_ENTRY, SPEED_LIMIT, TIME_WINDOW).
+      example: NO_ENTRY
+    geometry:
+      type: object
+      description: GeoJSON geometry object.
+      additionalProperties: true
+    properties:
+      type: object
+      description: Additional restriction properties.
+      additionalProperties: true
+    effective_from:
+      type: string
+      format: date-time
+      description: UTC timestamp from which the restriction is active.
+      example: '2026-07-05T00:00:00Z'
+    effective_to:
+      type: string
+      format: date-time
+      description: Optional UTC timestamp after which the restriction expires.
+      example: '2026-07-10T00:00:00Z'

@@ -241,6 +241,26 @@ channels:
     messages:
       skillStatusChanged:
         $ref: '#/components/messages/SkillStatusChangedEvent'
+  safetyEmergencyStop:
+    address: opengeobot.dev.policy.event.safety_emergency_stop.v1
+    description: >-
+      Emitted when an emergency stop is triggered for a robot or globally.
+      The payload is a platform EventEnvelope whose `event_type` is
+      `safety.emergency_stop.v1`. Edge Safety Gateways must latch and halt all
+      physical motion immediately upon receiving this event.
+    messages:
+      safetyEmergencyStop:
+        $ref: '#/components/messages/SafetyEmergencyStopEvent'
+  safetyReset:
+    address: opengeobot.dev.policy.event.safety_reset.v1
+    description: >-
+      Emitted when the safety state is reset from EMERGENCY_STOPPED back to
+      NORMAL. The payload is a platform EventEnvelope whose `event_type` is
+      `safety.reset.v1`. Consumers may resume normal operation after the edge
+      Safety Gateway confirms the reset.
+    messages:
+      safetyReset:
+        $ref: '#/components/messages/SafetyResetEvent'
 operations:
   publishHealthChanged:
     action: send
@@ -417,6 +437,20 @@ operations:
       $ref: '#/channels/skillStatusChanged'
     messages:
       - $ref: '#/components/messages/SkillStatusChangedEvent'
+  publishSafetyEmergencyStop:
+    action: send
+    title: Publish safety emergency stop event
+    channel:
+      $ref: '#/channels/safetyEmergencyStop'
+    messages:
+      - $ref: '#/components/messages/SafetyEmergencyStopEvent'
+  publishSafetyReset:
+    action: send
+    title: Publish safety reset event
+    channel:
+      $ref: '#/channels/safetyReset'
+    messages:
+      - $ref: '#/components/messages/SafetyResetEvent'
 components:
   messages:
     EventEnvelope:
@@ -1116,4 +1150,64 @@ components:
                 old_status: DRAFT
                 new_status: PUBLISHED
                 occurred_at: '2026-07-05T10:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    SafetyEmergencyStopEvent:
+      description: >-
+        Safety emergency stop event. The payload is a platform EventEnvelope
+        whose `event_type` is `safety.emergency_stop.v1` and whose `data`
+        carries the EmergencyStopV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/safety-events.yaml#/EmergencyStopV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: safety.emergency_stop.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T10:00:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: sevt_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                robot_id: rbt_01J00000000000000000000001
+                event_type: EMERGENCY_STOP
+                reason: Operator-triggered emergency stop
+                occurred_at: '2026-07-05T10:00:00Z'
+                trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    SafetyResetEvent:
+      description: >-
+        Safety reset event. The payload is a platform EventEnvelope whose
+        `event_type` is `safety.reset.v1` and whose `data` carries the
+        SafetyResetV1 payload.
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: './schemas/event-envelope.yaml#/EventEnvelope'
+          - type: object
+            properties:
+              data:
+                $ref: './schemas/safety-events.yaml#/SafetyResetV1'
+            example:
+              event_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              event_type: safety.reset.v1
+              event_version: '1'
+              occurred_at: '2026-07-05T10:05:00Z'
+              producer: cloud-control
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              actor:
+                type: user
+                id: usr_01J00000000000000000000001
+              data:
+                event_id: sevt_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                robot_id: rbt_01J00000000000000000000001
+                event_type: RESET
+                reason: Reset by usr_01J00000000000000000000001
+                occurred_at: '2026-07-05T10:05:00Z'
                 trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

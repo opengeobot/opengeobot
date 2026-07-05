@@ -1,0 +1,442 @@
+# Function: OpenAPI path items for F-POLICY-001 policy management API
+# Time: 2026-07-05
+# Author: AxeXie
+policiesCollection:
+  get:
+    tags: [policy]
+    summary: List policies
+    description: >-
+      Returns a paginated list of policies. Results can be filtered by
+      `status`. Policies follow the SM-POLICY-001 state machine
+      (DRAFT → PUBLISHED → ARCHIVED).
+    operationId: listPolicies
+    parameters:
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: status
+        in: query
+        description: Filter by lifecycle status.
+        schema:
+          $ref: '../schemas/policy.yaml#/Policy/properties/status'
+        example: PUBLISHED
+    responses:
+      '200':
+        description: Paginated list of policies.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Paginated response wrapper for policy entries.
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/policy.yaml#/Policy'
+                total:
+                  type: integer
+                  format: int64
+                  description: Total number of matching records.
+                  example: 3
+                page:
+                  type: integer
+                  description: Current page number.
+                  example: 1
+                page_size:
+                  type: integer
+                  description: Number of items per page.
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the policy.policy.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [policy]
+    summary: Create a policy
+    description: >-
+      Creates a new policy in the registry. The `name` must be unique; a
+      duplicate returns `POLICY_ALREADY_EXISTS`. A freshly created policy
+      starts in `DRAFT` status with `current_version` 0. A
+      `policy.created.v1` event is published via the transactional outbox.
+    operationId: createPolicy
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/policy.yaml#/CreatePolicyRequest'
+          example:
+            name: restricted_area_policy
+            description: Prevents robots from entering restricted zones.
+            rules:
+              - rule_type: restricted_area
+                condition:
+                  zone_id: zone_restricted_01
+                action: DENY
+                priority: 10
+            scope: robot
+    responses:
+      '201':
+        description: Policy created successfully.
+        headers:
+          Location:
+            description: URL of the created policy.
+            schema:
+              type: string
+              format: uri
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/policy.yaml#/Policy'
+            example:
+              policy_id: pol_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              name: restricted_area_policy
+              description: Prevents robots from entering restricted zones.
+              status: DRAFT
+              current_version: 0
+              rules:
+                - rule_type: restricted_area
+                  condition:
+                    zone_id: zone_restricted_01
+                  action: DENY
+                  priority: 10
+              scope: robot
+              created_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              created_at: '2026-07-05T08:00:00Z'
+              updated_at: '2026-07-05T08:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the policy.policy.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: A policy with the given name already exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Policy already exists
+              status: 409
+              code: POLICY_ALREADY_EXISTS
+              message_key: error.policy.already_exists
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /policies
+policyItem:
+  get:
+    tags: [policy]
+    summary: Get a policy by id
+    description: >-
+      Returns the current state of the policy identified by `policyId`,
+      including its current set of rules.
+    operationId: getPolicy
+    parameters:
+      - name: policyId
+        in: path
+        description: Unique policy identifier.
+        required: true
+        schema:
+          type: string
+        example: pol_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: The requested policy.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/policy.yaml#/Policy'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the policy.policy.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No policy found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Policy not found
+              status: 404
+              code: POLICY_NOT_FOUND
+              message_key: error.policy.not_found
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /policies/pol_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+  put:
+    tags: [policy]
+    summary: Update a policy
+    description: >-
+      Updates the name, description, rules and/or scope of an existing policy.
+      The `status` field is not modified here; use the publish endpoint for
+      state transitions. Only `DRAFT` policies can be updated. All changes are
+      audited.
+    operationId: updatePolicy
+    parameters:
+      - name: policyId
+        in: path
+        description: Unique policy identifier.
+        required: true
+        schema:
+          type: string
+        example: pol_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/policy.yaml#/UpdatePolicyRequest'
+          example:
+            description: Prevents robots from entering restricted zones (updated).
+            rules:
+              - rule_type: restricted_area
+                condition:
+                  zone_id: zone_restricted_01
+                action: DENY
+                priority: 5
+    responses:
+      '200':
+        description: Policy updated successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/policy.yaml#/Policy'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the policy.policy.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No policy found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Policy is not in an editable state (e.g. PUBLISHED).
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+policyPublish:
+  post:
+    tags: [policy]
+    summary: Publish a new version of the policy
+    description: >-
+      Publishes the current draft state of the policy as a new immutable
+      version. Increments `current_version`, appends rows to `policy_rule`
+      with the version number, and transitions the policy to `PUBLISHED`
+      status. A `policy.published.v1` event is emitted via the transactional
+      outbox. Requires the `policy.policy.publish` permission.
+    operationId: publishPolicy
+    parameters:
+      - name: policyId
+        in: path
+        description: Unique policy identifier.
+        required: true
+        schema:
+          type: string
+        example: pol_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Policy version published successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/policy.yaml#/Policy'
+            example:
+              policy_id: pol_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              name: restricted_area_policy
+              status: PUBLISHED
+              current_version: 1
+              updated_at: '2026-07-05T10:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the policy.policy.publish permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No policy found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Policy is not in a publishable state.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+policyVersions:
+  get:
+    tags: [policy]
+    summary: List policy versions
+    description: >-
+      Returns the version history for the given policy, ordered from newest
+      to oldest. Each version corresponds to a set of immutable rule rows in
+      `policy.policy_rule`.
+    operationId: listPolicyVersions
+    parameters:
+      - name: policyId
+        in: path
+        description: Unique policy identifier.
+        required: true
+        schema:
+          type: string
+        example: pol_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+    responses:
+      '200':
+        description: Paginated version history for the policy.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Paginated response wrapper for policy version entries.
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    description: A published policy version snapshot.
+                    required: [policy_id, version, status, created_at]
+                    additionalProperties: false
+                    properties:
+                      policy_id:
+                        type: string
+                        description: Identifier of the parent policy.
+                        example: pol_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                      version:
+                        type: integer
+                        description: Monotonic version number. Starts at 1.
+                        minimum: 1
+                        example: 1
+                      status:
+                        type: string
+                        description: Status of this version.
+                        example: PUBLISHED
+                      rules:
+                        type: array
+                        description: The rules captured at this version.
+                        items:
+                          $ref: '../schemas/policy.yaml#/PolicyRule'
+                      created_at:
+                        type: string
+                        format: date-time
+                        description: UTC timestamp when this version was published.
+                        example: '2026-07-05T10:00:00Z'
+                total:
+                  type: integer
+                  format: int64
+                  description: Total number of version records.
+                  example: 2
+                page:
+                  type: integer
+                  description: Current page number.
+                  example: 1
+                page_size:
+                  type: integer
+                  description: Number of items per page.
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the policy.policy.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No policy found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

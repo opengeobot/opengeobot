@@ -1,0 +1,77 @@
+# Function: Safety event payloads for F-SAFETY-001 AsyncAPI
+# Time: 2026-07-05
+# Author: AxeXie
+EmergencyStopV1:
+  type: object
+  description: >-
+    Payload for the safety.emergency_stop.v1 event, emitted when an emergency
+    stop is triggered for a robot or globally.
+  required:
+    - event_id
+    - robot_id
+    - event_type
+    - occurred_at
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique event identifier.
+      example: sevt_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Robot identifier affected by the stop, or 'global'.
+      example: rbt_01J00000000000000000000001
+    event_type:
+      type: string
+      description: Event type, always EMERGENCY_STOP.
+      example: EMERGENCY_STOP
+    reason:
+      type: string
+      description: Human-readable reason for the stop.
+      example: Operator-triggered emergency stop
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of the event.
+      example: '2026-07-05T10:00:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+SafetyResetV1:
+  type: object
+  description: >-
+    Payload for the safety.reset.v1 event, emitted when the safety state is
+    reset from EMERGENCY_STOPPED back to NORMAL.
+  required:
+    - event_id
+    - robot_id
+    - event_type
+    - occurred_at
+  additionalProperties: false
+  properties:
+    event_id:
+      type: string
+      description: Unique event identifier.
+      example: sevt_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_id:
+      type: string
+      description: Robot identifier that was reset, or 'global'.
+      example: rbt_01J00000000000000000000001
+    event_type:
+      type: string
+      description: Event type, always RESET.
+      example: RESET
+    reason:
+      type: string
+      description: Human-readable reason for the reset.
+      example: Reset by usr_01J00000000000000000000001
+    occurred_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of the event.
+      example: '2026-07-05T10:05:00Z'
+    trace_id:
+      type: string
+      description: End-to-end trace identifier.
+      example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C

@@ -1,0 +1,154 @@
+# Function: OpenAPI path items for F-TRACE-001 trace and replay API
+# Time: 2026-07-05
+# Author: AxeXie
+tracesCollection:
+  get:
+    tags: [trace]
+    summary: List traces
+    description: >-
+      Returns a paginated list of trace spans, optionally filtered by
+      `trace_id`, `robot_id`, `mission_id`, and time range. Returns the
+      root spans (those without a parent) ordered by start time descending.
+      Requires the `trace.trace.read` permission.
+    operationId: listTraces
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: trace_id
+        in: query
+        schema:
+          type: string
+        description: Filter by trace identifier.
+      - name: robot_id
+        in: query
+        schema:
+          type: string
+        description: Filter by robot identifier.
+      - name: mission_id
+        in: query
+        schema:
+          type: string
+        description: Filter by mission identifier.
+      - name: start_time
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Filter spans starting at or after this time.
+      - name: end_time
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Filter spans starting at or before this time.
+    responses:
+      '200':
+        description: Paginated list of trace spans.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/trace.yaml#/TraceSpan'
+                total:
+                  type: integer
+                  format: int64
+                page:
+                  type: integer
+                page_size:
+                  type: integer
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the trace.trace.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+traceItem:
+  get:
+    tags: [trace]
+    summary: Get trace detail with spans
+    description: >-
+      Returns the full trace detail including all spans and fact events for
+      the given `traceId`. Requires the `trace.trace.read` permission.
+    operationId: getTrace
+    parameters:
+      - name: traceId
+        in: path
+        required: true
+        schema:
+          type: string
+        example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Trace detail with spans and fact events.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/trace.yaml#/TraceDetail'
+      '404':
+        description: Trace not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+traceReplay:
+  get:
+    tags: [trace]
+    summary: Get fact events for replay
+    description: >-
+      Returns the ordered list of fact events for the given `traceId`, used
+      for trace replay and audit inspection. Requires the
+      `trace.trace.read` permission.
+    operationId: getTraceReplay
+    parameters:
+      - name: traceId
+        in: path
+        required: true
+        schema:
+          type: string
+        example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Ordered list of fact events for replay.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trace_id, events]
+              additionalProperties: false
+              properties:
+                trace_id:
+                  type: string
+                  example: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+                events:
+                  type: array
+                  items:
+                    $ref: '../schemas/trace.yaml#/FactEvent'
+      '404':
+        description: Trace not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

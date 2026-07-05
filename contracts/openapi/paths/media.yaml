@@ -1,0 +1,218 @@
+# Function: OpenAPI path items for F-MEDIA-001 media API
+# Time: 2026-07-05
+# Author: AxeXie
+mediaUpload:
+  post:
+    tags: [media]
+    summary: Upload a media file
+    description: >-
+      Uploads a file to MinIO/S3 and records the metadata in the
+      `media.media_object` table. Supports multipart form data. Requires the
+      `media.media.upload` permission.
+    operationId: uploadMedia
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+                description: The file to upload.
+              media_type:
+                type: string
+                description: Logical media type (IMAGE, VIDEO, LOG, MAP, DOCUMENT).
+                example: IMAGE
+              robot_id:
+                type: string
+                description: Optional robot identifier.
+              mission_id:
+                type: string
+                description: Optional mission identifier.
+              expires_at:
+                type: string
+                format: date-time
+                description: Optional expiry timestamp.
+    responses:
+      '201':
+        description: File uploaded successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/media.yaml#/MediaObject'
+            example:
+              media_id: med_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              file_name: patrol_camera_frame_001.jpg
+              file_path: media/med_01JX2Q3R4T5V6W7X8Y9Z0A1B2C.jpg
+              file_size: 204800
+              content_type: image/jpeg
+              media_type: IMAGE
+              robot_id: rbt_01J00000000000000000000001
+              uploaded_by: usr_01J00000000000000000000001
+              uploaded_at: '2026-07-05T10:00:00Z'
+      '400':
+        description: Invalid request or empty file.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the media.media.upload permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+mediaCollection:
+  get:
+    tags: [media]
+    summary: List media objects
+    description: >-
+      Returns a paginated list of media objects, optionally filtered by
+      `robot_id`, `mission_id`, and `media_type`. Requires the
+      `media.media.read` permission.
+    operationId: listMedia
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: robot_id
+        in: query
+        schema:
+          type: string
+      - name: mission_id
+        in: query
+        schema:
+          type: string
+      - name: media_type
+        in: query
+        schema:
+          $ref: '../schemas/media.yaml#/MediaObject/properties/media_type'
+    responses:
+      '200':
+        description: Paginated list of media objects.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/media.yaml#/MediaObject'
+                total:
+                  type: integer
+                  format: int64
+                page:
+                  type: integer
+                page_size:
+                  type: integer
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the media.media.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+mediaItem:
+  get:
+    tags: [media]
+    summary: Get media metadata
+    operationId: getMedia
+    parameters:
+      - name: mediaId
+        in: path
+        required: true
+        schema:
+          type: string
+        example: med_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Media metadata.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/media.yaml#/MediaObject'
+      '404':
+        description: Media not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  delete:
+    tags: [media]
+    summary: Delete a media object
+    description: >-
+      Deletes the media object from MinIO/S3 and removes the metadata row.
+      Requires the `media.media.manage` permission.
+    operationId: deleteMedia
+    parameters:
+      - name: mediaId
+        in: path
+        required: true
+        schema:
+          type: string
+        example: med_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '204':
+        description: Media deleted successfully.
+      '404':
+        description: Media not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+mediaDownload:
+  get:
+    tags: [media]
+    summary: Download a media file
+    description: >-
+      Downloads the binary content of the media object from MinIO/S3.
+      Requires the `media.media.read` permission.
+    operationId: downloadMedia
+    parameters:
+      - name: mediaId
+        in: path
+        required: true
+        schema:
+          type: string
+        example: med_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: File content.
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '404':
+        description: Media not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

@@ -1,0 +1,73 @@
+# Function: Media schemas for F-MEDIA-001 media object management
+# Time: 2026-07-05
+# Author: AxeXie
+MediaObject:
+  type: object
+  description: >-
+    A media object backed by the `media.media_object` table. Media files are
+    stored in MinIO/S3; the database row holds metadata and the object path.
+  required:
+    - media_id
+    - file_name
+    - file_size
+    - content_type
+    - media_type
+    - uploaded_at
+  additionalProperties: false
+  properties:
+    media_id:
+      type: string
+      description: Unique, prefixed public identifier of the media object.
+      example: med_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    file_name:
+      type: string
+      description: Original file name as uploaded.
+      example: patrol_camera_frame_001.jpg
+    file_path:
+      type: string
+      description: Object path within the MinIO/S3 bucket.
+      example: media/med_01JX2Q3R4T5V6W7X8Y9Z0A1B2C.jpg
+    file_size:
+      type: integer
+      format: int64
+      description: File size in bytes.
+      example: 204800
+    content_type:
+      type: string
+      description: MIME content type of the file.
+      example: image/jpeg
+    media_type:
+      type: string
+      description: >-
+        Logical media type category. `IMAGE` for photos, `VIDEO` for
+        recordings, `LOG` for log files, `MAP` for map data, `DOCUMENT` for
+        other documents.
+      enum:
+        - IMAGE
+        - VIDEO
+        - LOG
+        - MAP
+        - DOCUMENT
+      example: IMAGE
+    robot_id:
+      type: string
+      description: Optional robot identifier associated with this media.
+      example: rbt_01J00000000000000000000001
+    mission_id:
+      type: string
+      description: Optional mission identifier associated with this media.
+      example: msn_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    uploaded_by:
+      type: string
+      description: Actor that uploaded the file.
+      example: usr_01J00000000000000000000001
+    uploaded_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of upload.
+      example: '2026-07-05T10:00:00Z'
+    expires_at:
+      type: string
+      format: date-time
+      description: Optional UTC timestamp after which the media expires and is cleaned up.
+      example: '2026-08-05T10:00:00Z'

@@ -1,0 +1,167 @@
+# Function: Policy management schemas for F-POLICY-001
+# Time: 2026-07-05
+# Author: AxeXie
+Policy:
+  type: object
+  description: >-
+    A managed policy backed by the `policy.policy` table. Policies follow the
+    SM-POLICY-001 state machine (DRAFT → PUBLISHED → ARCHIVED). Each publish
+    creates an immutable versioned set of rules in `policy.policy_rule`. The
+    `scope` field restricts the policy applicability (e.g. robot, fleet, org).
+    All field names use snake_case.
+  required:
+    - policy_id
+    - name
+    - status
+    - current_version
+    - created_at
+  additionalProperties: false
+  properties:
+    policy_id:
+      type: string
+      description: Unique, prefixed public identifier of the policy (ULID-based).
+      example: pol_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    name:
+      type: string
+      description: Human-readable policy name.
+      example: restricted_area_policy
+    description:
+      type: string
+      description: Human-readable explanation of the policy intent.
+      example: Prevents robots from entering restricted zones.
+    status:
+      type: string
+      description: >-
+        Lifecycle status of the policy. `DRAFT` policies are not enforced;
+        `PUBLISHED` policies are active; `ARCHIVED` policies are retired.
+      enum:
+        - DRAFT
+        - PUBLISHED
+        - ARCHIVED
+      example: PUBLISHED
+    current_version:
+      type: integer
+      description: >-
+        Version number of the currently active published version. Starts at 0
+        for a freshly created draft with no published version yet.
+      minimum: 0
+      example: 1
+    rules:
+      type: array
+      description: The rules attached to the current version of the policy.
+      items:
+        $ref: '#/PolicyRule'
+    scope:
+      type: string
+      description: >-
+        Applicability scope of the policy (e.g. robot, fleet, org). Used by
+        the policy assignment table to bind policies to scope instances.
+      example: robot
+    created_by:
+      type: string
+      description: Identifier of the actor that created the policy.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    updated_by:
+      type: string
+      description: Identifier of the actor that last updated the policy.
+      example: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the policy was created.
+      example: '2026-07-05T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the policy was last updated.
+      example: '2026-07-05T09:30:00Z'
+PolicyRule:
+  type: object
+  description: >-
+    A single rule within a policy. Each rule has a `rule_type` (e.g.
+    restricted_area, speed_limit), a `condition` stored as jsonb, an `action`
+    (allow, deny, warn), and a `priority` for evaluation order.
+  required:
+    - rule_type
+    - action
+  additionalProperties: false
+  properties:
+    rule_type:
+      type: string
+      description: >-
+        The type of rule. Determines how the `condition` is interpreted by
+        the evaluation engine.
+      example: restricted_area
+    condition:
+      type: object
+      description: >-
+        Rule condition payload stored as jsonb. Structure depends on
+        `rule_type`.
+      additionalProperties: true
+      example:
+        zone_id: zone_restricted_01
+    action:
+      type: string
+      description: The action taken when the rule matches.
+      enum:
+        - ALLOW
+        - DENY
+        - WARN
+      example: DENY
+    priority:
+      type: integer
+      description: Evaluation priority. Lower numbers are evaluated first.
+      default: 100
+      example: 10
+CreatePolicyRequest:
+  type: object
+  description: >-
+    Request body for creating a new policy. The `name` must be unique; a
+    duplicate returns `POLICY_ALREADY_EXISTS`. A freshly created policy starts
+    in `DRAFT` status with `current_version` 0. All field names use snake_case.
+  required:
+    - name
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Unique policy name.
+      example: restricted_area_policy
+    description:
+      type: string
+      description: Optional human-readable explanation of the policy.
+      example: Prevents robots from entering restricted zones.
+    rules:
+      type: array
+      description: Optional initial set of rules for the draft policy.
+      items:
+        $ref: '#/PolicyRule'
+    scope:
+      type: string
+      description: Optional applicability scope.
+      example: robot
+UpdatePolicyRequest:
+  type: object
+  description: >-
+    Request body for updating a policy's metadata and rules. The `status`
+    field is not set directly here; use the publish endpoint for state
+    transitions. All field names use snake_case.
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Updated policy name.
+      example: restricted_area_policy_v2
+    description:
+      type: string
+      description: Updated human-readable explanation.
+      example: Prevents robots from entering restricted zones (updated).
+    rules:
+      type: array
+      description: Updated set of rules for the draft policy.
+      items:
+        $ref: '#/PolicyRule'
+    scope:
+      type: string
+      description: Updated applicability scope.
+      example: robot

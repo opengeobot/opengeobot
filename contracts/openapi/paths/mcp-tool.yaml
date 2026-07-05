@@ -1,0 +1,360 @@
+# Function: OpenAPI path items for F-MCP-001 MCP tool gateway API
+# Time: 2026-07-05
+# Author: AxeXie
+toolsCollection:
+  get:
+    tags: [mcp-tool]
+    summary: List registered MCP tools
+    description: >-
+      Returns a paginated list of registered MCP tools. Results can be filtered
+      by `status`. Tools follow the lifecycle (DRAFT, ACTIVE, DEPRECATED,
+      DISABLED).
+    operationId: listMcpTools
+    parameters:
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: status
+        in: query
+        description: Filter by lifecycle status.
+        schema:
+          $ref: '../schemas/mcp-tool.yaml#/McpTool/properties/status'
+        example: ACTIVE
+    responses:
+      '200':
+        description: Paginated list of tools.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Paginated response wrapper for tool entries.
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/mcp-tool.yaml#/McpTool'
+                total:
+                  type: integer
+                  format: int64
+                  description: Total number of matching records.
+                  example: 3
+                page:
+                  type: integer
+                  description: Current page number.
+                  example: 1
+                page_size:
+                  type: integer
+                  description: Number of items per page.
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the mcp.tool.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [mcp-tool]
+    summary: Register a new MCP tool
+    description: >-
+      Registers a new tool in the gateway. The `name` must be unique; a
+      duplicate returns `TOOL_ALREADY_EXISTS`. A freshly created tool starts
+      in `DRAFT` status. A `tool.registered.v1` event is published via the
+      transactional outbox.
+    operationId: registerMcpTool
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/mcp-tool.yaml#/RegisterToolRequest'
+          example:
+            name: query_robot_status
+            description: Queries the current status and telemetry of a registered robot.
+            input_schema:
+              type: object
+              properties:
+                robot_id:
+                  type: string
+            output_schema:
+              type: object
+              properties:
+                status:
+                  type: string
+    responses:
+      '201':
+        description: Tool registered successfully.
+        headers:
+          Location:
+            description: URL of the created tool.
+            schema:
+              type: string
+              format: uri
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mcp-tool.yaml#/McpTool'
+            example:
+              tool_id: mcp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              name: query_robot_status
+              description: Queries the current status and telemetry of a registered robot.
+              canary_percent: 0
+              status: DRAFT
+              created_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              created_at: '2026-07-05T08:00:00Z'
+              updated_at: '2026-07-05T08:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the mcp.tool.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: A tool with the given name already exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Tool already exists
+              status: 409
+              code: TOOL_ALREADY_EXISTS
+              message_key: error.mcp.tool.already_exists
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /mcp/tools
+toolItem:
+  get:
+    tags: [mcp-tool]
+    summary: Get a tool by id
+    description: >-
+      Returns the current state of the tool identified by `toolId`.
+    operationId: getMcpTool
+    parameters:
+      - name: toolId
+        in: path
+        description: Unique tool identifier.
+        required: true
+        schema:
+          type: string
+        example: mcp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: The requested tool.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mcp-tool.yaml#/McpTool'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the mcp.tool.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No tool found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+            example:
+              type: about:blank
+              title: Tool not found
+              status: 404
+              code: TOOL_NOT_FOUND
+              message_key: error.mcp.tool.not_found
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              instance: /mcp/tools/mcp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+toolInvoke:
+  post:
+    tags: [mcp-tool]
+    summary: Invoke a tool
+    description: >-
+      Invokes the tool identified by `toolId` with the provided input parameters.
+      The parameters are validated against the tool's `input_schema` before
+      execution. For M2, execution returns a simulated result; actual tool
+      execution against edge skills is M3+. The invocation is logged with
+      wall-clock duration and an audit entry is written.
+    operationId: invokeMcpTool
+    parameters:
+      - name: toolId
+        in: path
+        description: Unique tool identifier.
+        required: true
+        schema:
+          type: string
+        example: mcp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/mcp-tool.yaml#/InvokeToolRequest'
+          example:
+            input_params:
+              robot_id: rbt_01J00000000000000000000001
+    responses:
+      '200':
+        description: Invocation result.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/mcp-tool.yaml#/InvocationResult'
+            example:
+              invocation_id: inv_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              tool_id: mcp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              status: SUCCESS
+              output:
+                status: OFFLINE
+              duration_ms: 12
+              invoked_by: user-01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              invoked_at: '2026-07-05T10:00:00Z'
+              trace_id: 01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+      '400':
+        description: Invalid request body or schema validation failure.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the mcp.tool.invoke permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No tool found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Tool is not in an invocable state (e.g. DRAFT or DISABLED).
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+toolInvocations:
+  get:
+    tags: [mcp-tool]
+    summary: List invocations for a tool
+    description: >-
+      Returns a paginated list of invocation log entries for the given tool,
+      ordered from newest to oldest.
+    operationId: listMcpToolInvocations
+    parameters:
+      - name: toolId
+        in: path
+        description: Unique tool identifier.
+        required: true
+        schema:
+          type: string
+        example: mcp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+    responses:
+      '200':
+        description: Paginated invocation history for the tool.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Paginated response wrapper for invocation entries.
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/mcp-tool.yaml#/InvocationResult'
+                total:
+                  type: integer
+                  format: int64
+                  description: Total number of invocation records.
+                  example: 5
+                page:
+                  type: integer
+                  description: Current page number.
+                  example: 1
+                page_size:
+                  type: integer
+                  description: Number of items per page.
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the mcp.tool.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No tool found for the given id.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

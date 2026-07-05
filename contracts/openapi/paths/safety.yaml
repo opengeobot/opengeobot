@@ -1,0 +1,213 @@
+# Function: OpenAPI path items for F-SAFETY-001 safety API
+# Time: 2026-07-05
+# Author: AxeXie
+safetyEmergencyStop:
+  post:
+    tags: [safety]
+    summary: Trigger an emergency stop
+    description: >-
+      Triggers an emergency stop for a specific robot or, when `robot_id` is
+      omitted, for all robots. Transitions the safety state to
+      `EMERGENCY_STOPPED` and appends a `safety_event` row. A
+      `safety.emergency_stop.v1` event is published via the transactional
+      outbox. Requires the `policy.safety.manage` permission.
+    operationId: triggerEmergencyStop
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/safety.yaml#/EmergencyStopRequest'
+          example:
+            robot_id: rbt_01J00000000000000000000001
+            reason: Operator-triggered emergency stop
+    responses:
+      '200':
+        description: Emergency stop acknowledged.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/safety.yaml#/SafetyState'
+            example:
+              robot_id: rbt_01J00000000000000000000001
+              state: EMERGENCY_STOPPED
+              last_event_at: '2026-07-05T10:00:00Z'
+              reason: Operator-triggered emergency stop
+              updated_at: '2026-07-05T10:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the policy.safety.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+safetyReset:
+  post:
+    tags: [safety]
+    summary: Reset safety state
+    description: >-
+      Resets the safety state from `EMERGENCY_STOPPED` to `RESETTING` then
+      `NORMAL` for a specific robot or, when `robot_id` is omitted, for all
+      stopped robots. Appends a `safety_event` row. A `safety.reset.v1` event
+      is published via the transactional outbox. Requires the
+      `policy.safety.manage` permission.
+    operationId: resetSafetyState
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/safety.yaml#/ResetRequest'
+          example:
+            robot_id: rbt_01J00000000000000000000001
+    responses:
+      '200':
+        description: Safety state reset.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/safety.yaml#/SafetyState'
+            example:
+              robot_id: rbt_01J00000000000000000000001
+              state: NORMAL
+              last_event_at: '2026-07-05T10:05:00Z'
+              reason: Reset by operator
+              updated_at: '2026-07-05T10:05:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the policy.safety.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Robot is not in EMERGENCY_STOPPED state.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+safetyState:
+  get:
+    tags: [safety]
+    summary: Get current safety state
+    description: >-
+      Returns the current safety state for a specific robot (via `robot_id`
+      query parameter) or the global state when omitted. Requires the
+      `policy.safety.read` permission.
+    operationId: getSafetyState
+    parameters:
+      - name: robot_id
+        in: query
+        description: Optional robot identifier. If omitted, returns the global safety state.
+        schema:
+          type: string
+        example: rbt_01J00000000000000000000001
+    responses:
+      '200':
+        description: Current safety state.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/safety.yaml#/SafetyState'
+            example:
+              robot_id: rbt_01J00000000000000000000001
+              state: NORMAL
+              last_event_at: '2026-07-05T08:00:00Z'
+              updated_at: '2026-07-05T08:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the policy.safety.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+safetyEvents:
+  get:
+    tags: [safety]
+    summary: List safety events
+    description: >-
+      Returns a paginated list of safety events, optionally filtered by
+      `robot_id` and `event_type`. Events are ordered from newest to oldest.
+      Requires the `policy.safety.read` permission.
+    operationId: listSafetyEvents
+    parameters:
+      - name: page
+        in: query
+        description: Page number, 1-based.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        description: Number of items per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: robot_id
+        in: query
+        description: Filter by robot identifier.
+        schema:
+          type: string
+        example: rbt_01J00000000000000000000001
+      - name: event_type
+        in: query
+        description: Filter by event type.
+        schema:
+          $ref: '../schemas/safety.yaml#/SafetyEvent/properties/event_type'
+        example: EMERGENCY_STOP
+    responses:
+      '200':
+        description: Paginated list of safety events.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/safety.yaml#/SafetyEvent'
+                total:
+                  type: integer
+                  format: int64
+                  example: 3
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the policy.safety.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

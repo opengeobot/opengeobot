@@ -1,0 +1,395 @@
+# Function: OpenAPI path items for F-MAP-001 map and area API
+# Time: 2026-07-05
+# Author: AxeXie
+mapsCollection:
+  get:
+    tags: [map]
+    summary: List maps
+    description: >-
+      Returns a paginated list of maps, optionally filtered by `status`.
+      Requires the `map_scene.map.read` permission.
+    operationId: listMaps
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      - name: status
+        in: query
+        schema:
+          $ref: '../schemas/map.yaml#/MapInfo/properties/status'
+        example: PUBLISHED
+    responses:
+      '200':
+        description: Paginated list of maps.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/map.yaml#/MapInfo'
+                total:
+                  type: integer
+                  format: int64
+                  example: 5
+                page:
+                  type: integer
+                  example: 1
+                page_size:
+                  type: integer
+                  example: 20
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the map_scene.map.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [map]
+    summary: Create a map
+    description: >-
+      Creates a new map in `DRAFT` status with version 0. Requires the
+      `map_scene.map.manage` permission.
+    operationId: createMap
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/map.yaml#/CreateMapRequest'
+          example:
+            name: Warehouse Floor 1
+            description: Indoor map of warehouse floor 1.
+            metadata:
+              resolution: 0.05
+              frame_id: map
+    responses:
+      '201':
+        description: Map created successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/map.yaml#/MapInfo'
+            example:
+              map_id: map_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+              name: Warehouse Floor 1
+              version: 0
+              status: DRAFT
+              created_at: '2026-07-05T08:00:00Z'
+              updated_at: '2026-07-05T08:00:00Z'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the map_scene.map.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+mapItem:
+  get:
+    tags: [map]
+    summary: Get a map by id
+    operationId: getMap
+    parameters:
+      - name: mapId
+        in: path
+        required: true
+        schema:
+          type: string
+        example: map_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: The requested map.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/map.yaml#/MapInfo'
+      '404':
+        description: Map not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  put:
+    tags: [map]
+    summary: Update a map
+    description: >-
+      Updates the name, description, or metadata of a map. Only `DRAFT` maps
+      can be updated. Requires the `map_scene.map.manage` permission.
+    operationId: updateMap
+    parameters:
+      - name: mapId
+        in: path
+        required: true
+        schema:
+          type: string
+        example: map_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/map.yaml#/UpdateMapRequest'
+    responses:
+      '200':
+        description: Map updated successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/map.yaml#/MapInfo'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Map not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Map is not in DRAFT status.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+mapPublish:
+  post:
+    tags: [map]
+    summary: Publish a map version
+    description: >-
+      Publishes the current draft map as a new version, transitioning it to
+      `PUBLISHED` status. Requires the `map_scene.map.publish` permission.
+    operationId: publishMap
+    parameters:
+      - name: mapId
+        in: path
+        required: true
+        schema:
+          type: string
+        example: map_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    responses:
+      '200':
+        description: Map version published successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/map.yaml#/MapInfo'
+      '404':
+        description: Map not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Map is not in a publishable state.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+mapAreas:
+  get:
+    tags: [map]
+    summary: List areas in a map
+    operationId: listMapAreas
+    parameters:
+      - name: mapId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Paginated list of map areas.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/map.yaml#/MapArea'
+                total:
+                  type: integer
+                  format: int64
+                page:
+                  type: integer
+                page_size:
+                  type: integer
+      '404':
+        description: Map not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [map]
+    summary: Create an area in a map
+    operationId: createMapArea
+    parameters:
+      - name: mapId
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/map.yaml#/CreateMapAreaRequest'
+    responses:
+      '201':
+        description: Area created successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/map.yaml#/MapArea'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Map not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+mapRestrictedAreas:
+  get:
+    tags: [map]
+    summary: List restricted areas in a map
+    operationId: listRestrictedAreas
+    parameters:
+      - name: mapId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Paginated list of restricted areas.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, total, page, page_size]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../schemas/map.yaml#/RestrictedArea'
+                total:
+                  type: integer
+                  format: int64
+                page:
+                  type: integer
+                page_size:
+                  type: integer
+      '404':
+        description: Map not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [map]
+    summary: Create a restricted area in a map
+    operationId: createRestrictedArea
+    parameters:
+      - name: mapId
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/map.yaml#/CreateRestrictedAreaRequest'
+    responses:
+      '201':
+        description: Restricted area created successfully.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/map.yaml#/RestrictedArea'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Map not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
