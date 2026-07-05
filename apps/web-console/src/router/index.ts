@@ -41,6 +41,54 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, permission: 'platform.profile.read', titleKey: 'nav.profile' }
   },
   {
+    path: '/robots',
+    name: 'robots',
+    component: () => import('@/views/RobotManagementView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.robot.read', titleKey: 'nav.robots' }
+  },
+  {
+    path: '/skills',
+    name: 'skills',
+    component: () => import('@/views/SkillManagementView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.skill.read', titleKey: 'nav.skills' }
+  },
+  {
+    path: '/missions',
+    name: 'missions',
+    component: () => import('@/views/MissionManagementView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.mission.read', titleKey: 'nav.missions' }
+  },
+  {
+    path: '/policies',
+    name: 'policies',
+    component: () => import('@/views/PolicyManagementView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.policy.read', titleKey: 'nav.policies' }
+  },
+  {
+    path: '/safety',
+    name: 'safety',
+    component: () => import('@/views/SafetyControlView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.safety.read', titleKey: 'nav.safety' }
+  },
+  {
+    path: '/maps',
+    name: 'maps',
+    component: () => import('@/views/MapManagementView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.map.read', titleKey: 'nav.maps' }
+  },
+  {
+    path: '/monitor',
+    name: 'monitor',
+    component: () => import('@/views/MonitorView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.monitor.read', titleKey: 'nav.monitor' }
+  },
+  {
+    path: '/media',
+    name: 'media',
+    component: () => import('@/views/MediaLibraryView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.media.read', titleKey: 'nav.media' }
+  },
+  {
     path: '/system/users',
     name: 'system-users',
     component: () => import('@/views/system/UserManagement.vue'),

@@ -41,4 +41,16 @@ public interface MissionRepository extends BaseMapper<Mission> {
         }
         return selectCount(wrapper);
     }
+
+    /**
+     * Returns the active missions for a robot. Active missions are those in
+     * the EXECUTING or PAUSED state. Ordered by most recently updated.
+     */
+    default List<Mission> selectActiveByRobotId(String robotId) {
+        QueryWrapper<Mission> wrapper = new QueryWrapper<>();
+        wrapper.eq("robot_id", robotId)
+                .in("status", "EXECUTING", "PAUSED")
+                .orderByDesc("updated_at");
+        return selectList(wrapper);
+    }
 }

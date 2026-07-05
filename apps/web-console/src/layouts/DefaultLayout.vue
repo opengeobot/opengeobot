@@ -28,13 +28,14 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { key: 'nav.dashboard', path: '/dashboard' },
-  { key: 'nav.devices', path: '/devices' },
+  { key: 'nav.robots', path: '/robots' },
   { key: 'nav.missions', path: '/missions' },
-  { key: 'nav.capabilities', path: '/capabilities' },
+  { key: 'nav.skills', path: '/skills' },
+  { key: 'nav.policies', path: '/policies' },
   { key: 'nav.maps', path: '/maps' },
   { key: 'nav.monitor', path: '/monitor' },
-  { key: 'nav.alarms', path: '/alarms' },
-  { key: 'nav.memory', path: '/memory' },
+  { key: 'nav.safety', path: '/safety' },
+  { key: 'nav.media', path: '/media' },
   {
     key: 'nav.system',
     path: '/system',

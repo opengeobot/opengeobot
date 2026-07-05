@@ -44,6 +44,7 @@ __pycache__/
 *$py.class
 .venv/
 venv/
+.venv-*/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
@@ -51,6 +52,9 @@ htmlcov/
 .coverage
 coverage/
 .nyc_output/
+
+# Edge / sim runtime local state (offline cache, captured artifacts)
+.edge-data/
 
 # -----------------------------------------------------------------------------
 # IDE / Editor

@@ -1,0 +1,208 @@
+# Function: Real-time monitoring schemas for F-MONITOR-001
+# Time: 2026-07-05
+# Author: AxeXie
+
+RobotMonitorInfo:
+  type: object
+  description: >-
+    Real-time monitoring snapshot of a single robot. Aggregates identity,
+    operational status, the mission currently executing on the robot, the
+    latest reported position and battery telemetry, plus the last heartbeat
+    timestamp. The `status` field follows the SM-ROBOT-001 state machine
+    (ONLINE, OFFLINE, BUSY, ERROR, MAINTENANCE) and is a code contract. All
+    field names use snake_case.
+  required: [robot_id, name, status, last_seen_at]
+  additionalProperties: false
+  properties:
+    robot_id:
+      type: string
+      description: Stable public identifier of the robot.
+      example: rbt_01J00000000000000000000001
+    name:
+      type: string
+      description: Human-friendly display name of the robot.
+      example: Pioneer-01
+    status:
+      $ref: '../schemas/robot.yaml#/RobotStatus'
+    current_mission_id:
+      type: string
+      description: >-
+        Identifier of the mission currently executing on the robot, or null
+        when the robot is idle.
+      example: mission_01J00000000000000000000001
+      nullable: true
+    position:
+      type: object
+      description: >-
+        Latest reported robot pose/position. Coordinates are platform-defined
+        and validated against the active map. Null when no telemetry has been
+        received yet.
+      additionalProperties: true
+      nullable: true
+      properties:
+        x:
+          type: number
+          format: double
+          description: X coordinate in the active map frame.
+          example: 12.5
+        y:
+          type: number
+          format: double
+          description: Y coordinate in the active map frame.
+          example: -3.2
+        theta:
+          type: number
+          format: double
+          description: Heading angle in radians.
+          example: 1.57
+      example:
+        x: 12.5
+        y: -3.2
+        theta: 1.57
+    battery:
+      type: object
+      description: >-
+        Latest reported battery telemetry. Null when no telemetry has been
+        received yet.
+      additionalProperties: true
+      nullable: true
+      properties:
+        level_percent:
+          type: integer
+          description: Battery charge percentage (0-100).
+          minimum: 0
+          maximum: 100
+          example: 82
+        voltage:
+          type: number
+          format: double
+          description: Battery voltage in volts.
+          example: 24.6
+      example:
+        level_percent: 82
+        voltage: 24.6
+    last_seen_at:
+      type: string
+      format: date-time
+      description: UTC timestamp of the last heartbeat received from the robot.
+      example: '2026-07-05T08:00:00Z'
+
+MissionMonitorInfo:
+  type: object
+  description: >-
+    Real-time monitoring snapshot of mission execution progress. The `status`
+    field follows the SM-MISSION-001 state machine
+    (PENDING, PLANNING, READY, EXECUTING, PAUSED, COMPLETED, FAILED, CANCELLED)
+    and is a code contract. `progress_percent` is derived from the count of
+    completed steps over the total step count. All field names use snake_case.
+  required: [mission_id, name, robot_id, status, current_step, total_steps, progress_percent, started_at]
+  additionalProperties: false
+  properties:
+    mission_id:
+      type: string
+      description: Stable public identifier of the mission.
+      example: mission_01J00000000000000000000001
+    name:
+      type: string
+      description: Human-friendly display name of the mission.
+      example: Warehouse patrol
+    robot_id:
+      type: string
+      description: Identifier of the robot assigned to the mission.
+      example: rbt_01J00000000000000000000001
+    status:
+      $ref: '../schemas/mission.yaml#/MissionStatus'
+    current_step:
+      type: integer
+      description: >-
+        1-based index of the step currently executing, or the count of
+        completed steps plus one when paused. Equals 0 before the mission
+        starts and equals total_steps when all steps are done.
+      minimum: 0
+      example: 3
+    total_steps:
+      type: integer
+      description: Total number of steps in the mission plan.
+      minimum: 0
+      example: 8
+    progress_percent:
+      type: integer
+      description: >-
+        Completion percentage (0-100), computed as completed steps divided by
+        total steps, rounded down. 100 when the mission is in a terminal
+        COMPLETED state.
+      minimum: 0
+      maximum: 100
+      example: 25
+    started_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the mission entered the EXECUTING state.
+      nullable: true
+      example: '2026-07-05T08:05:00Z'
+    eta:
+      type: string
+      format: date-time
+      description: >-
+        Estimated completion timestamp. Computed from the average step
+        duration when a mission is executing; null before start or after
+        completion.
+      nullable: true
+      example: '2026-07-05T08:35:00Z'
+
+MonitorOverview:
+  type: object
+  description: >-
+    Dashboard overview aggregating fleet-wide counts for the real-time
+    monitoring console. Counts are derived from current robot and mission
+    state, not editable dictionary data. All field names use snake_case.
+  required: [total_robots, online_robots, busy_robots, active_missions, error_robots, safety_alerts]
+  additionalProperties: false
+  properties:
+    total_robots:
+      type: integer
+      format: int64
+      description: Total number of registered robots.
+      example: 12
+    online_robots:
+      type: integer
+      format: int64
+      description: Number of robots currently in the ONLINE state.
+      example: 8
+    busy_robots:
+      type: integer
+      format: int64
+      description: Number of robots currently in the BUSY state.
+      example: 3
+    active_missions:
+      type: integer
+      format: int64
+      description: Number of missions in a non-terminal active state (EXECUTING or PAUSED).
+      example: 3
+    error_robots:
+      type: integer
+      format: int64
+      description: Number of robots currently in the ERROR state.
+      example: 1
+    safety_alerts:
+      type: integer
+      format: int64
+      description: Number of unresolved safety events (EMERGENCY_STOP state rows).
+      example: 0
+
+TakeoverRequest:
+  type: object
+  description: >-
+    Request body for manually taking over a robot. The takeover pauses any
+    active mission, transitions the robot to MAINTENANCE and records an audit
+    entry with the supplied reason. Edge safety always has final authority.
+    All field names use snake_case.
+  additionalProperties: false
+  properties:
+    reason:
+      type: string
+      description: >-
+        Human-readable reason for the manual takeover. Recorded in the audit
+        trail and the robot status history.
+      maxLength: 512
+      example: Operator-initiated maintenance for sensor calibration

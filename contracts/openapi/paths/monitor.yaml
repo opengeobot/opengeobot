@@ -1,0 +1,242 @@
+# Function: Real-time monitoring endpoint paths for F-MONITOR-001
+# Time: 2026-07-05
+# Author: AxeXie
+
+monitorRobot:
+  parameters:
+    - name: robotId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the robot.
+      example: rbt_01J00000000000000000000001
+  get:
+    tags: [monitor]
+    summary: Get real-time robot status
+    description: >-
+      Returns the real-time monitoring snapshot for a single robot, including
+      operational status, the currently executing mission, latest reported
+      position and battery telemetry, and the last heartbeat timestamp.
+      Requires the `robot.monitor.read` permission. For push-based updates,
+      clients may instead subscribe to the `/ws/monitor` WebSocket endpoint.
+    operationId: getRobotMonitorInfo
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Real-time robot monitoring snapshot.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/monitor.yaml#/RobotMonitorInfo'
+            example:
+              robot_id: rbt_01J00000000000000000000001
+              name: Pioneer-01
+              status: BUSY
+              current_mission_id: mission_01J00000000000000000000001
+              position:
+                x: 12.5
+                y: -3.2
+                theta: 1.57
+              battery:
+                level_percent: 82
+                voltage: 24.6
+              last_seen_at: '2026-07-05T08:00:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.monitor.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Robot not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+monitorMission:
+  parameters:
+    - name: missionId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the mission.
+      example: mission_01J00000000000000000000001
+  get:
+    tags: [monitor]
+    summary: Get real-time mission progress
+    description: >-
+      Returns the real-time progress snapshot for a single mission, including
+      current step index, total step count, completion percentage and an
+      estimated completion timestamp. Requires the `robot.monitor.read`
+      permission. For push-based updates, clients may instead subscribe to the
+      `/ws/monitor` WebSocket endpoint.
+    operationId: getMissionMonitorInfo
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Real-time mission progress snapshot.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/monitor.yaml#/MissionMonitorInfo'
+            example:
+              mission_id: mission_01J00000000000000000000001
+              name: Warehouse patrol
+              robot_id: rbt_01J00000000000000000000001
+              status: EXECUTING
+              current_step: 3
+              total_steps: 8
+              progress_percent: 25
+              started_at: '2026-07-05T08:05:00Z'
+              eta: '2026-07-05T08:35:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.monitor.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Mission not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+monitorTakeover:
+  parameters:
+    - name: robotId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the robot to take over.
+      example: rbt_01J00000000000000000000001
+  post:
+    tags: [monitor]
+    summary: Manual takeover of a robot
+    description: >-
+      Manually takes over a robot. Any mission currently executing on the
+      robot is paused, the robot is transitioned to `MAINTENANCE`, and the
+      supplied reason is recorded in the audit trail and robot status
+      history. Edge safety always has final authority and cannot be bypassed.
+      Requires the `robot.monitor.takeover` permission. Supports idempotency
+      via the `Idempotency-Key` header.
+    operationId: takeoverRobot
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 128
+        description: Optional idempotency key.
+        example: monitor-takeover-20260705
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/monitor.yaml#/TakeoverRequest'
+          example:
+            reason: Operator-initiated maintenance for sensor calibration
+    responses:
+      '200':
+        description: Robot taken over. Returns the updated monitoring snapshot.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/monitor.yaml#/RobotMonitorInfo'
+            example:
+              robot_id: rbt_01J00000000000000000000001
+              name: Pioneer-01
+              status: MAINTENANCE
+              current_mission_id: null
+              position:
+                x: 12.5
+                y: -3.2
+                theta: 1.57
+              battery:
+                level_percent: 82
+                voltage: 24.6
+              last_seen_at: '2026-07-05T08:01:00Z'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.monitor.takeover permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Robot not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: The robot cannot be transitioned to MAINTENANCE from its current state.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+monitorOverview:
+  get:
+    tags: [monitor]
+    summary: Dashboard overview
+    description: >-
+      Returns the fleet-wide dashboard overview aggregating counts of total,
+      online, busy and error robots, active missions and unresolved safety
+      alerts. Requires the `robot.monitor.read` permission.
+    operationId: getMonitorOverview
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Aggregated fleet overview.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/monitor.yaml#/MonitorOverview'
+            example:
+              total_robots: 12
+              online_robots: 8
+              busy_robots: 3
+              active_missions: 3
+              error_robots: 1
+              safety_alerts: 0
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.monitor.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

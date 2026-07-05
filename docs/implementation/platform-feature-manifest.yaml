@@ -415,7 +415,7 @@ features:
   - id: F-EDGE-001
     name: 边缘网关身份连接与证书
     phase: M2
-    implementation_status: NOT_STARTED
+    implementation_status: IN_PROGRESS
     source_sections: ["PDF 6.1/9.1/11.1", "AI规范 7.1/8.1", "实施蓝图 3.2/5.3/7.2"]
     platform_capability_profile: BUSINESS_STANDARD
     deployment_targets: [CLOUD_JAVA, EDGE, WEB]

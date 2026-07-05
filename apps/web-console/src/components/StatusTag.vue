@@ -24,6 +24,7 @@ const colorMap: Record<StatusTagType, Record<string, string>> = {
   task: {
     pending: 'gray',
     running: 'blue',
+    paused: 'amber',
     succeeded: 'green',
     failed: 'red',
     cancelled: 'gray'
@@ -31,6 +32,19 @@ const colorMap: Record<StatusTagType, Record<string, string>> = {
   'enable-disable': {
     enabled: 'green',
     disabled: 'gray'
+  },
+  robot: {
+    online: 'green',
+    offline: 'gray',
+    busy: 'blue',
+    error: 'red',
+    maintenance: 'amber'
+  },
+  publish: {
+    draft: 'gray',
+    published: 'green',
+    disabled: 'gray',
+    archived: 'gray'
   }
 }
 

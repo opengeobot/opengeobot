@@ -106,7 +106,7 @@ export interface FormField {
 }
 
 /** Status tag visual category */
-export type StatusTagType = 'health' | 'task' | 'enable-disable'
+export type StatusTagType = 'health' | 'task' | 'enable-disable' | 'robot' | 'publish'
 
 /** Generic filter params extending page request */
 export interface FilterParams extends PageRequest {
@@ -347,6 +347,468 @@ export interface AuditListParams extends FilterParams {
   action?: string
   resource_type?: string
   trace_id?: string
+  start_time?: string
+  end_time?: string
+}
+
+// ---- Robot ----
+
+export interface Robot {
+  id: string
+  name: string
+  model_id: string
+  model_name?: string
+  serial_number: string
+  org_id: string
+  org_name?: string
+  status: string
+  last_seen: string | null
+  capabilities: string[]
+  created_at: string
+}
+
+export interface RobotModel {
+  id: string
+  model_code: string
+  model_name: string
+  vendor: string
+  description: string
+}
+
+export interface RobotGroup {
+  id: string
+  group_code: string
+  group_name: string
+  description: string
+}
+
+export interface CreateRobotRequest {
+  name: string
+  model_id: string
+  serial_number: string
+  org_id: string
+  capabilities: string[]
+}
+
+export interface UpdateRobotRequest {
+  name?: string
+  model_id?: string
+  serial_number?: string
+  org_id?: string
+}
+
+export interface RobotListParams extends FilterParams {
+  name?: string
+  status?: string
+  org_id?: string
+  model_id?: string
+}
+
+// ---- Skill / Capability ----
+
+export interface Skill {
+  id: string
+  skill_code: string
+  skill_name: string
+  module: string
+  description: string
+  status: string
+  current_version: string
+  created_at: string
+}
+
+export interface SkillVersion {
+  id: string
+  skill_id: string
+  version: string
+  change_log: string
+  status: string
+  published_by: string
+  published_at: string
+}
+
+export interface CreateSkillRequest {
+  skill_code: string
+  skill_name: string
+  module: string
+  description: string
+}
+
+export interface UpdateSkillRequest {
+  skill_name?: string
+  module?: string
+  description?: string
+}
+
+export interface SkillListParams extends FilterParams {
+  module?: string
+  status?: string
+}
+
+// ---- MCP tool ----
+
+export interface McpTool {
+  id: string
+  tool_code: string
+  tool_name: string
+  description: string
+  input_schema: Record<string, unknown>
+  status: string
+  registered_at: string
+}
+
+export interface McpInvocation {
+  id: string
+  tool_id: string
+  tool_name: string
+  trace_id: string
+  caller: string
+  status: string
+  input: string | null
+  output: string | null
+  error: string | null
+  started_at: string
+  finished_at: string | null
+}
+
+export interface RegisterMcpToolRequest {
+  tool_code: string
+  tool_name: string
+  description: string
+  input_schema: Record<string, unknown>
+}
+
+export interface InvokeMcpToolRequest {
+  input: Record<string, unknown>
+  trace_id?: string
+}
+
+export interface McpListParams extends FilterParams {
+  status?: string
+}
+
+// ---- Mission ----
+
+export interface MissionStep {
+  id: string
+  step_index: number
+  action: string
+  target: string
+  parameters: Record<string, unknown>
+  status: string
+}
+
+export interface Mission {
+  id: string
+  name: string
+  description: string
+  robot_id: string
+  robot_name?: string
+  status: string
+  priority: number
+  steps: MissionStep[]
+  created_at: string
+  updated_at: string
+}
+
+export interface MissionTemplate {
+  id: string
+  template_code: string
+  template_name: string
+  description: string
+  steps: MissionStep[]
+}
+
+export interface CreateMissionRequest {
+  name: string
+  description: string
+  robot_id: string
+  priority: number
+  steps: Array<{
+    action: string
+    target: string
+    parameters: Record<string, unknown>
+  }>
+}
+
+export interface UpdateMissionRequest {
+  name?: string
+  description?: string
+  robot_id?: string
+  priority?: number
+}
+
+export interface RevisePlanRequest {
+  steps: Array<{
+    action: string
+    target: string
+    parameters: Record<string, unknown>
+  }>
+}
+
+export interface CreateMissionTemplateRequest {
+  template_code: string
+  template_name: string
+  description: string
+  steps: Array<{
+    action: string
+    target: string
+    parameters: Record<string, unknown>
+  }>
+}
+
+export interface RejectMissionRequest {
+  reason: string
+}
+
+export interface MissionListParams extends FilterParams {
+  robot_id?: string
+  status?: string
+  priority?: number
+}
+
+// ---- Policy ----
+
+export interface Policy {
+  id: string
+  policy_code: string
+  policy_name: string
+  description: string
+  status: string
+  version: number
+  scope: string
+  rules: Record<string, unknown>
+  created_at: string
+}
+
+export interface PolicyVersion {
+  id: string
+  policy_id: string
+  version: number
+  rules: Record<string, unknown>
+  status: string
+  published_by: string
+  published_at: string
+}
+
+export interface CreatePolicyRequest {
+  policy_code: string
+  policy_name: string
+  description: string
+  scope: string
+  rules: Record<string, unknown>
+}
+
+export interface UpdatePolicyRequest {
+  policy_name?: string
+  description?: string
+  scope?: string
+  rules?: Record<string, unknown>
+}
+
+export interface PolicyListParams extends FilterParams {
+  status?: string
+  scope?: string
+}
+
+// ---- Safety ----
+
+export interface SafetyState {
+  robot_id: string | null
+  e_stopped: boolean
+  locked: boolean
+  reason: string
+  last_event_id: string | null
+  updated_at: string
+}
+
+export interface SafetyEvent {
+  id: string
+  occurred_at: string
+  robot_id: string
+  event_type: string
+  level: string
+  source: string
+  description: string
+  trace_id: string
+  resolved: boolean
+}
+
+export interface EmergencyStopRequest {
+  robot_id?: string
+  reason?: string
+}
+
+export interface ResetSafetyRequest {
+  robot_id?: string
+}
+
+export interface SafetyEventListParams extends FilterParams {
+  robot_id?: string
+  event_type?: string
+  level?: string
+  start_time?: string
+  end_time?: string
+}
+
+// ---- Map ----
+
+export interface GameMap {
+  id: string
+  map_code: string
+  map_name: string
+  status: string
+  version: number
+  frame: string
+  description: string
+  created_at: string
+}
+
+export interface MapArea {
+  id: string
+  map_id: string
+  area_code: string
+  area_name: string
+  area_type: string
+  polygon: Record<string, unknown>
+}
+
+export interface RestrictedArea {
+  id: string
+  map_id: string
+  area_code: string
+  area_name: string
+  level: string
+  polygon: Record<string, unknown>
+}
+
+export interface CreateMapRequest {
+  map_code: string
+  map_name: string
+  frame: string
+  description: string
+}
+
+export interface UpdateMapRequest {
+  map_name?: string
+  frame?: string
+  description?: string
+}
+
+export interface CreateAreaRequest {
+  area_code: string
+  area_name: string
+  area_type: string
+  polygon: Record<string, unknown>
+}
+
+export interface CreateRestrictedAreaRequest {
+  area_code: string
+  area_name: string
+  level: string
+  polygon: Record<string, unknown>
+}
+
+export interface MapListParams extends FilterParams {
+  status?: string
+}
+
+// ---- Monitor ----
+
+export interface MonitorOverview {
+  total_robots: number
+  online_robots: number
+  busy_robots: number
+  active_missions: number
+  alerts: number
+}
+
+export interface RobotMonitor {
+  robot_id: string
+  robot_name: string
+  status: string
+  battery: number
+  position: { x: number; y: number; yaw: number }
+  current_mission_id: string | null
+  last_seen: string
+}
+
+export interface MissionMonitor {
+  mission_id: string
+  mission_name: string
+  robot_name: string
+  status: string
+  progress: number
+  current_step: number
+  total_steps: number
+  trace_id: string
+}
+
+export interface TakeoverRequest {
+  operator_id: string
+  reason?: string
+}
+
+// ---- Media ----
+
+export interface MediaAsset {
+  id: string
+  file_name: string
+  mime_type: string
+  size: number
+  url: string
+  thumbnail_url: string | null
+  uploaded_by: string
+  created_at: string
+}
+
+export interface MediaListParams extends FilterParams {
+  mime_type?: string
+}
+
+// ---- Trace ----
+
+export interface Trace {
+  id: string
+  trace_id: string
+  root_trace_id: string
+  operation: string
+  resource_type: string
+  resource_id: string
+  actor_id: string
+  status: string
+  started_at: string
+  finished_at: string | null
+  duration_ms: number | null
+}
+
+export interface TraceSpan {
+  id: string
+  trace_id: string
+  parent_id: string | null
+  operation: string
+  service: string
+  status: string
+  started_at: string
+  duration_ms: number
+  attributes: Record<string, unknown>
+}
+
+export interface TraceReplay {
+  trace_id: string
+  spans: TraceSpan[]
+  events: Array<{
+    id: string
+    occurred_at: string
+    type: string
+    payload: Record<string, unknown>
+  }>
+}
+
+export interface TraceListParams extends FilterParams {
+  resource_type?: string
+  resource_id?: string
+  status?: string
   start_time?: string
   end_time?: string
 }
