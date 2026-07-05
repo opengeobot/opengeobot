@@ -106,7 +106,18 @@ export interface FormField {
 }
 
 /** Status tag visual category */
-export type StatusTagType = 'health' | 'task' | 'enable-disable' | 'robot' | 'publish'
+export type StatusTagType =
+  | 'health'
+  | 'task'
+  | 'enable-disable'
+  | 'robot'
+  | 'publish'
+  | 'alarm'
+  | 'severity'
+  | 'fleet'
+  | 'ota'
+  | 'recovery'
+  | 'memory'
 
 /** Generic filter params extending page request */
 export interface FilterParams extends PageRequest {
@@ -825,4 +836,417 @@ export interface ExportTask {
 export interface CreateExportRequest {
   resource_type: string
   filters: Record<string, unknown>
+}
+
+// ---- Fleet scheduling ----
+
+export type FleetScheduleStatus = 'PENDING' | 'APPROVED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+export type FleetSchedulePriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'
+export type ConflictType = 'TIME_OVERLAP' | 'ROBOT_BUSY' | 'PATH_COLLISION' | 'RESOURCE_CONTENTION'
+export type ConflictResolution = 'REORDER' | 'REASSIGN' | 'CANCEL'
+export type ConflictStatus = 'OPEN' | 'RESOLVED'
+export type FailoverStatus = 'INITIATED' | 'COMPLETED' | 'FAILED'
+
+export interface FleetSchedule {
+  schedule_id: string
+  mission_id: string
+  robot_id: string
+  planned_start: string
+  planned_end: string
+  priority: FleetSchedulePriority
+  status: FleetScheduleStatus
+  created_at: string
+}
+
+export interface ConflictRecord {
+  conflict_id: string
+  schedule_ids: string[]
+  conflict_type: ConflictType
+  description?: string
+  detected_at: string
+  resolved_at?: string
+  resolution?: ConflictResolution
+  status: ConflictStatus
+}
+
+export interface FailoverEvent {
+  failover_id: string
+  robot_id: string
+  mission_id: string
+  reason: string
+  target_robot_id?: string
+  status: FailoverStatus
+  occurred_at: string
+}
+
+export interface CreateScheduleRequest {
+  mission_id: string
+  robot_id: string
+  planned_start: string
+  planned_end: string
+  priority?: FleetSchedulePriority
+}
+
+export interface ResolveConflictRequest {
+  resolution: ConflictResolution
+  target_robot_id?: string
+}
+
+export interface TriggerFailoverRequest {
+  robot_id: string
+  mission_id: string
+  reason: string
+  target_robot_id?: string
+}
+
+export interface FleetScheduleListParams extends FilterParams {
+  status?: FleetScheduleStatus
+  robot_id?: string
+  mission_id?: string
+}
+
+export interface ConflictListParams extends FilterParams {
+  status?: ConflictStatus
+}
+
+export interface FailoverListParams extends FilterParams {
+  robot_id?: string
+  status?: FailoverStatus
+}
+
+// ---- Alarm ----
+
+export type AlarmSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+export type AlarmStatus = 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED'
+export type AlarmChannelType = 'in-app' | 'webhook' | 'email'
+
+export interface AlarmEvent {
+  alarm_id: string
+  rule_id: string
+  source: string
+  severity: AlarmSeverity
+  message: string
+  status: AlarmStatus
+  triggered_at: string
+  acknowledged_by?: string
+  acknowledged_at?: string
+  resolved_at?: string
+  trace_id?: string
+}
+
+export interface AlarmRule {
+  rule_id: string
+  name: string
+  source: string
+  metric: string
+  condition: string
+  threshold: number
+  severity: AlarmSeverity
+  enabled: boolean
+  created_at?: string
+  updated_at?: string
+  created_by?: string
+}
+
+export interface NotificationChannel {
+  channel_id: string
+  name: string
+  type: AlarmChannelType
+  config?: Record<string, unknown>
+  enabled: boolean
+  created_at?: string
+}
+
+export interface CreateAlarmRuleRequest {
+  name: string
+  source: string
+  metric: string
+  condition: string
+  threshold: number
+  severity: AlarmSeverity
+  enabled?: boolean
+}
+
+export interface UpdateAlarmRuleRequest {
+  name?: string
+  condition?: string
+  threshold?: number
+  severity?: AlarmSeverity
+  enabled?: boolean
+}
+
+export interface CreateNotificationChannelRequest {
+  name: string
+  type: AlarmChannelType
+  config?: Record<string, unknown>
+  enabled?: boolean
+}
+
+export interface AlarmListParams extends FilterParams {
+  status?: AlarmStatus
+  severity?: AlarmSeverity
+  source?: string
+}
+
+export interface AlarmRuleListParams extends FilterParams {
+  source?: string
+  enabled?: boolean
+}
+
+// ---- Ops dashboard ----
+
+export type HealthState = 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY'
+export type ReportType = 'daily' | 'weekly' | 'monthly'
+
+export interface HealthCheck {
+  component: string
+  status: HealthState
+  latency_ms?: number
+  error_message?: string
+  last_check_at: string
+}
+
+export interface OpsSystemHealth {
+  overall: HealthState
+  components?: HealthCheck[]
+}
+
+export interface RobotStats {
+  total: number
+  online: number
+  offline: number
+  busy: number
+  error: number
+}
+
+export interface MissionStats {
+  total: number
+  active: number
+  completed: number
+  failed: number
+}
+
+export interface AlarmStats {
+  active: number
+  acknowledged: number
+  resolved: number
+}
+
+export interface OpsDashboard {
+  system_health: OpsSystemHealth
+  robot_stats: RobotStats
+  mission_stats: MissionStats
+  alarm_stats: AlarmStats
+}
+
+export interface MetricSnapshot {
+  metric_name: string
+  value: number
+  unit?: string
+  tags?: Record<string, unknown>
+  timestamp: string
+}
+
+export interface ReportRecord {
+  report_type: ReportType
+  period_start: string
+  period_end: string
+  summary?: Record<string, unknown>
+  generated_at: string
+}
+
+export interface CapacityForecast {
+  resource: string
+  current_usage: number
+  projected_usage: number
+  threshold: number
+  unit?: string
+  alert: boolean
+}
+
+export interface MetricQueryParams {
+  metric_name?: string
+  start?: string
+  end?: string
+  limit?: number
+}
+
+// ---- OTA ----
+
+export type PackageType = 'FIRMWARE' | 'SKILL_BUNDLE'
+export type CampaignStatus = 'CREATED' | 'IN_PROGRESS' | 'COMPLETED' | 'ROLLED_BACK' | 'FAILED'
+export type DeploymentStatus = 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'ROLLED_BACK'
+
+export interface FirmwarePackage {
+  package_id: string
+  name: string
+  version: string
+  type: PackageType
+  file_path: string
+  file_size: number
+  checksum: string
+  description?: string
+  created_by?: string
+  created_at: string
+}
+
+export interface ReleaseCampaign {
+  campaign_id: string
+  package_id: string
+  canary_percent: number
+  status: CampaignStatus
+  target_robots: string[]
+  started_at?: string
+  completed_at?: string
+  created_by?: string
+  created_at: string
+}
+
+export interface DeploymentRecord {
+  record_id: string
+  campaign_id: string
+  robot_id: string
+  status: DeploymentStatus
+  started_at: string
+  completed_at?: string
+  error?: string
+}
+
+export interface CampaignDetail {
+  campaign: ReleaseCampaign
+  deployments: DeploymentRecord[]
+}
+
+export interface CreateCampaignRequest {
+  package_id: string
+  target_robots: string[]
+  canary_percent: number
+}
+
+export interface UploadPackageRequest {
+  name: string
+  version: string
+  type: PackageType
+  description?: string
+}
+
+export interface PackageListParams extends FilterParams {
+  type?: PackageType
+}
+
+export interface CampaignListParams extends FilterParams {
+  status?: CampaignStatus
+}
+
+// ---- Backup and recovery ----
+
+export type BackupType = 'DATABASE' | 'MINIO'
+export type BackupStatus = 'RUNNING' | 'COMPLETED' | 'FAILED'
+export type DrillType = 'BACKUP_VERIFY' | 'RESTORE_SIMULATION' | 'FAILOVER'
+export type DrillResult = 'PASSED' | 'FAILED' | 'PARTIAL'
+
+export interface BackupRecord {
+  backup_id: string
+  type: BackupType
+  file_path: string
+  file_size: number
+  status: BackupStatus
+  started_at: string
+  completed_at?: string
+  error_message?: string
+  created_by?: string
+}
+
+export interface RestoreRecord {
+  restore_id: string
+  backup_id: string
+  status: BackupStatus
+  started_at: string
+  completed_at?: string
+  error_message?: string
+  restored_by?: string
+}
+
+export interface DrillRecord {
+  drill_id: string
+  type: DrillType
+  result: DrillResult
+  notes?: string
+  executed_at: string
+  executed_by?: string
+}
+
+export interface RestoreRequest {
+  backup_id: string
+}
+
+export interface CreateDrillRequest {
+  type: DrillType
+  notes?: string
+}
+
+export interface TriggerBackupRequest {
+  type: BackupType
+}
+
+export interface BackupListParams extends FilterParams {
+  type?: BackupType
+  status?: BackupStatus
+}
+
+// ---- Task memory ----
+
+export type CaseResult = 'SUCCESS' | 'FAILURE'
+export type FailureType = 'TIMEOUT' | 'SKILL_ERROR' | 'SAFETY_VIOLATION' | 'HARDWARE_FAULT' | 'UNKNOWN'
+export type SuggestionStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'APPLIED'
+
+export interface TaskCase {
+  case_id: string
+  mission_id: string
+  robot_id: string
+  skill_id: string
+  result: CaseResult
+  duration_ms?: number
+  context?: Record<string, unknown>
+  error_message?: string
+  occurred_at: string
+  trace_id?: string
+}
+
+export interface FailureCase {
+  case_id: string
+  failure_type: FailureType
+  root_cause: string
+  environment?: Record<string, unknown>
+  similar_cases?: string[]
+}
+
+export interface TaskCaseDetail {
+  task_case: TaskCase
+  failure_case?: FailureCase
+}
+
+export interface ImprovementSuggestion {
+  suggestion_id: string
+  case_id: string
+  suggestion_text: string
+  confidence: number
+  status: SuggestionStatus
+  feedback?: string
+  created_at: string
+}
+
+export interface FeedbackRequest {
+  suggestion_id: string
+  feedback: string
+}
+
+export interface TaskCaseListParams extends FilterParams {
+  result?: CaseResult
+  robot_id?: string
+  skill_id?: string
+}
+
+export interface SuggestionListParams extends FilterParams {
+  status?: SuggestionStatus
 }

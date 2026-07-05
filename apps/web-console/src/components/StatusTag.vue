@@ -19,7 +19,10 @@ const colorMap: Record<StatusTagType, Record<string, string>> = {
   health: {
     healthy: 'green',
     degraded: 'amber',
-    down: 'red'
+    down: 'red',
+    HEALTHY: 'green',
+    DEGRADED: 'amber',
+    UNHEALTHY: 'red'
   },
   task: {
     pending: 'gray',
@@ -45,6 +48,52 @@ const colorMap: Record<StatusTagType, Record<string, string>> = {
     published: 'green',
     disabled: 'gray',
     archived: 'gray'
+  },
+  alarm: {
+    ACTIVE: 'red',
+    ACKNOWLEDGED: 'amber',
+    RESOLVED: 'green'
+  },
+  severity: {
+    CRITICAL: 'red',
+    HIGH: 'amber',
+    MEDIUM: 'blue',
+    LOW: 'gray'
+  },
+  fleet: {
+    PENDING: 'gray',
+    APPROVED: 'blue',
+    ACTIVE: 'blue',
+    COMPLETED: 'green',
+    CANCELLED: 'gray',
+    OPEN: 'red',
+    RESOLVED: 'green',
+    INITIATED: 'blue',
+    FAILED: 'red'
+  },
+  ota: {
+    CREATED: 'gray',
+    IN_PROGRESS: 'blue',
+    COMPLETED: 'green',
+    ROLLED_BACK: 'amber',
+    FAILED: 'red',
+    PENDING: 'gray',
+    SUCCESS: 'green'
+  },
+  recovery: {
+    RUNNING: 'blue',
+    COMPLETED: 'green',
+    FAILED: 'red',
+    PASSED: 'green',
+    PARTIAL: 'amber'
+  },
+  memory: {
+    SUCCESS: 'green',
+    FAILURE: 'red',
+    PENDING: 'gray',
+    ACCEPTED: 'blue',
+    REJECTED: 'gray',
+    APPLIED: 'green'
   }
 }
 

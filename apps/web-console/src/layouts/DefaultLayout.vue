@@ -36,6 +36,12 @@ const navItems: NavItem[] = [
   { key: 'nav.monitor', path: '/monitor' },
   { key: 'nav.safety', path: '/safety' },
   { key: 'nav.media', path: '/media' },
+  { key: 'nav.fleet', path: '/fleet' },
+  { key: 'nav.alarms', path: '/alarms' },
+  { key: 'nav.ops', path: '/ops' },
+  { key: 'nav.ota', path: '/ota' },
+  { key: 'nav.recovery', path: '/recovery' },
+  { key: 'nav.memory', path: '/memory' },
   {
     key: 'nav.system',
     path: '/system',

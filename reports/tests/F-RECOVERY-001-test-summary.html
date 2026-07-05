@@ -1,0 +1,23 @@
+<!--
+Function: F-RECOVERY-001 test summary — Data backup, recovery & disaster drill verification
+Time: 2026-07-05
+Author: AxeXie
+-->
+<!DOCTYPE html>
+<html><head><title>F-RECOVERY-001 Test Summary</title></head>
+<body>
+<h1>F-RECOVERY-001 Test Summary — Data Backup, Recovery & Disaster Drill</h1>
+<table border="1">
+<tr><th>Test</th><th>Method</th><th>Status</th></tr>
+<tr><td>GET /api/v1/recovery/backups returns 200 with valid JWT</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Database migration applied (V21__create_recovery_tables.sql)</td><td>Integration</td><td>PASS</td></tr>
+<tr><td>OpenAPI contract validated (paths/recovery.yaml)</td><td>Contract</td><td>PASS</td></tr>
+<tr><td>Backup operation state machine (SM-BACKUP-OPERATION) transitions</td><td>Unit</td><td>PASS</td></tr>
+<tr><td>Restore operation state machine (SM-RESTORE-OPERATION) transitions</td><td>Unit</td><td>PASS</td></tr>
+<tr><td>Permission codes enforced (ops.backup.read, ops.backup.manage, ops.restore.execute)</td><td>Security</td><td>PASS</td></tr>
+<tr><td>Recovery point schema validated</td><td>Contract</td><td>PASS</td></tr>
+<tr><td>Disaster drill restore recovery</td><td>Recovery</td><td>PASS</td></tr>
+</table>
+<p>Total: 8 tests, 8 passed, 0 failed</p>
+<p>Acceptance: C22, C24</p>
+</body></html>

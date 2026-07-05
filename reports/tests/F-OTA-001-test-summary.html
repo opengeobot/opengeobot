@@ -1,0 +1,24 @@
+<!--
+Function: F-OTA-001 test summary — OTA release, batch deploy & rollback verification
+Time: 2026-07-05
+Author: AxeXie
+-->
+<!DOCTYPE html>
+<html><head><title>F-OTA-001 Test Summary</title></head>
+<body>
+<h1>F-OTA-001 Test Summary — OTA Release, Batch Deploy & Rollback</h1>
+<table border="1">
+<tr><th>Test</th><th>Method</th><th>Status</th></tr>
+<tr><td>GET /api/v1/ota/packages returns 200 with valid JWT</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>GET /api/v1/ota/campaigns returns 200 with valid JWT</td><td>API E2E</td><td>PASS</td></tr>
+<tr><td>Database migration applied (V20__create_ota_tables.sql)</td><td>Integration</td><td>PASS</td></tr>
+<tr><td>OpenAPI contract validated (paths/ota.yaml)</td><td>Contract</td><td>PASS</td></tr>
+<tr><td>AsyncAPI event schema validated (schemas/ota-events.yaml)</td><td>Contract</td><td>PASS</td></tr>
+<tr><td>OTA state machines (SM-OTA-001, SM-OTA-002) transitions</td><td>Unit</td><td>PASS</td></tr>
+<tr><td>Permission codes enforced (ops.ota.read, ops.ota.manage, ops.ota.approve)</td><td>Security</td><td>PASS</td></tr>
+<tr><td>Rollback recovery simulation</td><td>Simulation</td><td>PASS</td></tr>
+</table>
+<p>Total: 8 tests, 8 passed, 0 failed</p>
+<p>Acceptance: C21, C23, C24</p>
+<p>HIL: Real-device HIL not executed in CI; documented in reports/hil/F-OTA-001-hil-summary.md</p>
+</body></html>

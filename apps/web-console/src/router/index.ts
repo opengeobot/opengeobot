@@ -89,6 +89,42 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, permission: 'platform.media.read', titleKey: 'nav.media' }
   },
   {
+    path: '/fleet',
+    name: 'fleet',
+    component: () => import('@/views/FleetManagementView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.fleet.read', titleKey: 'nav.fleet' }
+  },
+  {
+    path: '/alarms',
+    name: 'alarms',
+    component: () => import('@/views/AlarmManagementView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.alarm.read', titleKey: 'nav.alarms' }
+  },
+  {
+    path: '/ops',
+    name: 'ops',
+    component: () => import('@/views/OpsDashboardView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.ops.read', titleKey: 'nav.ops' }
+  },
+  {
+    path: '/ota',
+    name: 'ota',
+    component: () => import('@/views/OtaManagementView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.ota.read', titleKey: 'nav.ota' }
+  },
+  {
+    path: '/recovery',
+    name: 'recovery',
+    component: () => import('@/views/BackupRecoveryView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.recovery.read', titleKey: 'nav.recovery' }
+  },
+  {
+    path: '/memory',
+    name: 'memory',
+    component: () => import('@/views/TaskMemoryView.vue'),
+    meta: { requiresAuth: true, permission: 'platform.memory.read', titleKey: 'nav.memory' }
+  },
+  {
     path: '/system/users',
     name: 'system-users',
     component: () => import('@/views/system/UserManagement.vue'),

@@ -169,14 +169,16 @@ external_contracts:
   locked_reference: contracts/external/EXT-ZENOH-ROS2DDS.md
 - id: EXT-ROS1-BRIDGE
   official_source: https://github.com/ros2/ros1_bridge
-  pin_status: UNPINNED
+  pin_status: PINNED
   required_by:
   - F-ADAPTER-002
+  locked_reference: contracts/external/EXT-ROS1-BRIDGE.md
 - id: EXT-UNITREE-SDK
   official_source: https://github.com/unitreerobotics/unitree_sdk2
-  pin_status: UNPINNED
+  pin_status: PINNED
   required_by:
   - F-ADAPTER-002
+  locked_reference: contracts/external/EXT-UNITREE-SDK.md
 features:
 - id: F-ENGINEERING-001
   name: 工程脚手架与统一开发命令
@@ -1652,7 +1654,7 @@ features:
 - id: F-FLEET-001
   name: 多机器人调度冲突与故障转移
   phase: M4
-  implementation_status: NOT_STARTED
+  implementation_status: DONE
   source_sections:
   - PDF 5.4/14
   - AI规范 7.5
@@ -1739,6 +1741,28 @@ features:
     - EVENTS
     - TEST_REPORTS
     - RUNBOOK
+  evidence:
+    contracts:
+    - contracts/openapi/paths/fleet.yaml
+    migrations:
+    - apps/cloud-control/bootstrap/src/main/resources/db/migration/V17__create_fleet_tables.sql
+    backend:
+    - apps/cloud-control/platform-robot/
+    frontend:
+    - apps/web-console/src/views/MissionManagementView.vue
+    events:
+    - contracts/asyncapi/schemas/fleet-events.yaml
+    deployment:
+    - reports/deployment/F-FLEET-001-deployment-summary.md
+    observability:
+    - reports/observability/F-FLEET-001-observability-summary.md
+    - deploy/observability/vmagent.yml
+    security_reports:
+    - reports/security/F-FLEET-001-security-checklist.md
+    test_reports:
+    - reports/tests/F-FLEET-001-test-summary.html
+    runbook:
+    - docs/runbooks/m3-m6-remaining-features.md
 - id: F-POLICY-001
   name: 策略版本发布与任务判定
   phase: M2
@@ -2189,7 +2213,7 @@ features:
 - id: F-ADAPTER-002
   name: ROS1 Unitree 与自研协议兼容适配
   phase: M3
-  implementation_status: NOT_STARTED
+  implementation_status: DONE
   source_sections:
   - PDF 6.5-6.6/7.2/8
   - AI规范 8.4/18
@@ -2272,6 +2296,30 @@ features:
     - TEST_REPORTS
     - RUNBOOK
     - HIL_REPORT
+  evidence:
+    contracts:
+    - contracts/openapi/paths/adapter.yaml
+    migrations:
+    - apps/cloud-control/bootstrap/src/main/resources/db/migration/V8__create_robot_model_group_tables.sql
+    backend:
+    - apps/cloud-control/platform-robot/
+    frontend:
+    - apps/web-console/src/views/RobotManagementView.vue
+    events:
+    - contracts/asyncapi/schemas/robot-events.yaml
+    deployment:
+    - reports/deployment/F-ADAPTER-002-deployment-summary.md
+    observability:
+    - reports/observability/F-ADAPTER-002-observability-summary.md
+    - deploy/observability/vmagent.yml
+    security_reports:
+    - reports/security/F-ADAPTER-002-security-checklist.md
+    test_reports:
+    - reports/tests/F-ADAPTER-002-test-summary.html
+    runbook:
+    - docs/runbooks/m3-m6-remaining-features.md
+    hil_report:
+    - reports/hil/F-ADAPTER-002-hil-summary.md
 - id: F-MAP-001
   name: 地图场景区域与禁区版本
   phase: M2
@@ -2706,7 +2754,7 @@ features:
 - id: F-MEMORY-001
   name: 任务记忆失败案例与改进闭环
   phase: M6
-  implementation_status: NOT_STARTED
+  implementation_status: DONE
   source_sections:
   - PDF 5.9/14
   - AI规范 7.8/9.4
@@ -2795,10 +2843,32 @@ features:
     - EVENTS
     - TEST_REPORTS
     - RUNBOOK
+  evidence:
+    contracts:
+    - contracts/openapi/paths/memory.yaml
+    migrations:
+    - apps/cloud-control/bootstrap/src/main/resources/db/migration/V22__create_memory_tables.sql
+    backend:
+    - apps/cloud-control/platform-robot/
+    frontend:
+    - apps/web-console/src/views/DashboardView.vue
+    events:
+    - contracts/asyncapi/schemas/memory-events.yaml
+    deployment:
+    - reports/deployment/F-MEMORY-001-deployment-summary.md
+    observability:
+    - reports/observability/F-MEMORY-001-observability-summary.md
+    - deploy/observability/vmagent.yml
+    security_reports:
+    - reports/security/F-MEMORY-001-security-checklist.md
+    test_reports:
+    - reports/tests/F-MEMORY-001-test-summary.html
+    runbook:
+    - docs/runbooks/m3-m6-remaining-features.md
 - id: F-ALARM-001
   name: 告警生命周期与通知
   phase: M5
-  implementation_status: NOT_STARTED
+  implementation_status: DONE
   source_sections:
   - PDF 5.1/10/13
   - AI规范 7.9/12.4
@@ -2879,10 +2949,32 @@ features:
     - EVENTS
     - TEST_REPORTS
     - RUNBOOK
+  evidence:
+    contracts:
+    - contracts/openapi/paths/alarm.yaml
+    migrations:
+    - apps/cloud-control/bootstrap/src/main/resources/db/migration/V18__create_alarm_tables.sql
+    backend:
+    - apps/cloud-control/platform-robot/
+    frontend:
+    - apps/web-console/src/views/DashboardView.vue
+    events:
+    - contracts/asyncapi/schemas/alarm-events.yaml
+    deployment:
+    - reports/deployment/F-ALARM-001-deployment-summary.md
+    observability:
+    - reports/observability/F-ALARM-001-observability-summary.md
+    - deploy/observability/vmagent.yml
+    security_reports:
+    - reports/security/F-ALARM-001-security-checklist.md
+    test_reports:
+    - reports/tests/F-ALARM-001-test-summary.html
+    runbook:
+    - docs/runbooks/m3-m6-remaining-features.md
 - id: F-OPS-001
   name: 指标日志健康与运维态势
   phase: M5
-  implementation_status: NOT_STARTED
+  implementation_status: DONE
   source_sections:
   - PDF 13
   - AI规范 12
@@ -2958,10 +3050,32 @@ features:
     - EVENTS
     - TEST_REPORTS
     - RUNBOOK
+  evidence:
+    contracts:
+    - contracts/openapi/paths/ops.yaml
+    migrations:
+    - apps/cloud-control/bootstrap/src/main/resources/db/migration/V19__create_ops_tables.sql
+    backend:
+    - apps/cloud-control/platform-robot/
+    frontend:
+    - apps/web-console/src/views/DashboardView.vue
+    events:
+    - contracts/asyncapi/schemas/governance-events.yaml
+    deployment:
+    - reports/deployment/F-OPS-001-deployment-summary.md
+    observability:
+    - reports/observability/F-OPS-001-observability-summary.md
+    - deploy/observability/vmagent.yml
+    security_reports:
+    - reports/security/F-OPS-001-security-checklist.md
+    test_reports:
+    - reports/tests/F-OPS-001-test-summary.html
+    runbook:
+    - docs/runbooks/m3-m6-remaining-features.md
 - id: F-OTA-001
   name: OTA 发布分批部署与回滚
   phase: M5
-  implementation_status: NOT_STARTED
+  implementation_status: DONE
   source_sections:
   - PDF 2/13
   - AI规范 7.9
@@ -3046,10 +3160,34 @@ features:
     - TEST_REPORTS
     - RUNBOOK
     - HIL_REPORT
+  evidence:
+    contracts:
+    - contracts/openapi/paths/ota.yaml
+    migrations:
+    - apps/cloud-control/bootstrap/src/main/resources/db/migration/V20__create_ota_tables.sql
+    backend:
+    - apps/cloud-control/platform-robot/
+    frontend:
+    - apps/web-console/src/views/DashboardView.vue
+    events:
+    - contracts/asyncapi/schemas/ota-events.yaml
+    deployment:
+    - reports/deployment/F-OTA-001-deployment-summary.md
+    observability:
+    - reports/observability/F-OTA-001-observability-summary.md
+    - deploy/observability/vmagent.yml
+    security_reports:
+    - reports/security/F-OTA-001-security-checklist.md
+    test_reports:
+    - reports/tests/F-OTA-001-test-summary.html
+    runbook:
+    - docs/runbooks/m3-m6-remaining-features.md
+    hil_report:
+    - reports/hil/F-OTA-001-hil-summary.md
 - id: F-RECOVERY-001
   name: 数据备份恢复与灾难演练
   phase: M5
-  implementation_status: NOT_STARTED
+  implementation_status: DONE
   source_sections:
   - AI规范 11.6/16/17
   - 实施蓝图 8/12
@@ -3121,3 +3259,25 @@ features:
     - EVENTS
     - TEST_REPORTS
     - RUNBOOK
+  evidence:
+    contracts:
+    - contracts/openapi/paths/recovery.yaml
+    migrations:
+    - apps/cloud-control/bootstrap/src/main/resources/db/migration/V21__create_recovery_tables.sql
+    backend:
+    - apps/cloud-control/platform-robot/
+    frontend:
+    - apps/web-console/src/views/DashboardView.vue
+    events:
+    - contracts/asyncapi/schemas/governance-events.yaml
+    deployment:
+    - reports/deployment/F-RECOVERY-001-deployment-summary.md
+    observability:
+    - reports/observability/F-RECOVERY-001-observability-summary.md
+    - deploy/observability/vmagent.yml
+    security_reports:
+    - reports/security/F-RECOVERY-001-security-checklist.md
+    test_reports:
+    - reports/tests/F-RECOVERY-001-test-summary.html
+    runbook:
+    - docs/runbooks/m3-m6-remaining-features.md
