@@ -13,16 +13,26 @@ import type {
   HealthCheck,
   CapacityForecast,
   ReportType,
-  ReportRecord
+  ReportRecord,
+  ProblemDetails
 } from '@/types/api'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 const dashboard = ref<OpsDashboard | null>(null)
 const healthChecks = ref<HealthCheck[]>([])
 const capacity = ref<CapacityForecast[]>([])
 const loading = ref(false)
 const reportLoading = ref(false)
+const errorMsg = ref('')
+const successMsg = ref('')
+
+function resolveError(problem: ProblemDetails): string {
+  if (problem.message_key && te(problem.message_key)) {
+    return t(problem.message_key, problem.arguments)
+  }
+  return problem.title || t('common.error')
+}
 
 const robotStats = computed(() => dashboard.value?.robot_stats)
 const missionStats = computed(() => dashboard.value?.mission_stats)
@@ -31,6 +41,7 @@ const overallHealth = computed(() => dashboard.value?.system_health.overall ?? '
 
 async function loadAll() {
   loading.value = true
+  errorMsg.value = ''
   try {
     const [dash, health, cap] = await Promise.all([
       getDashboard(),
@@ -40,6 +51,8 @@ async function loadAll() {
     dashboard.value = dash
     healthChecks.value = health
     capacity.value = cap
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     loading.value = false
   }
@@ -47,10 +60,13 @@ async function loadAll() {
 
 async function handleGenerateReport(type: ReportType) {
   reportLoading.value = true
+  errorMsg.value = ''
+  successMsg.value = ''
   try {
     const report: ReportRecord = await generateReport(type)
-    // Surface the generated report period to the user via a lightweight alert
-    alert(`${t('ops.generate_report')}: ${report.report_type}\n${report.period_start} ~ ${report.period_end}`)
+    successMsg.value = `${t('ops.generate_report')}: ${report.report_type} ${report.period_start} ~ ${report.period_end}`
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     reportLoading.value = false
   }
@@ -65,6 +81,9 @@ onMounted(loadAll)
       <h2>{{ t('ops.title') }}</h2>
       <button class="btn btn-primary" :disabled="loading" @click="loadAll">{{ t('common.refresh') }}</button>
     </div>
+
+    <p v-if="errorMsg" class="alert alert-error">{{ errorMsg }}</p>
+    <p v-if="successMsg" class="alert alert-success">{{ successMsg }}</p>
 
     <p v-if="loading" class="loading-text">{{ t('common.loading') }}</p>
 
@@ -336,5 +355,20 @@ onMounted(loadAll)
 }
 .loading-text {
   color: #64748b;
+}
+.alert {
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+}
+.alert-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+}
+.alert-success {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #16a34a;
 }
 </style>

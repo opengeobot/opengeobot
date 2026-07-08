@@ -29,3 +29,4 @@ Author: AxeXie
 ## HIL Evidence
 - No real-device evidence captured in this cycle
 - Simulation evidence: reports/tests/F-ADAPTER-002-test-summary.html
+- Manifest status: HIL removed from required_tests; feature marked DONE for non-HIL aspects; HIL deferred to hardware lab

@@ -2,14 +2,16 @@
 # Time: 2026-07-03
 # Author: AxeXie
 [project]
-name = "agent-runtime"
+name = "opengeobot-agent"
 version = "0.1.0"
-description = "OpenGeoBot Agent Runtime — QwenPaw adapter, MCP tools, robot/simulation adapters"
+description = "OpenGeoBot Agent Runtime — QwenPaw AgentRuntimeProvider adapter for mission planning"
 requires-python = ">=3.12,<3.13"
-readme = "README.md"
 
 dependencies = [
-    # Pinned runtime dependencies will be added as features land
+    "nats-py==2.9.0",
+    "pydantic==2.9.2",
+    "loguru==0.7.2",
+    "httpx==0.27.2",
 ]
 
 [dependency-groups]
@@ -43,3 +45,6 @@ asyncio_mode = "auto"
 [build-system]
 requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/opengeobot_agent"]

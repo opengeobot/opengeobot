@@ -20,3 +20,7 @@ platform:
     secret: test-secret-key-for-unit-tests-at-least-256-bits-long-for-hs256
     access-token-expiry-seconds: 1800
     refresh-token-expiry-days: 7
+
+opengeobot:
+  nats:
+    enabled: false

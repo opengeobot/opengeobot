@@ -18,6 +18,7 @@ import io.opengeobot.platform.governance.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,6 +47,7 @@ public class DictController {
     }
 
     @GetMapping("/types")
+    @PreAuthorize("hasAuthority('platform.dictionary.read')")
     public PageResponse<DictTypeDto> listTypes(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -56,34 +58,40 @@ public class DictController {
     }
 
     @PostMapping("/types")
+    @PreAuthorize("hasAuthority('platform.dictionary.manage')")
     public ResponseEntity<DictTypeDto> createType(@Valid @RequestBody CreateDictTypeRequest request) {
         DictTypeDto created = dictService.createType(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/types/{typeCode}")
+    @PreAuthorize("hasAuthority('platform.dictionary.read')")
     public DictTypeDto getType(@PathVariable String typeCode) {
         return dictService.getType(typeCode);
     }
 
     @PutMapping("/types/{typeCode}")
+    @PreAuthorize("hasAuthority('platform.dictionary.manage')")
     public DictTypeDto updateType(@PathVariable String typeCode,
                                   @Valid @RequestBody UpdateDictTypeRequest request) {
         return dictService.updateType(typeCode, request);
     }
 
     @DeleteMapping("/types/{typeCode}")
+    @PreAuthorize("hasAuthority('platform.dictionary.manage')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteType(@PathVariable String typeCode) {
         dictService.deleteType(typeCode);
     }
 
     @PostMapping("/types/{typeCode}/publish")
+    @PreAuthorize("hasAuthority('platform.dictionary.manage')")
     public DictTypeDto publishType(@PathVariable String typeCode) {
         return dictService.publishType(typeCode);
     }
 
     @GetMapping("/types/{typeCode}/items")
+    @PreAuthorize("hasAuthority('platform.dictionary.read')")
     public PageResponse<DictItemDto> listItems(
             @PathVariable String typeCode,
             @RequestParam(defaultValue = "1") int page,
@@ -94,6 +102,7 @@ public class DictController {
     }
 
     @PostMapping("/types/{typeCode}/items")
+    @PreAuthorize("hasAuthority('platform.dictionary.manage')")
     public ResponseEntity<DictItemDto> createItem(@PathVariable String typeCode,
                                                    @Valid @RequestBody CreateDictItemRequest request) {
         DictItemDto created = dictService.createItem(typeCode, request);
@@ -101,6 +110,7 @@ public class DictController {
     }
 
     @PutMapping("/{typeCode}/items/{itemCode}")
+    @PreAuthorize("hasAuthority('platform.dictionary.manage')")
     public DictItemDto updateItem(@PathVariable String typeCode,
                                    @PathVariable String itemCode,
                                    @Valid @RequestBody UpdateDictItemRequest request) {
@@ -108,6 +118,7 @@ public class DictController {
     }
 
     @DeleteMapping("/{typeCode}/items/{itemCode}")
+    @PreAuthorize("hasAuthority('platform.dictionary.manage')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteItem(@PathVariable String typeCode, @PathVariable String itemCode) {
         dictService.deleteItem(typeCode, itemCode);

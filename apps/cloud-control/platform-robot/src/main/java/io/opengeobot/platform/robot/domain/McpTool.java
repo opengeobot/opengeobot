@@ -41,6 +41,10 @@ public class McpTool {
 
     private String status;
 
+    private String handlerType;
+
+    private String handlerEndpoint;
+
     private OffsetDateTime createdAt;
 
     private OffsetDateTime updatedAt;
@@ -109,6 +113,22 @@ public class McpTool {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getHandlerType() {
+        return handlerType;
+    }
+
+    public void setHandlerType(String handlerType) {
+        this.handlerType = handlerType;
+    }
+
+    public String getHandlerEndpoint() {
+        return handlerEndpoint;
+    }
+
+    public void setHandlerEndpoint(String handlerEndpoint) {
+        this.handlerEndpoint = handlerEndpoint;
     }
 
     public OffsetDateTime getCreatedAt() {

@@ -10,9 +10,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opengeobot.platform.common.audit.AuditEvent;
 import io.opengeobot.platform.common.audit.AuditService;
+import io.opengeobot.platform.common.event.NatsConnectionManager;
 import io.opengeobot.platform.common.mission.MissionState;
 import io.opengeobot.platform.common.robot.RobotStatus;
 import io.opengeobot.platform.common.time.ClockProvider;
+import io.opengeobot.platform.robot.config.MinioConfig;
 import io.opengeobot.platform.robot.domain.AlarmEvent;
 import io.opengeobot.platform.robot.domain.HealthCheck;
 import io.opengeobot.platform.robot.domain.MetricSnapshot;
@@ -31,8 +33,11 @@ import io.opengeobot.platform.robot.repository.MissionRepository;
 import io.opengeobot.platform.robot.repository.ReportRecordRepository;
 import io.opengeobot.platform.robot.repository.RobotRepository;
 import io.opengeobot.platform.robot.web.ActorResolver;
+import io.minio.BucketExistsArgs;
+import io.minio.MinioClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,6 +83,9 @@ public class OpsService {
     private final ActorResolver actorResolver;
     private final ClockProvider clockProvider;
     private final ObjectMapper objectMapper;
+    private final ObjectProvider<NatsConnectionManager> natsConnectionManagerProvider;
+    private final MinioClient minioClient;
+    private final MinioConfig minioConfig;
 
     public OpsService(RobotRepository robotRepository,
                       MissionRepository missionRepository,
@@ -88,7 +96,10 @@ public class OpsService {
                       AuditService auditService,
                       ActorResolver actorResolver,
                       ClockProvider clockProvider,
-                      ObjectMapper objectMapper) {
+                      ObjectMapper objectMapper,
+                      ObjectProvider<NatsConnectionManager> natsConnectionManagerProvider,
+                      MinioClient minioClient,
+                      MinioConfig minioConfig) {
         this.robotRepository = robotRepository;
         this.missionRepository = missionRepository;
         this.alarmEventRepository = alarmEventRepository;
@@ -99,6 +110,9 @@ public class OpsService {
         this.actorResolver = actorResolver;
         this.clockProvider = clockProvider;
         this.objectMapper = objectMapper;
+        this.natsConnectionManagerProvider = natsConnectionManagerProvider;
+        this.minioClient = minioClient;
+        this.minioConfig = minioConfig;
     }
 
     /**
@@ -154,9 +168,9 @@ public class OpsService {
     /**
      * Performs health checks for critical dependencies (database, NATS, MinIO),
      * persists the results to the {@code ops.health_check} table, and returns
-     * the list of health check results. For M5, NATS and MinIO checks are
-     * stubbed as HEALTHY since dedicated health check clients are not yet
-     * wired in the platform-robot module.
+     * the list of health check results. NATS connectivity is probed via
+     * {@link NatsConnectionManager#isConnected()} with an attempted reconnect.
+     * MinIO connectivity is probed via a head-bucket request.
      */
     @Transactional
     public List<HealthCheckDto> getHealth() {
@@ -164,8 +178,8 @@ public class OpsService {
         List<HealthCheckDto> results = new ArrayList<>();
 
         results.add(checkDatabase(now));
-        results.add(checkStub(COMPONENT_NATS, now));
-        results.add(checkStub(COMPONENT_MINIO, now));
+        results.add(checkNats(now));
+        results.add(checkMinio(now));
 
         for (HealthCheckDto dto : results) {
             HealthCheck entity = new HealthCheck();
@@ -259,12 +273,57 @@ public class OpsService {
     }
 
     /**
-     * Stub health check for M5: records the component as HEALTHY without an
-     * actual connectivity probe. This is acceptable until dedicated health
-     * check clients are wired into the platform-robot module.
+     * Probes NATS connectivity by checking the connection manager status and
+     * attempting a reconnect if the connection is not currently established.
      */
-    private HealthCheckDto checkStub(String component, OffsetDateTime now) {
-        return new HealthCheckDto(component, STATUS_HEALTHY, 0L, null, now);
+    private HealthCheckDto checkNats(OffsetDateTime now) {
+        long startNanos = System.nanoTime();
+        try {
+            NatsConnectionManager manager = natsConnectionManagerProvider.getIfAvailable();
+            if (manager == null) {
+                long latencyMs = Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
+                return new HealthCheckDto(COMPONENT_NATS, STATUS_UNHEALTHY, latencyMs,
+                        "NATS connection manager not configured", now);
+            }
+            boolean connected = manager.isConnected();
+            if (!connected) {
+                connected = manager.tryConnect();
+            }
+            long latencyMs = Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
+            if (connected) {
+                return new HealthCheckDto(COMPONENT_NATS, STATUS_HEALTHY, latencyMs, null, now);
+            }
+            return new HealthCheckDto(COMPONENT_NATS, STATUS_UNHEALTHY, latencyMs,
+                    "NATS not connected (status: " + manager.getStatus() + ")", now);
+        } catch (Exception e) {
+            long latencyMs = Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
+            log.error("NATS health check failed: {}", e.getMessage());
+            return new HealthCheckDto(COMPONENT_NATS, STATUS_UNHEALTHY, latencyMs,
+                    e.getMessage(), now);
+        }
+    }
+
+    /**
+     * Probes MinIO connectivity by issuing a head-bucket request for the
+     * configured bucket name.
+     */
+    private HealthCheckDto checkMinio(OffsetDateTime now) {
+        long startNanos = System.nanoTime();
+        try {
+            String bucket = minioConfig.getBucket();
+            boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
+            long latencyMs = Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
+            if (exists) {
+                return new HealthCheckDto(COMPONENT_MINIO, STATUS_HEALTHY, latencyMs, null, now);
+            }
+            return new HealthCheckDto(COMPONENT_MINIO, STATUS_UNHEALTHY, latencyMs,
+                    "MinIO bucket '" + bucket + "' does not exist", now);
+        } catch (Exception e) {
+            long latencyMs = Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
+            log.error("MinIO health check failed: {}", e.getMessage());
+            return new HealthCheckDto(COMPONENT_MINIO, STATUS_UNHEALTHY, latencyMs,
+                    e.getMessage(), now);
+        }
     }
 
     private String aggregateHealth(List<HealthCheckDto> checks) {

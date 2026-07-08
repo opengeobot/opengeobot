@@ -45,6 +45,18 @@ management:
 app:
   version: 0.1.0-SNAPSHOT
 
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:false}
+          starttls:
+            enable: ${SMTP_STARTTLS:false}
+
 platform:
   jwt:
     secret: ${JWT_SECRET:opengeobot-dev-secret-key-must-be-at-least-256-bits-long-for-hs256}
@@ -55,6 +67,20 @@ platform:
     access-key: ${MINIO_ACCESS_KEY:opengeobot}
     secret-key: ${MINIO_SECRET_KEY:opengeobot_dev}
     bucket: ${MINIO_BUCKET:opengeobot}
+
+opengeobot:
+  nats:
+    url: ${NATS_URL:nats://localhost:4222}
+    enabled: true
+    jetstream:
+      enabled: true
+      stream: opengeobot-events
+    outbox:
+      relay-enabled: true
+      relay-interval-ms: 5000
+      batch-size: 100
+      max-retry-count: 50
+      retry-backoff-ms: 10000
 
 logging:
   level:

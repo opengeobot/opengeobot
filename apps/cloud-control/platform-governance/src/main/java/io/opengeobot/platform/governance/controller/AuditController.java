@@ -11,6 +11,7 @@ import io.opengeobot.platform.governance.dto.AuditLogDto;
 import io.opengeobot.platform.governance.dto.AuditQueryRequest;
 import io.opengeobot.platform.governance.service.AuditServiceImpl;
 import io.opengeobot.platform.governance.web.PageResponse;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -34,6 +35,7 @@ public class AuditController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('audit.audit.read')")
     public PageResponse<AuditLogDto> listAudits(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,

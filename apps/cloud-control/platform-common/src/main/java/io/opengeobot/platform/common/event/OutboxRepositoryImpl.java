@@ -54,9 +54,23 @@ public class OutboxRepositoryImpl implements OutboxRepository {
     }
 
     @Override
+    public List<OutboxEvent> findUnpublishedForRelay(int limit) {
+        return mapper.findUnpublishedForRelay(limit).stream()
+                .map(OutboxRepositoryImpl::toRecord)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public void markPublished(Long id) {
         mapper.markPublished(id);
+    }
+
+    @Override
+    @Transactional
+    public void markPublishFailed(Long id, OffsetDateTime nextRetryAt) {
+        mapper.incrementRetryCount(id, nextRetryAt);
+        log.debug("Marked outbox event id={} as publish-failed, nextRetryAt={}", id, nextRetryAt);
     }
 
     private OutboxEventEntity toEntity(OutboxEvent event) {

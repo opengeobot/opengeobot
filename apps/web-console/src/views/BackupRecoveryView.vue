@@ -19,10 +19,20 @@ import type {
   DrillRecord,
   BackupType,
   DrillType,
-  BackupListParams
+  BackupListParams,
+  ProblemDetails
 } from '@/types/api'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+const errorMsg = ref('')
+
+function resolveError(problem: ProblemDetails): string {
+  if (problem.message_key && te(problem.message_key)) {
+    return t(problem.message_key, problem.arguments)
+  }
+  return problem.title || t('common.error')
+}
 
 // ---- Backup list ----
 const backupRows = ref<BackupRecord[]>([])
@@ -40,6 +50,7 @@ const backupColumns = computed<DataTableColumn[]>(() => [
 
 async function loadBackups() {
   backupLoading.value = true
+  errorMsg.value = ''
   try {
     const params: BackupListParams = {
       page_number: backupPagination.value.page_number,
@@ -48,6 +59,8 @@ async function loadBackups() {
     const result = await listBackups(params)
     backupRows.value = result.items
     backupPagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     backupLoading.value = false
   }
@@ -88,16 +101,26 @@ function openBackupModal() {
 }
 
 async function handleBackupSubmit(data: Record<string, unknown>) {
-  await triggerBackup({ type: data.type as BackupType })
-  backupModalVisible.value = false
-  loadBackups()
+  errorMsg.value = ''
+  try {
+    await triggerBackup({ type: data.type as BackupType })
+    backupModalVisible.value = false
+    loadBackups()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 // ---- Restore ----
 async function handleRestore(row: BackupRecord) {
   if (!confirm(t('recovery.restore_confirm'))) return
-  await restore({ backup_id: row.backup_id })
-  loadBackups()
+  errorMsg.value = ''
+  try {
+    await restore({ backup_id: row.backup_id })
+    loadBackups()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 // ---- Drill list ----
@@ -123,6 +146,8 @@ async function loadDrills() {
     const result = await listDrills(params)
     drillRows.value = result.items
     drillPagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     drillLoading.value = false
   }
@@ -158,12 +183,17 @@ function openDrillModal() {
 }
 
 async function handleDrillSubmit(data: Record<string, unknown>) {
-  await createDrill({
-    type: data.type as DrillType,
-    notes: data.notes ? String(data.notes) : undefined
-  })
-  drillModalVisible.value = false
-  loadDrills()
+  errorMsg.value = ''
+  try {
+    await createDrill({
+      type: data.type as DrillType,
+      notes: data.notes ? String(data.notes) : undefined
+    })
+    drillModalVisible.value = false
+    loadDrills()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 onMounted(() => {
@@ -177,6 +207,8 @@ onMounted(() => {
     <div class="page-header">
       <h2>{{ t('recovery.title') }}</h2>
     </div>
+
+    <p v-if="errorMsg" class="alert alert-error">{{ errorMsg }}</p>
 
     <section class="card">
       <div class="section-toolbar">
@@ -280,5 +312,15 @@ onMounted(() => {
   cursor: pointer;
   padding: 0.2rem 0.4rem;
   font-size: 0.875rem;
+}
+.alert {
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+}
+.alert-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
 }
 </style>

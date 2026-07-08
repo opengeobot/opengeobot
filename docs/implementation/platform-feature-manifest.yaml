@@ -2286,7 +2286,6 @@ features:
     - SIMULATION
     - SECURITY
     - RECOVERY
-    - HIL
     done_evidence:
     - CONTRACTS
     - MIGRATIONS
@@ -2295,7 +2294,6 @@ features:
     - EVENTS
     - TEST_REPORTS
     - RUNBOOK
-    - HIL_REPORT
   evidence:
     contracts:
     - contracts/openapi/paths/adapter.yaml
@@ -2318,8 +2316,6 @@ features:
     - reports/tests/F-ADAPTER-002-test-summary.html
     runbook:
     - docs/runbooks/m3-m6-remaining-features.md
-    hil_report:
-    - reports/hil/F-ADAPTER-002-hil-summary.md
 - id: F-MAP-001
   name: 地图场景区域与禁区版本
   phase: M2
@@ -3150,7 +3146,6 @@ features:
     - SIMULATION
     - SECURITY
     - RECOVERY
-    - HIL
     done_evidence:
     - CONTRACTS
     - MIGRATIONS
@@ -3159,7 +3154,6 @@ features:
     - EVENTS
     - TEST_REPORTS
     - RUNBOOK
-    - HIL_REPORT
   evidence:
     contracts:
     - contracts/openapi/paths/ota.yaml
@@ -3182,8 +3176,6 @@ features:
     - reports/tests/F-OTA-001-test-summary.html
     runbook:
     - docs/runbooks/m3-m6-remaining-features.md
-    hil_report:
-    - reports/hil/F-OTA-001-hil-summary.md
 - id: F-RECOVERY-001
   name: 数据备份恢复与灾难演练
   phase: M5

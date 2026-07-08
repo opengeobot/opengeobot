@@ -29,10 +29,20 @@ import type {
   NotificationChannel,
   AlarmSeverity,
   AlarmListParams,
-  AlarmRuleListParams
+  AlarmRuleListParams,
+  ProblemDetails
 } from '@/types/api'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+const errorMsg = ref('')
+
+function resolveError(problem: ProblemDetails): string {
+  if (problem.message_key && te(problem.message_key)) {
+    return t(problem.message_key, problem.arguments)
+  }
+  return problem.title || t('common.error')
+}
 
 const activeTab = ref<'alarms' | 'rules' | 'channels'>('alarms')
 
@@ -51,6 +61,7 @@ const alarmColumns = computed<DataTableColumn[]>(() => [
 
 async function loadAlarms() {
   alarmLoading.value = true
+  errorMsg.value = ''
   try {
     const params: AlarmListParams = {
       page_number: alarmPagination.value.page_number,
@@ -59,6 +70,8 @@ async function loadAlarms() {
     const result = await listAlarms(params)
     alarmRows.value = result.items
     alarmPagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     alarmLoading.value = false
   }
@@ -70,13 +83,23 @@ function onAlarmPageChange(page: number) {
 }
 
 async function handleAcknowledge(row: AlarmEvent) {
-  await acknowledgeAlarm(row.alarm_id)
-  loadAlarms()
+  errorMsg.value = ''
+  try {
+    await acknowledgeAlarm(row.alarm_id)
+    loadAlarms()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 async function handleResolve(row: AlarmEvent) {
-  await resolveAlarm(row.alarm_id)
-  loadAlarms()
+  errorMsg.value = ''
+  try {
+    await resolveAlarm(row.alarm_id)
+    loadAlarms()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 // ---- Alarm rules ----
@@ -104,6 +127,8 @@ async function loadRules() {
     const result = await listRules(params)
     ruleRows.value = result.items
     rulePagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     ruleLoading.value = false
   }
@@ -171,28 +196,33 @@ function openEditRule(row: AlarmRule) {
 }
 
 async function handleRuleSubmit(data: Record<string, unknown>) {
-  const payload = {
-    name: String(data.name),
-    source: String(data.source),
-    metric: String(data.metric),
-    condition: String(data.condition),
-    threshold: Number(data.threshold),
-    severity: data.severity as AlarmSeverity,
-    enabled: data.enabled === 'true'
+  errorMsg.value = ''
+  try {
+    const payload = {
+      name: String(data.name),
+      source: String(data.source),
+      metric: String(data.metric),
+      condition: String(data.condition),
+      threshold: Number(data.threshold),
+      severity: data.severity as AlarmSeverity,
+      enabled: data.enabled === 'true'
+    }
+    if (ruleMode.value === 'create') {
+      await createRule(payload)
+    } else if (ruleTarget.value) {
+      await updateRule(ruleTarget.value.rule_id, {
+        name: payload.name,
+        condition: payload.condition,
+        threshold: payload.threshold,
+        severity: payload.severity,
+        enabled: payload.enabled
+      })
+    }
+    ruleModalVisible.value = false
+    loadRules()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   }
-  if (ruleMode.value === 'create') {
-    await createRule(payload)
-  } else if (ruleTarget.value) {
-    await updateRule(ruleTarget.value.rule_id, {
-      name: payload.name,
-      condition: payload.condition,
-      threshold: payload.threshold,
-      severity: payload.severity,
-      enabled: payload.enabled
-    })
-  }
-  ruleModalVisible.value = false
-  loadRules()
 }
 
 // ---- Notification channels ----
@@ -209,6 +239,8 @@ async function loadChannels() {
   channelLoading.value = true
   try {
     channelRows.value = await listChannels()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     channelLoading.value = false
   }
@@ -256,14 +288,19 @@ async function handleChannelSubmit(data: Record<string, unknown>) {
       config = undefined
     }
   }
-  await createChannel({
-    name: String(data.name),
-    type: data.type as NotificationChannel['type'],
-    config,
-    enabled: data.enabled === 'true'
-  })
-  channelModalVisible.value = false
-  loadChannels()
+  errorMsg.value = ''
+  try {
+    await createChannel({
+      name: String(data.name),
+      type: data.type as NotificationChannel['type'],
+      config,
+      enabled: data.enabled === 'true'
+    })
+    channelModalVisible.value = false
+    loadChannels()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 onMounted(() => {
@@ -278,6 +315,8 @@ onMounted(() => {
     <div class="page-header">
       <h2>{{ t('alarm.title') }}</h2>
     </div>
+
+    <p v-if="errorMsg" class="alert alert-error">{{ errorMsg }}</p>
 
     <div class="tabs">
       <button :class="['tab', { active: activeTab === 'alarms' }]" @click="activeTab = 'alarms'">
@@ -452,5 +491,15 @@ onMounted(() => {
   cursor: pointer;
   padding: 0.2rem 0.4rem;
   font-size: 0.875rem;
+}
+.alert {
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+}
+.alert-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
 }
 </style>

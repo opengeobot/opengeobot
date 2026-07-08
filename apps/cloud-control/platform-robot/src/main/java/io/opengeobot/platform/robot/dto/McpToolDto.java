@@ -31,6 +31,8 @@ public record McpToolDto(
         String outputSchema,
         Integer canaryPercent,
         String status,
+        String handlerType,
+        String handlerEndpoint,
         String createdBy,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt

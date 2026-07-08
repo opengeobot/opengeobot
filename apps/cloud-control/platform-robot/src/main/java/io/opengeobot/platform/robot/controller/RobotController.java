@@ -16,6 +16,7 @@ import io.opengeobot.platform.robot.service.RobotService;
 import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -49,6 +50,7 @@ public class RobotController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('robot.robot.read')")
     public PageResponse<RobotDto> listRobots(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -61,6 +63,7 @@ public class RobotController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('robot.robot.register')")
     public ResponseEntity<RobotDto> createRobot(@Valid @RequestBody CreateRobotRequest request) {
         RobotDto created = robotService.create(request);
         return ResponseEntity.created(URI.create("/api/v1/robots/" + created.robotId()))
@@ -68,23 +71,27 @@ public class RobotController {
     }
 
     @GetMapping("/{robotId}")
+    @PreAuthorize("hasAuthority('robot.robot.read')")
     public RobotDto getRobot(@PathVariable String robotId) {
         return robotService.getByRobotId(robotId);
     }
 
     @PutMapping("/{robotId}")
+    @PreAuthorize("hasAuthority('robot.robot.register')")
     public RobotDto updateRobot(@PathVariable String robotId,
                                 @Valid @RequestBody UpdateRobotRequest request) {
         return robotService.update(robotId, request);
     }
 
     @DeleteMapping("/{robotId}")
+    @PreAuthorize("hasAuthority('robot.robot.register')")
     public ResponseEntity<Void> deleteRobot(@PathVariable String robotId) {
         robotService.delete(robotId);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{robotId}/status")
+    @PreAuthorize("hasAuthority('robot.robot.register')")
     public ResponseEntity<Void> updateStatus(@PathVariable String robotId,
                                               @Valid @RequestBody UpdateRobotStatusRequest request) {
         robotService.updateStatus(robotId, request);
@@ -92,12 +99,14 @@ public class RobotController {
     }
 
     @GetMapping("/{robotId}/capabilities")
+    @PreAuthorize("hasAuthority('robot.robot.read')")
     public RobotCapabilityListResponse getCapabilities(@PathVariable String robotId) {
         List<RobotCapabilityDto> capabilities = robotService.getCapabilities(robotId);
         return new RobotCapabilityListResponse(robotId, capabilities);
     }
 
     @PutMapping("/{robotId}/capabilities")
+    @PreAuthorize("hasAuthority('robot.robot.register')")
     public RobotCapabilityListResponse updateCapabilities(@PathVariable String robotId,
                                                           @Valid @RequestBody UpdateRobotCapabilitiesRequest request) {
         robotService.updateCapabilities(robotId, request.capabilities());

@@ -19,10 +19,20 @@ import type {
   CaseResult,
   SuggestionStatus,
   TaskCaseListParams,
-  SuggestionListParams
+  SuggestionListParams,
+  ProblemDetails
 } from '@/types/api'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+const errorMsg = ref('')
+
+function resolveError(problem: ProblemDetails): string {
+  if (problem.message_key && te(problem.message_key)) {
+    return t(problem.message_key, problem.arguments)
+  }
+  return problem.title || t('common.error')
+}
 
 // ---- Case list ----
 const caseRows = ref<TaskCase[]>([])
@@ -41,6 +51,7 @@ const caseColumns = computed<DataTableColumn[]>(() => [
 
 async function loadCases() {
   caseLoading.value = true
+  errorMsg.value = ''
   try {
     const params: TaskCaseListParams = {
       page_number: casePagination.value.page_number,
@@ -50,6 +61,8 @@ async function loadCases() {
     const result = await listCases(params)
     caseRows.value = result.items
     casePagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     caseLoading.value = false
   }
@@ -75,6 +88,8 @@ async function viewDetail(row: TaskCase) {
   detailModalVisible.value = true
   try {
     caseDetail.value = await getCase(row.case_id)
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     detailLoading.value = false
   }
@@ -111,6 +126,8 @@ async function loadSuggestions() {
     const result = await listSuggestions(params)
     suggestionRows.value = result.items
     suggestionPagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     suggestionLoading.value = false
   }
@@ -134,12 +151,17 @@ function openFeedback(row: ImprovementSuggestion) {
 
 async function handleFeedbackSubmit() {
   if (!feedbackTarget.value) return
-  await submitFeedback({
-    suggestion_id: feedbackTarget.value.suggestion_id,
-    feedback: feedbackText.value
-  })
-  feedbackModalVisible.value = false
-  loadSuggestions()
+  errorMsg.value = ''
+  try {
+    await submitFeedback({
+      suggestion_id: feedbackTarget.value.suggestion_id,
+      feedback: feedbackText.value
+    })
+    feedbackModalVisible.value = false
+    loadSuggestions()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 onMounted(() => {
@@ -153,6 +175,8 @@ onMounted(() => {
     <div class="page-header">
       <h2>{{ t('memory.title') }}</h2>
     </div>
+
+    <p v-if="errorMsg" class="alert alert-error">{{ errorMsg }}</p>
 
     <section class="card">
       <div class="section-toolbar">
@@ -395,5 +419,15 @@ onMounted(() => {
 }
 .loading-text {
   color: #64748b;
+}
+.alert {
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+}
+.alert-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
 }
 </style>

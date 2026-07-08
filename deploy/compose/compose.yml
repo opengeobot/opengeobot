@@ -8,7 +8,7 @@
 #   infra          → postgres, nats, minio
 #   observability  → victoriametrics, vmagent, loki, vector, grafana
 #   cloud          → cloud-control, web-console
-#   sim            → sim-adapter (M2 ROS2 simulation adapter)
+#   sim            → sim-adapter, edge-gateway, safety-gateway, local-skill-executor
 #   full           → all of the above together
 #
 # Usage:
@@ -227,10 +227,11 @@ services:
   # ---------------------------------------------------------------------------
   # Simulation profile (sim + full)
   # ---------------------------------------------------------------------------
-  # M2 ROS2 simulation adapter. Executes registered skills in a simulated
-  # environment (no ROS2 installation required). The edge gateway (run locally
-  # or in a separate container) forwards skill requests to this service over
-  # NATS via opengeobot.dev.edge.skill.execute.{robot_id}.
+  # M2 ROS2 simulation stack. Executes registered skills in a simulated
+  # environment (no ROS2 installation required). The edge gateway forwards
+  # skill requests to the safety gateway, which intercepts and validates them
+  # before forwarding to the local skill executor. The executor dispatches to
+  # the sim-adapter over NATS via opengeobot.dev.edge.skill.execute.{robot_id}.
   sim-adapter:
     build:
       context: ../../services/sim-adapter
@@ -241,7 +242,91 @@ services:
       - LOG_LEVEL=INFO
     networks: [opengeobot-net]
     depends_on:
-      - nats
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import opengeobot_sim.main' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  edge-gateway:
+    build:
+      context: ../../edge/gateway
+    profiles: [sim, full]
+    environment:
+      - NATS_URL=nats://nats:4222
+      - ROBOT_ID=rbt_01J00000000000000000000001
+      - GATEWAY_ID=edge_01
+      - CLOUD_API_BASE_URL=http://cloud-control:8080
+      - LOG_LEVEL=INFO
+    networks: [opengeobot-net]
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import opengeobot_edge.main' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  safety-gateway:
+    build:
+      context: ../../edge/safety-gateway
+    profiles: [sim, full]
+    ports:
+      - "8081:8081"
+    environment:
+      - NATS_URL=nats://nats:4222
+      - GATEWAY_ID=edge_01
+      - SAFETY_HEALTH_CHECK_PORT=8081
+      - LOG_LEVEL=INFO
+    networks: [opengeobot-net]
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8081/health\", timeout=2)' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  local-skill-executor:
+    build:
+      context: ../../edge/local-skill-executor
+    profiles: [sim, full]
+    environment:
+      - NATS_URL=nats://nats:4222
+      - GATEWAY_ID=edge_01
+      - DEFAULT_ADAPTER_TYPE=simulation
+      - LOG_LEVEL=INFO
+    networks: [opengeobot-net]
+    depends_on:
+      nats:
+        condition: service_healthy
+      safety-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import opengeobot_skill_executor.main' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     deploy:
       resources:
         limits:

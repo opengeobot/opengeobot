@@ -12,6 +12,7 @@ import io.opengeobot.platform.robot.dto.TraceDetailDto;
 import io.opengeobot.platform.robot.dto.TraceSpanDto;
 import io.opengeobot.platform.robot.service.TraceService;
 import io.opengeobot.platform.robot.web.PageResponse;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,6 +39,7 @@ public class TraceController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('trace.trace.read')")
     public PageResponse<TraceSpanDto> listTraces(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -52,11 +54,13 @@ public class TraceController {
     }
 
     @GetMapping("/{traceId}")
+    @PreAuthorize("hasAuthority('trace.trace.read')")
     public TraceDetailDto getTrace(@PathVariable String traceId) {
         return traceService.getByTraceId(traceId);
     }
 
     @GetMapping("/{traceId}/replay")
+    @PreAuthorize("hasAuthority('trace.trace.replay')")
     public Map<String, Object> getReplay(@PathVariable String traceId) {
         List<FactEventDto> events = traceService.getReplay(traceId);
         return Map.of("trace_id", traceId, "events", events);

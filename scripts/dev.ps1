@@ -449,7 +449,30 @@ function Invoke-Dev {
 }
 
 function Invoke-SimUp {
-    Write-Info 'Simulation stack not yet implemented (M2)'
+    Write-Info 'Starting simulation stack...'
+    Load-Env
+
+    # Start infrastructure (NATS) and simulation services together.
+    # docker compose up -d is idempotent: already-running containers are not restarted.
+    docker compose -f $ComposeFile --profile infra --profile sim up -d --build
+    if ($LASTEXITCODE -ne 0) { Write-Fail 'Failed to start simulation stack'; exit 1 }
+    Write-Ok 'Simulation stack containers started'
+
+    Write-Info 'Waiting for healthchecks...'
+    Wait-ForHealth -Service nats -MaxWait 30
+    Wait-ForHealth -Service sim-adapter -MaxWait 60
+    Wait-ForHealth -Service edge-gateway -MaxWait 60
+    Wait-ForHealth -Service safety-gateway -MaxWait 60
+    Wait-ForHealth -Service local-skill-executor -MaxWait 60
+    Write-Ok 'Simulation stack is ready'
+
+    Write-Host ''
+    Write-Host '  Simulation Stack Services:' -ForegroundColor Cyan
+    Write-Host '  Safety Gateway   : http://localhost:8081/health' -ForegroundColor Cyan
+    Write-Host '  NATS Monitoring   : http://localhost:8222' -ForegroundColor Cyan
+    Write-Host '  MinIO Console     : http://localhost:9001' -ForegroundColor Cyan
+    Write-Host "  Use 'down' to stop (data preserved)" -ForegroundColor Yellow
+    Write-Host ''
 }
 
 function Invoke-Test {
@@ -479,6 +502,83 @@ function Invoke-Test {
         } else {
             Write-Info 'Vitest not configured in web-console, skipping frontend tests'
         }
+    }
+
+    # --- Python component tests ---
+    Write-Info 'Running Python tests...'
+    $pyComponents = @(
+        'edge/gateway',
+        'edge/safety-gateway',
+        'edge/local-skill-executor',
+        'services/sim-adapter',
+        'services/ros1-adapter',
+        'services/agent-runtime',
+        'services/mcp-tool-gateway'
+    )
+    $pyPassed = [System.Collections.ArrayList]::new()
+    $pyFailed = [System.Collections.ArrayList]::new()
+    $pySkipped = [System.Collections.ArrayList]::new()
+
+    $hasUv = Get-Command uv -ErrorAction SilentlyContinue
+    $hasPython = Get-Command python3 -ErrorAction SilentlyContinue
+    if (-not $hasPython) { $hasPython = Get-Command python -ErrorAction SilentlyContinue }
+
+    foreach ($comp in $pyComponents) {
+        $compDir = Join-Path $RootDir $comp
+        if (-not (Test-Path $compDir)) {
+            Write-Warn "Directory not found, skipping: $comp"
+            $pySkipped.Add($comp) | Out-Null
+            continue
+        }
+        $pyProject = Join-Path $compDir 'pyproject.toml'
+        if (-not (Test-Path $pyProject)) {
+            Write-Info "No pyproject.toml, skipping: $comp"
+            $pySkipped.Add($comp) | Out-Null
+            continue
+        }
+
+        Write-Info "Testing Python component: $comp"
+        Push-Location $compDir
+        if ($hasUv) {
+            & uv run pytest -q
+        } elseif ($hasPython) {
+            & $hasPython.Source -m pytest -q
+        } else {
+            Pop-Location
+            Write-Warn "Neither uv nor python found, skipping: $comp"
+            $pySkipped.Add($comp) | Out-Null
+            continue
+        }
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "Python tests passed: $comp"
+            $pyPassed.Add($comp) | Out-Null
+        } else {
+            Write-Fail "Python tests failed: $comp"
+            $pyFailed.Add($comp) | Out-Null
+        }
+        Pop-Location
+    }
+
+    Write-Host ''
+    Write-Host '== Python Test Summary ==' -ForegroundColor Cyan
+    Write-Host "  Passed:  $($pyPassed.Count)"
+    Write-Host "  Failed:  $($pyFailed.Count)"
+    Write-Host "  Skipped: $($pySkipped.Count)"
+    if ($pyPassed.Count -gt 0) {
+        Write-Host "  Passed components: $($pyPassed -join ', ')"
+    }
+    if ($pyFailed.Count -gt 0) {
+        Write-Host "  Failed components: $($pyFailed -join ', ')"
+    }
+    if ($pySkipped.Count -gt 0) {
+        Write-Host "  Skipped components: $($pySkipped -join ', ')"
+    }
+    Write-Host ''
+
+    if ($pyFailed.Count -gt 0) {
+        Write-Warn 'Some Python test components failed — see output above'
+    } else {
+        Write-Ok 'All Python tests passed'
     }
 }
 
@@ -523,8 +623,8 @@ Commands:
   infra-up    Start infrastructure containers (Postgres, NATS, MinIO)
   migrate     Run Flyway migrations against local PostgreSQL
   dev         Start backend + frontend dev servers (Ctrl+C to stop)
-  sim-up      Start simulation stack (not yet implemented)
-  test        Run Java (and frontend, if configured) tests
+  sim-up      Start simulation stack (infra + sim-adapter + edge + safety + skill executor)
+  test        Run Java, frontend (if configured), and Python tests
   e2e         Build and start the full stack (infra + observability + cloud)
   down        Stop Docker Compose stack and dev servers (keeps volumes)
 '@

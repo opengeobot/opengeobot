@@ -16,6 +16,7 @@ import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,6 +43,7 @@ public class McpToolController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('mcp.tool.read')")
     public PageResponse<McpToolDto> listTools(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -51,23 +53,27 @@ public class McpToolController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('mcp.tool.manage')")
     public ResponseEntity<McpToolDto> registerTool(@Valid @RequestBody RegisterToolRequest request) {
         McpToolDto created = mcpToolService.registerTool(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/{toolId}")
+    @PreAuthorize("hasAuthority('mcp.tool.read')")
     public McpToolDto getTool(@PathVariable String toolId) {
         return mcpToolService.getTool(toolId);
     }
 
     @PostMapping("/{toolId}/invoke")
+    @PreAuthorize("hasAuthority('mcp.tool.invoke')")
     public InvocationResultDto invokeTool(@PathVariable String toolId,
                                           @Valid @RequestBody InvokeToolRequest request) {
         return mcpToolService.invoke(toolId, request);
     }
 
     @GetMapping("/{toolId}/invocations")
+    @PreAuthorize("hasAuthority('mcp.tool.read')")
     public PageResponse<InvocationResultDto> listInvocations(
             @PathVariable String toolId,
             @RequestParam(defaultValue = "1") int page,

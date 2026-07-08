@@ -17,6 +17,7 @@ import io.opengeobot.platform.robot.service.AlarmService;
 import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,6 +48,7 @@ public class AlarmController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('ops.alarm.read')")
     public PageResponse<AlarmEventDto> listAlarms(
             @RequestParam(name = "page", defaultValue = "1") int page,
             @RequestParam(name = "page_size", defaultValue = "20") int pageSize,
@@ -59,6 +61,7 @@ public class AlarmController {
     }
 
     @PostMapping("/rules")
+    @PreAuthorize("hasAuthority('ops.alarm.manage')")
     public ResponseEntity<AlarmRuleDto> createRule(@Valid @RequestBody CreateAlarmRuleRequest request) {
         AlarmRuleDto created = alarmService.createRule(request);
         return ResponseEntity.created(URI.create("/api/v1/alarms/rules/" + created.ruleId()))
@@ -66,6 +69,7 @@ public class AlarmController {
     }
 
     @GetMapping("/rules")
+    @PreAuthorize("hasAuthority('ops.alarm.read')")
     public PageResponse<AlarmRuleDto> listRules(
             @RequestParam(name = "page", defaultValue = "1") int page,
             @RequestParam(name = "page_size", defaultValue = "20") int pageSize,
@@ -77,27 +81,32 @@ public class AlarmController {
     }
 
     @PutMapping("/rules/{ruleId}")
+    @PreAuthorize("hasAuthority('ops.alarm.manage')")
     public AlarmRuleDto updateRule(@PathVariable String ruleId,
                                    @RequestBody UpdateAlarmRuleRequest request) {
         return alarmService.updateRule(ruleId, request);
     }
 
     @PostMapping("/{alarmId}/acknowledge")
+    @PreAuthorize("hasAuthority('ops.alarm.manage')")
     public AlarmEventDto acknowledge(@PathVariable String alarmId) {
         return alarmService.acknowledge(alarmId);
     }
 
     @PostMapping("/{alarmId}/resolve")
+    @PreAuthorize("hasAuthority('ops.alarm.manage')")
     public AlarmEventDto resolve(@PathVariable String alarmId) {
         return alarmService.resolve(alarmId);
     }
 
     @GetMapping("/channels")
+    @PreAuthorize("hasAuthority('ops.alarm.read')")
     public List<NotificationChannelDto> listChannels() {
         return alarmService.listChannels();
     }
 
     @PostMapping("/channels")
+    @PreAuthorize("hasAuthority('ops.alarm.manage')")
     public ResponseEntity<NotificationChannelDto> createChannel(
             @Valid @RequestBody CreateNotificationChannelRequest request) {
         NotificationChannelDto created = alarmService.createChannel(request);

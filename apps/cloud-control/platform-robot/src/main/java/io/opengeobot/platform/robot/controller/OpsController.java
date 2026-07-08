@@ -11,6 +11,7 @@ import io.opengeobot.platform.robot.dto.MetricSnapshotDto;
 import io.opengeobot.platform.robot.dto.OpsDashboard;
 import io.opengeobot.platform.robot.dto.ReportRecordDto;
 import io.opengeobot.platform.robot.service.OpsService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,11 +38,13 @@ public class OpsController {
     }
 
     @GetMapping("/dashboard")
+    @PreAuthorize("hasAuthority('dashboard.view')")
     public OpsDashboard getDashboard() {
         return opsService.getDashboard();
     }
 
     @GetMapping("/metrics")
+    @PreAuthorize("hasAuthority('ops.health.read')")
     public List<MetricSnapshotDto> queryMetrics(
             @RequestParam(name = "metric_name", required = false) String metricName,
             @RequestParam(name = "start", required = false) OffsetDateTime start,
@@ -51,16 +54,19 @@ public class OpsController {
     }
 
     @GetMapping("/health")
+    @PreAuthorize("hasAuthority('ops.health.read')")
     public List<HealthCheckDto> getHealth() {
         return opsService.getHealth();
     }
 
     @GetMapping("/reports/{reportType}")
+    @PreAuthorize("hasAuthority('ops.health.read')")
     public ReportRecordDto generateReport(@PathVariable String reportType) {
         return opsService.generateReport(reportType);
     }
 
     @GetMapping("/capacity")
+    @PreAuthorize("hasAuthority('ops.health.read')")
     public List<CapacityForecast> getCapacity() {
         return opsService.getCapacity();
     }

@@ -19,6 +19,7 @@ import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,6 +47,7 @@ public class MapController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('map.map.read')")
     public PageResponse<MapInfoDto> listMaps(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -55,28 +57,33 @@ public class MapController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('map.map.manage')")
     public ResponseEntity<MapInfoDto> createMap(@Valid @RequestBody CreateMapRequest request) {
         MapInfoDto created = mapService.createMap(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/{mapId}")
+    @PreAuthorize("hasAuthority('map.map.read')")
     public MapInfoDto getMap(@PathVariable String mapId) {
         return mapService.getMap(mapId);
     }
 
     @PutMapping("/{mapId}")
+    @PreAuthorize("hasAuthority('map.map.manage')")
     public MapInfoDto updateMap(@PathVariable String mapId,
                                 @Valid @RequestBody UpdateMapRequest request) {
         return mapService.updateMap(mapId, request);
     }
 
     @PostMapping("/{mapId}/publish")
+    @PreAuthorize("hasAuthority('map.map.manage')")
     public MapInfoDto publishMap(@PathVariable String mapId) {
         return mapService.publishMap(mapId);
     }
 
     @GetMapping("/{mapId}/areas")
+    @PreAuthorize("hasAuthority('map.map.read')")
     public PageResponse<MapAreaDto> listAreas(
             @PathVariable String mapId,
             @RequestParam(defaultValue = "1") int page,
@@ -86,6 +93,7 @@ public class MapController {
     }
 
     @PostMapping("/{mapId}/areas")
+    @PreAuthorize("hasAuthority('map.scene.manage')")
     public ResponseEntity<MapAreaDto> createArea(@PathVariable String mapId,
                                                   @Valid @RequestBody CreateMapAreaRequest request) {
         MapAreaDto created = mapService.createArea(mapId, request);
@@ -93,6 +101,7 @@ public class MapController {
     }
 
     @GetMapping("/{mapId}/restricted-areas")
+    @PreAuthorize("hasAuthority('map.map.read')")
     public PageResponse<RestrictedAreaDto> listRestrictedAreas(
             @PathVariable String mapId,
             @RequestParam(defaultValue = "1") int page,
@@ -102,6 +111,7 @@ public class MapController {
     }
 
     @PostMapping("/{mapId}/restricted-areas")
+    @PreAuthorize("hasAuthority('map.restricted_area.manage')")
     public ResponseEntity<RestrictedAreaDto> createRestrictedArea(@PathVariable String mapId,
                                                                    @Valid @RequestBody CreateRestrictedAreaRequest request) {
         RestrictedAreaDto created = mapService.createRestrictedArea(mapId, request);

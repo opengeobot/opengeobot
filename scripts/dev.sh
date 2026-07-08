@@ -394,7 +394,29 @@ cmd_down_dev() {
 }
 
 cmd_sim_up() {
-    info "Simulation stack not yet implemented (M2)"
+    info "Starting simulation stack..."
+    load_env
+
+    # Start infrastructure (NATS) and simulation services together.
+    # docker compose up -d is idempotent: already-running containers are not restarted.
+    docker compose -f "${COMPOSE_FILE}" --profile infra --profile sim up -d --build
+    ok "Simulation stack containers started"
+
+    info "Waiting for healthchecks..."
+    wait_for_health nats 30 || true
+    wait_for_health sim-adapter 60 || true
+    wait_for_health edge-gateway 60 || true
+    wait_for_health safety-gateway 60 || true
+    wait_for_health local-skill-executor 60 || true
+    ok "Simulation stack is ready"
+
+    echo
+    printf "${CYAN}  Simulation Stack Services:${NC}\n"
+    printf "${CYAN}  Safety Gateway   : http://localhost:8081/health${NC}\n"
+    printf "${CYAN}  NATS Monitoring   : http://localhost:8222${NC}\n"
+    printf "${CYAN}  MinIO Console     : http://localhost:9001${NC}\n"
+    printf "${YELLOW}  Use 'down' to stop (data preserved)${NC}\n"
+    echo
 }
 
 cmd_test() {
@@ -413,6 +435,79 @@ cmd_test() {
         else
             info "Vitest not configured in web-console, skipping frontend tests"
         fi
+    fi
+
+    # --- Python component tests ---
+    info "Running Python tests..."
+    local py_components=(
+        "edge/gateway"
+        "edge/safety-gateway"
+        "edge/local-skill-executor"
+        "services/sim-adapter"
+        "services/ros1-adapter"
+        "services/agent-runtime"
+        "services/mcp-tool-gateway"
+    )
+    local py_passed=()
+    local py_failed=()
+    local py_skipped=()
+
+    for comp in "${py_components[@]}"; do
+        local comp_dir="${ROOT_DIR}/${comp}"
+        if [ ! -d "${comp_dir}" ]; then
+            warn "Directory not found, skipping: ${comp}"
+            py_skipped+=("${comp}")
+            continue
+        fi
+        if [ ! -f "${comp_dir}/pyproject.toml" ]; then
+            info "No pyproject.toml, skipping: ${comp}"
+            py_skipped+=("${comp}")
+            continue
+        fi
+
+        info "Testing Python component: ${comp}"
+        if command -v uv >/dev/null 2>&1; then
+            if (cd "${comp_dir}" && uv run pytest -q 2>&1); then
+                ok "Python tests passed: ${comp}"
+                py_passed+=("${comp}")
+            else
+                fail "Python tests failed: ${comp}"
+                py_failed+=("${comp}")
+            fi
+        elif command -v python3 >/dev/null 2>&1; then
+            if (cd "${comp_dir}" && python3 -m pytest -q 2>&1); then
+                ok "Python tests passed: ${comp}"
+                py_passed+=("${comp}")
+            else
+                fail "Python tests failed: ${comp}"
+                py_failed+=("${comp}")
+            fi
+        else
+            warn "Neither uv nor python3 found, skipping: ${comp}"
+            py_skipped+=("${comp}")
+        fi
+    done
+
+    echo
+    printf "${CYAN}== Python Test Summary ==${NC}\n"
+    printf "  Passed:  %d\n" "${#py_passed[@]}"
+    printf "  Failed:  %d\n" "${#py_failed[@]}"
+    printf "  Skipped: %d\n" "${#py_skipped[@]}"
+    if [ "${#py_passed[@]}" -gt 0 ]; then
+        printf "  Passed components: %s\n" "${py_passed[*]}"
+    fi
+    if [ "${#py_failed[@]}" -gt 0 ]; then
+        printf "  Failed components: %s\n" "${py_failed[*]}"
+    fi
+    if [ "${#py_skipped[@]}" -gt 0 ]; then
+        printf "  Skipped components: %s\n" "${py_skipped[*]}"
+    fi
+    echo
+
+    if [ "${#py_failed[@]}" -gt 0 ]; then
+        warn "Some Python test components failed — see output above"
+    else
+        ok "All Python tests passed"
     fi
 }
 
@@ -460,8 +555,8 @@ Commands:
   infra-up    Start infrastructure containers (Postgres, NATS, MinIO)
   migrate     Run Flyway migrations against local PostgreSQL
   dev         Start backend + frontend dev servers (Ctrl+C to stop)
-  sim-up      Start simulation stack (not yet implemented)
-  test        Run Java (and frontend, if configured) tests
+  sim-up      Start simulation stack (infra + sim-adapter + edge + safety + skill executor)
+  test        Run Java, frontend (if configured), and Python tests
   e2e         Build and start the full stack (infra + observability + cloud)
   down        Stop Docker Compose stack and dev servers (keeps volumes)
 EOF

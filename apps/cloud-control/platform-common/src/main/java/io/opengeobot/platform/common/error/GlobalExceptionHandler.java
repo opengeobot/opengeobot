@@ -17,6 +17,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.security.access.AccessDeniedException;
 
 /**
  * Translates exceptions into the platform {@link ErrorEnvelope} ProblemDetails format.
@@ -53,6 +54,15 @@ public class GlobalExceptionHandler {
         ErrorEnvelope envelope = ErrorEnvelope.of(
                 ErrorCode.RESOURCE_NOT_FOUND, resolveTraceId(), request.getRequestURI());
         return buildResponse(envelope, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorEnvelope> handleAccessDenied(
+            AccessDeniedException ex, HttpServletRequest request) {
+        log.debug("Access denied: {}", ex.getMessage());
+        ErrorEnvelope envelope = ErrorEnvelope.of(
+                ErrorCode.PERMISSION_DENIED, resolveTraceId(), request.getRequestURI());
+        return buildResponse(envelope, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(Exception.class)

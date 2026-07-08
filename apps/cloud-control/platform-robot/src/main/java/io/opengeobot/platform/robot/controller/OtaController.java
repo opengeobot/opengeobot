@@ -16,6 +16,7 @@ import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,6 +45,7 @@ public class OtaController {
     }
 
     @GetMapping("/packages")
+    @PreAuthorize("hasAuthority('ops.ota.read')")
     public PageResponse<FirmwarePackageDto> listPackages(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -54,6 +56,7 @@ public class OtaController {
     }
 
     @PostMapping("/packages")
+    @PreAuthorize("hasAuthority('ops.ota.manage')")
     public ResponseEntity<FirmwarePackageDto> uploadPackage(
             @RequestParam("file") MultipartFile file,
             @RequestParam("name") String name,
@@ -65,17 +68,20 @@ public class OtaController {
     }
 
     @GetMapping("/packages/{packageId}")
+    @PreAuthorize("hasAuthority('ops.ota.read')")
     public FirmwarePackageDto getPackage(@PathVariable String packageId) {
         return otaService.getPackage(packageId);
     }
 
     @PostMapping("/campaigns")
+    @PreAuthorize("hasAuthority('ops.ota.manage')")
     public ResponseEntity<ReleaseCampaignDto> createCampaign(@Valid @RequestBody CreateCampaignRequest request) {
         ReleaseCampaignDto created = otaService.createCampaign(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/campaigns")
+    @PreAuthorize("hasAuthority('ops.ota.read')")
     public PageResponse<ReleaseCampaignDto> listCampaigns(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -86,16 +92,19 @@ public class OtaController {
     }
 
     @GetMapping("/campaigns/{campaignId}")
+    @PreAuthorize("hasAuthority('ops.ota.read')")
     public OtaService.CampaignDetail getCampaign(@PathVariable String campaignId) {
         return otaService.getCampaign(campaignId);
     }
 
     @PostMapping("/campaigns/{campaignId}/rollback")
+    @PreAuthorize("hasAuthority('ops.ota.manage')")
     public ReleaseCampaignDto rollback(@PathVariable String campaignId) {
         return otaService.rollback(campaignId);
     }
 
     @GetMapping("/campaigns/{campaignId}/deployments")
+    @PreAuthorize("hasAuthority('ops.ota.read')")
     public List<DeploymentRecordDto> getDeploymentStatus(@PathVariable String campaignId) {
         return otaService.getDeploymentStatus(campaignId);
     }

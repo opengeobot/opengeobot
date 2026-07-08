@@ -16,6 +16,7 @@ import io.opengeobot.platform.governance.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,6 +44,7 @@ public class ConfigController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('platform.config.read')")
     public PageResponse<ConfigDto> listConfigs(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -53,23 +55,27 @@ public class ConfigController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('platform.config.manage')")
     public ResponseEntity<ConfigDto> createConfig(@Valid @RequestBody CreateConfigRequest request) {
         ConfigDto created = configService.createConfig(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/{configKey}")
+    @PreAuthorize("hasAuthority('platform.config.read')")
     public ConfigDto getConfig(@PathVariable String configKey) {
         return configService.getConfig(configKey);
     }
 
     @PutMapping("/{configKey}")
+    @PreAuthorize("hasAuthority('platform.config.manage')")
     public ConfigDto updateConfig(@PathVariable String configKey,
                                   @Valid @RequestBody UpdateConfigRequest request) {
         return configService.updateConfig(configKey, request);
     }
 
     @GetMapping("/{configKey}/history")
+    @PreAuthorize("hasAuthority('platform.config.read')")
     public PageResponse<ConfigHistoryDto> getConfigHistory(
             @PathVariable String configKey,
             @RequestParam(defaultValue = "1") int page,

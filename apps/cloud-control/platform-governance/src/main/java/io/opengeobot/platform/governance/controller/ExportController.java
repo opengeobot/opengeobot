@@ -13,6 +13,7 @@ import io.opengeobot.platform.governance.web.ResourceNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,6 +41,7 @@ public class ExportController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('audit.audit.export')")
     public ResponseEntity<ExportTaskDto> createExport(@Valid @RequestBody CreateExportRequest request) {
         ExportTaskDto task = exportService.createExport(request, actorResolver.currentActor());
         return ResponseEntity.status(HttpStatus.ACCEPTED)
@@ -48,11 +50,13 @@ public class ExportController {
     }
 
     @GetMapping("/{exportId}")
+    @PreAuthorize("hasAuthority('audit.audit.export')")
     public ExportTaskDto getExport(@PathVariable String exportId) {
         return exportService.getExport(exportId);
     }
 
     @GetMapping("/{exportId}/download")
+    @PreAuthorize("hasAuthority('audit.audit.export')")
     public ResponseEntity<Void> downloadExport(@PathVariable String exportId) {
         try {
             String downloadUrl = exportService.downloadExport(exportId);

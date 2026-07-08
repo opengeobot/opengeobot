@@ -118,7 +118,17 @@
     "robots": "机器人状态",
     "missions": "任务状态",
     "alarms": "告警摘要",
-    "safety": "安全拦截趋势"
+    "safety": "安全状态",
+    "online": "在线",
+    "offline": "离线",
+    "busy": "忙碌",
+    "error": "异常",
+    "completed": "已完成",
+    "failed": "失败",
+    "acknowledged": "已确认",
+    "resolved": "已解决",
+    "safety_normal": "正常",
+    "safety_emergency": "紧急停止"
   },
   "login": {
     "title": "登录",

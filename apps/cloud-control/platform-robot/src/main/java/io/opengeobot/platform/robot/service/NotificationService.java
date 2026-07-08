@@ -11,8 +11,13 @@ import io.opengeobot.platform.robot.domain.NotificationChannel;
 import io.opengeobot.platform.robot.domain.NotificationLog;
 import io.opengeobot.platform.robot.repository.NotificationChannelRepository;
 import io.opengeobot.platform.robot.repository.NotificationLogRepository;
+import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -31,10 +36,12 @@ import java.util.Map;
  * <ul>
  *   <li>{@code in-app} — records a notification log entry in the database.</li>
  *   <li>{@code webhook} — sends an HTTP POST to the configured URL.</li>
- *   <li>{@code email} — stubbed for M5; logs and records as SENT.</li>
+ *   <li>{@code email} — sends an email via SMTP when configured; returns
+ *       {@code FAILED} with a clear message when SMTP is not configured.</li>
  * </ul>
  * Each delivery attempt is recorded as a {@link NotificationLog} row so that
- * delivery can be audited and retried.
+ * delivery can be audited and retried. Notification status always reflects
+ * the actual send result — success is never faked.
  */
 @Service
 public class NotificationService {
@@ -49,13 +56,19 @@ public class NotificationService {
     private final NotificationChannelRepository channelRepository;
     private final NotificationLogRepository logRepository;
     private final ObjectMapper objectMapper;
+    private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final String mailHost;
 
     public NotificationService(NotificationChannelRepository channelRepository,
                                NotificationLogRepository logRepository,
-                               ObjectMapper objectMapper) {
+                               ObjectMapper objectMapper,
+                               ObjectProvider<JavaMailSender> mailSenderProvider,
+                               @Value("${spring.mail.host:}") String mailHost) {
         this.channelRepository = channelRepository;
         this.logRepository = logRepository;
         this.objectMapper = objectMapper;
+        this.mailSenderProvider = mailSenderProvider;
+        this.mailHost = mailHost;
     }
 
     /**
@@ -97,24 +110,34 @@ public class NotificationService {
     private String deliver(AlarmEvent event, NotificationChannel channel) throws Exception {
         String type = channel.getType();
         if (CHANNEL_IN_APP.equals(type)) {
-            log.info("In-app notification for alarm {}: {}", event.getAlarmId(), event.getMessage());
-            return STATUS_SENT;
+            return deliverInApp(event, channel);
         }
         if (CHANNEL_WEBHOOK.equals(type)) {
             return deliverWebhook(event, channel);
         }
         if (CHANNEL_EMAIL.equals(type)) {
-            log.info("Email notification (stub) for alarm {}: {}", event.getAlarmId(), event.getMessage());
-            return STATUS_SENT;
+            return deliverEmail(event, channel);
         }
-        log.warn("Unknown notification channel type '{}' for channel {}", type, channel.getName());
+        throw new IllegalStateException(
+                "Unknown notification channel type '" + type + "' for channel '" + channel.getName() + "'");
+    }
+
+    /**
+     * In-app notification: the notification log entry itself serves as the
+     * in-app record. The alarm_id and channel_id are stored in the
+     * {@code alarm.notification_log} table, making the notification visible
+     * to any in-app notification consumer that queries this table.
+     */
+    private String deliverInApp(AlarmEvent event, NotificationChannel channel) {
+        log.debug("In-app notification recorded for alarm {} via channel {}",
+                event.getAlarmId(), channel.getName());
         return STATUS_SENT;
     }
 
     /**
      * Sends an HTTP POST with the alarm event payload to the webhook URL
      * configured in the channel config. Uses the built-in Java HttpClient
-     * with a 10-second connect and request timeout.
+     * with a 5-second connect timeout and 10-second request timeout.
      */
     private String deliverWebhook(AlarmEvent event, NotificationChannel channel) throws Exception {
         Map<String, Object> config = channel.getConfig();
@@ -146,6 +169,59 @@ public class NotificationService {
             return STATUS_SENT;
         }
         throw new RuntimeException("Webhook returned HTTP " + response.statusCode());
+    }
+
+    /**
+     * Sends an email notification via SMTP. The recipient address(es) and
+     * optional subject prefix are read from the channel config. If SMTP is
+     * not configured (no {@code spring.mail.host} property), the delivery
+     * fails with a clear "Email not configured" message rather than faking
+     * success.
+     */
+    private String deliverEmail(AlarmEvent event, NotificationChannel channel) throws Exception {
+        if (mailHost == null || mailHost.isBlank()) {
+            throw new IllegalStateException("Email not configured (spring.mail.host is not set)");
+        }
+        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+        if (mailSender == null) {
+            throw new IllegalStateException("Email not configured (JavaMailSender bean is not available)");
+        }
+
+        Map<String, Object> config = channel.getConfig();
+        if (config == null || !config.containsKey("to")) {
+            throw new IllegalStateException(
+                    "Email channel '" + channel.getName() + "' has no 'to' recipient configured");
+        }
+        String to = String.valueOf(config.get("to"));
+        String subjectPrefix = config.containsKey("subject_prefix")
+                ? String.valueOf(config.get("subject_prefix")) : "[OpenGeoBot Alarm]";
+        String subject = subjectPrefix + " " + event.getSeverity() + ": " + event.getSource();
+        String body = buildEmailBody(event);
+
+        MimeMessage mimeMessage = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
+        helper.setTo(to);
+        helper.setSubject(subject);
+        helper.setText(body, false);
+        mailSender.send(mimeMessage);
+
+        log.info("Email notification sent for alarm {} to {}", event.getAlarmId(), to);
+        return STATUS_SENT;
+    }
+
+    private String buildEmailBody(AlarmEvent event) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Alarm Notification\n\n");
+        sb.append("Alarm ID: ").append(event.getAlarmId()).append("\n");
+        sb.append("Rule ID: ").append(event.getRuleId()).append("\n");
+        sb.append("Source: ").append(event.getSource()).append("\n");
+        sb.append("Severity: ").append(event.getSeverity()).append("\n");
+        sb.append("Message: ").append(event.getMessage()).append("\n");
+        sb.append("Triggered At: ").append(event.getTriggeredAt()).append("\n");
+        if (event.getTraceId() != null) {
+            sb.append("Trace ID: ").append(event.getTraceId()).append("\n");
+        }
+        return sb.toString();
     }
 
     private List<NotificationChannel> findEnabledChannels() {

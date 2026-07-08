@@ -26,10 +26,20 @@ import type {
   ReleaseCampaign,
   CampaignDetail,
   PackageListParams,
-  CampaignListParams
+  CampaignListParams,
+  ProblemDetails
 } from '@/types/api'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+const errorMsg = ref('')
+
+function resolveError(problem: ProblemDetails): string {
+  if (problem.message_key && te(problem.message_key)) {
+    return t(problem.message_key, problem.arguments)
+  }
+  return problem.title || t('common.error')
+}
 
 // ---- Package list ----
 const packageRows = ref<FirmwarePackage[]>([])
@@ -46,6 +56,7 @@ const packageColumns = computed<DataTableColumn[]>(() => [
 
 async function loadPackages() {
   packageLoading.value = true
+  errorMsg.value = ''
   try {
     const params: PackageListParams = {
       page_number: packagePagination.value.page_number,
@@ -54,6 +65,8 @@ async function loadPackages() {
     const result = await listPackages(params)
     packageRows.value = result.items
     packagePagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     packageLoading.value = false
   }
@@ -97,6 +110,7 @@ function onFileChange(event: Event) {
 async function handleUploadSubmit() {
   if (!uploadFile.value) return
   uploadLoading.value = true
+  errorMsg.value = ''
   try {
     await uploadPackage(uploadFile.value, {
       name: uploadMeta.name,
@@ -108,6 +122,8 @@ async function handleUploadSubmit() {
     })
     uploadModalVisible.value = false
     loadPackages()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     uploadLoading.value = false
   }
@@ -136,6 +152,8 @@ async function loadCampaigns() {
     const result = await listCampaigns(params)
     campaignRows.value = result.items
     campaignPagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     campaignLoading.value = false
   }
@@ -173,17 +191,22 @@ function openCampaignModal() {
 }
 
 async function handleCampaignSubmit(data: Record<string, unknown>) {
-  const robots = String(data.target_robots)
-    .split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  await createCampaign({
-    package_id: String(data.package_id),
-    target_robots: robots,
-    canary_percent: Number(data.canary_percent)
-  })
-  campaignModalVisible.value = false
-  loadCampaigns()
+  errorMsg.value = ''
+  try {
+    const robots = String(data.target_robots)
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    await createCampaign({
+      package_id: String(data.package_id),
+      target_robots: robots,
+      canary_percent: Number(data.canary_percent)
+    })
+    campaignModalVisible.value = false
+    loadCampaigns()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 // ---- View deployments ----
@@ -204,6 +227,8 @@ async function viewDeployments(row: ReleaseCampaign) {
   deployModalVisible.value = true
   try {
     campaignDetail.value = await getCampaign(row.campaign_id)
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     deployLoading.value = false
   }
@@ -212,8 +237,13 @@ async function viewDeployments(row: ReleaseCampaign) {
 // ---- Rollback ----
 async function handleRollback(row: ReleaseCampaign) {
   if (!confirm(t('ota.rollback_confirm'))) return
-  await rollback(row.campaign_id)
-  loadCampaigns()
+  errorMsg.value = ''
+  try {
+    await rollback(row.campaign_id)
+    loadCampaigns()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 onMounted(() => {
@@ -227,6 +257,8 @@ onMounted(() => {
     <div class="page-header">
       <h2>{{ t('ota.title') }}</h2>
     </div>
+
+    <p v-if="errorMsg" class="alert alert-error">{{ errorMsg }}</p>
 
     <section class="card">
       <div class="section-toolbar">
@@ -449,5 +481,15 @@ onMounted(() => {
 }
 .loading-text {
   color: #64748b;
+}
+.alert {
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+}
+.alert-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
 }
 </style>

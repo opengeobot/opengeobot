@@ -21,10 +21,20 @@ import type {
   ConflictResolution,
   FleetScheduleListParams,
   ConflictListParams,
-  FailoverListParams
+  FailoverListParams,
+  ProblemDetails
 } from '@/types/api'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+const errorMsg = ref('')
+
+function resolveError(problem: ProblemDetails): string {
+  if (problem.message_key && te(problem.message_key)) {
+    return t(problem.message_key, problem.arguments)
+  }
+  return problem.title || t('common.error')
+}
 
 // ---- Schedule list ----
 const scheduleRows = ref<FleetSchedule[]>([])
@@ -42,6 +52,7 @@ const scheduleColumns = computed<DataTableColumn[]>(() => [
 
 async function loadSchedules() {
   scheduleLoading.value = true
+  errorMsg.value = ''
   try {
     const params: FleetScheduleListParams = {
       page_number: schedulePagination.value.page_number,
@@ -50,6 +61,8 @@ async function loadSchedules() {
     const result = await listSchedules(params)
     scheduleRows.value = result.items
     schedulePagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     scheduleLoading.value = false
   }
@@ -94,15 +107,20 @@ function openCreateModal() {
 }
 
 async function handleCreateSubmit(data: Record<string, unknown>) {
-  await createSchedule({
-    mission_id: String(data.mission_id),
-    robot_id: String(data.robot_id),
-    planned_start: String(data.planned_start),
-    planned_end: String(data.planned_end),
-    priority: (data.priority as FleetSchedule['priority']) || 'NORMAL'
-  })
-  createModalVisible.value = false
-  loadSchedules()
+  errorMsg.value = ''
+  try {
+    await createSchedule({
+      mission_id: String(data.mission_id),
+      robot_id: String(data.robot_id),
+      planned_start: String(data.planned_start),
+      planned_end: String(data.planned_end),
+      priority: (data.priority as FleetSchedule['priority']) || 'NORMAL'
+    })
+    createModalVisible.value = false
+    loadSchedules()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 // ---- Conflict list ----
@@ -128,6 +146,8 @@ async function loadConflicts() {
     const result = await listConflicts(params)
     conflictRows.value = result.items
     conflictPagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     conflictLoading.value = false
   }
@@ -166,12 +186,17 @@ function openResolveModal(row: ConflictRecord) {
 
 async function handleResolveSubmit(data: Record<string, unknown>) {
   if (!resolveTarget.value) return
-  await resolveConflict(resolveTarget.value.conflict_id, {
-    resolution: data.resolution as ConflictResolution,
-    target_robot_id: data.target_robot_id ? String(data.target_robot_id) : undefined
-  })
-  resolveModalVisible.value = false
-  loadConflicts()
+  errorMsg.value = ''
+  try {
+    await resolveConflict(resolveTarget.value.conflict_id, {
+      resolution: data.resolution as ConflictResolution,
+      target_robot_id: data.target_robot_id ? String(data.target_robot_id) : undefined
+    })
+    resolveModalVisible.value = false
+    loadConflicts()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 // ---- Failover list ----
@@ -198,6 +223,8 @@ async function loadFailovers() {
     const result = await listFailovers(params)
     failoverRows.value = result.items
     failoverPagination.value.total = result.total
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     failoverLoading.value = false
   }
@@ -225,14 +252,19 @@ function openFailoverModal() {
 }
 
 async function handleFailoverSubmit(data: Record<string, unknown>) {
-  await triggerFailover({
-    robot_id: String(data.robot_id),
-    mission_id: String(data.mission_id),
-    reason: String(data.reason),
-    target_robot_id: data.target_robot_id ? String(data.target_robot_id) : undefined
-  })
-  failoverModalVisible.value = false
-  loadFailovers()
+  errorMsg.value = ''
+  try {
+    await triggerFailover({
+      robot_id: String(data.robot_id),
+      mission_id: String(data.mission_id),
+      reason: String(data.reason),
+      target_robot_id: data.target_robot_id ? String(data.target_robot_id) : undefined
+    })
+    failoverModalVisible.value = false
+    loadFailovers()
+  } catch (err) {
+    errorMsg.value = resolveError(err as ProblemDetails)
+  }
 }
 
 onMounted(() => {
@@ -247,6 +279,8 @@ onMounted(() => {
     <div class="page-header">
       <h2>{{ t('fleet.title') }}</h2>
     </div>
+
+    <p v-if="errorMsg" class="alert alert-error">{{ errorMsg }}</p>
 
     <section class="card">
       <div class="section-toolbar">
@@ -366,5 +400,15 @@ onMounted(() => {
   cursor: pointer;
   padding: 0.2rem 0.4rem;
   font-size: 0.875rem;
+}
+.alert {
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+}
+.alert-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
 }
 </style>

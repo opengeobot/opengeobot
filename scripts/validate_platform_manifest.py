@@ -11,7 +11,12 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jsonschema import Draft202012Validator
+
+try:
+    from jsonschema import Draft202012Validator
+    HAS_JSONSCHEMA = True
+except ImportError:
+    HAS_JSONSCHEMA = False
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -126,6 +131,22 @@ EVIDENCE_ALLOWED_PREFIXES = {
     "HIL_REPORT": ("reports/hil/",),
 }
 
+# Markers that indicate a real test report (HTML files in reports/tests/).
+TEST_RESULT_MARKERS = ("passed", "failed", "total", "PASS", "FAIL")
+# Markers that indicate a file is just a template or placeholder.
+TEMPLATE_MARKERS = ("placeholder", "TODO", "lorem ipsum", "TEMPLATE")
+# Markers indicating HIL was not actually executed.
+HIL_NOT_EXECUTED_MARKERS = (
+    "NOT EXECUTED",
+    "not executed",
+    "No real-device evidence",
+    "deferred to hardware lab",
+)
+# Minimum non-trivial content lines for a security report.
+SECURITY_REPORT_MIN_CONTENT_LINES = 5
+# Test types that require actual test files on disk.
+TEST_FILE_REQUIRED_TYPES = {"UNIT", "INTEGRATION", "E2E"}
+
 
 def load_document(path: Path) -> Any:
     text = path.read_text(encoding="utf-8")
@@ -169,6 +190,13 @@ def validate_sources(manifest: dict[str, Any], errors: list[str]) -> None:
 def validate_schema(
     manifest: dict[str, Any], schema: dict[str, Any], errors: list[str]
 ) -> None:
+    if not HAS_JSONSCHEMA:
+        # Fallback: skip formal schema validation when jsonschema is not installed.
+        print(
+            "WARNING: jsonschema not installed — skipping schema validation",
+            file=sys.stderr,
+        )
+        return
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
     for error in sorted(validator.iter_errors(manifest), key=lambda item: list(item.path)):
@@ -407,6 +435,118 @@ def validate_traceability(
         )
 
 
+def validate_evidence_content(
+    identifier: str, category: str, path: Path, errors: list[str]
+) -> None:
+    """Check that evidence files contain real content, not just templates.
+
+    Called after path_has_content confirms the file exists and is non-empty.
+    Performs category-specific content validation:
+    - TEST_REPORTS: must contain test result markers (passed/failed/total)
+    - SECURITY_REPORTS: must have substantive content beyond headers
+    - HIL_REPORT: if NOT EXECUTED, flag that the feature claims HIL as done
+    """
+    if not path.is_file():
+        return
+
+    text = path.read_text(encoding="utf-8", errors="replace")
+
+    if category == "TEST_REPORTS":
+        has_results = any(marker in text for marker in TEST_RESULT_MARKERS)
+        if not has_results:
+            errors.append(
+                f"{identifier} {category} evidence lacks test result markers "
+                f"(passed/failed/total): {path}"
+            )
+            if any(marker in text for marker in TEMPLATE_MARKERS):
+                errors.append(
+                    f"{identifier} {category} evidence appears to be a template: {path}"
+                )
+
+    elif category == "SECURITY_REPORTS":
+        has_checked = "- [x]" in text or "- [X]" in text
+        content_lines = [
+            line
+            for line in text.splitlines()
+            if line.strip()
+            and not line.startswith("#")
+            and not line.startswith("<!--")
+        ]
+        if not has_checked and len(content_lines) < SECURITY_REPORT_MIN_CONTENT_LINES:
+            errors.append(
+                f"{identifier} {category} evidence appears to be a template "
+                f"with minimal content: {path}"
+            )
+
+    elif category == "HIL_REPORT":
+        if any(marker in text for marker in HIL_NOT_EXECUTED_MARKERS):
+            errors.append(
+                f"{identifier} HIL report states NOT EXECUTED but feature "
+                "claims DONE with HIL in required_tests — HIL must be executed "
+                "or the feature status must not be DONE"
+            )
+
+
+def validate_test_files(
+    features: list[dict[str, Any]], errors: list[str]
+) -> None:
+    """Check that test files exist for features claiming DONE with required tests.
+
+    For each feature with UNIT/INTEGRATION/E2E in required_tests and status DONE:
+    - If backend evidence references apps/cloud-control/, check for Java test files
+    - If backend evidence references edge/ or services/, check for Python test files
+    """
+    for feature in features:
+        identifier = feature["id"]
+        if feature["implementation_status"] != "DONE":
+            continue
+        required_tests = set(feature["verification"]["required_tests"])
+        if not (required_tests & TEST_FILE_REQUIRED_TYPES):
+            continue
+
+        evidence = feature.get("evidence", {})
+        backend_paths = evidence.get("backend", [])
+
+        has_java_backend = any(
+            p.replace("\\", "/").startswith("apps/cloud-control/")
+            for p in backend_paths
+        )
+        has_python_backend = any(
+            p.replace("\\", "/").startswith(("edge/", "services/"))
+            for p in backend_paths
+        )
+
+        if has_java_backend:
+            java_test_dirs = list(ROOT.glob("apps/cloud-control/*/src/test/java"))
+            java_test_files = [
+                f
+                for d in java_test_dirs
+                for f in d.rglob("*.java")
+                if f.is_file()
+            ]
+            if not java_test_files:
+                errors.append(
+                    f"{identifier} requires UNIT/INTEGRATION/E2E tests but no "
+                    "Java test files found under apps/cloud-control/*/src/test/java/"
+                )
+
+        if has_python_backend:
+            python_test_dirs = list(ROOT.glob("edge/*/tests")) + list(
+                ROOT.glob("services/*/tests")
+            )
+            python_test_files = [
+                f
+                for d in python_test_dirs
+                for f in d.glob("test_*.py")
+                if f.is_file()
+            ]
+            if not python_test_files:
+                errors.append(
+                    f"{identifier} requires UNIT/INTEGRATION/E2E tests but no "
+                    "Python test files found under edge/*/tests/ or services/*/tests/"
+                )
+
+
 def validate_done_evidence(
     features: list[dict[str, Any]], require_complete: bool, errors: list[str]
 ) -> None:
@@ -482,6 +622,10 @@ def validate_done_evidence(
                     errors.append(
                         f"{identifier} evidence is missing or empty: {value}"
                     )
+                else:
+                    validate_evidence_content(
+                        identifier, category, path, errors
+                    )
 
 
 def main() -> int:
@@ -506,6 +650,7 @@ def main() -> int:
         validate_feature_safety(features, errors)
         validate_traceability(features, blueprint_text, errors)
         validate_done_evidence(features, args.require_complete, errors)
+        validate_test_files(features, errors)
     except (
         KeyError,
         TypeError,

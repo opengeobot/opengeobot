@@ -14,6 +14,7 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,6 +45,7 @@ public class MediaController {
     }
 
     @PostMapping("/upload")
+    @PreAuthorize("hasAuthority('media.asset.upload')")
     public ResponseEntity<MediaObjectDto> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "media_type", required = false) String mediaType,
@@ -55,6 +57,7 @@ public class MediaController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('media.asset.read')")
     public PageResponse<MediaObjectDto> listMedia(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -66,11 +69,13 @@ public class MediaController {
     }
 
     @GetMapping("/{mediaId}")
+    @PreAuthorize("hasAuthority('media.asset.read')")
     public MediaObjectDto getMedia(@PathVariable String mediaId) {
         return mediaService.getMedia(mediaId);
     }
 
     @GetMapping("/{mediaId}/download")
+    @PreAuthorize("hasAuthority('media.asset.download')")
     public ResponseEntity<InputStreamResource> download(@PathVariable String mediaId) {
         MediaObjectDto meta = mediaService.getMedia(mediaId);
         InputStream stream = mediaService.download(mediaId);
@@ -87,6 +92,7 @@ public class MediaController {
     }
 
     @DeleteMapping("/{mediaId}")
+    @PreAuthorize("hasAuthority('media.asset.delete')")
     public ResponseEntity<Void> delete(@PathVariable String mediaId) {
         mediaService.delete(mediaId);
         return ResponseEntity.noContent().build();

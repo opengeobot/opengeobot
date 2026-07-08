@@ -29,6 +29,10 @@ public record RegisterToolRequest(
 
         @Min(value = 0, message = "canary_percent must be between 0 and 100")
         @Max(value = 100, message = "canary_percent must be between 0 and 100")
-        Integer canaryPercent
+        Integer canaryPercent,
+
+        String handlerType,
+
+        String handlerEndpoint
 ) {
 }

@@ -14,6 +14,7 @@ import io.opengeobot.platform.robot.dto.SafetyStateDto;
 import io.opengeobot.platform.robot.service.SafetyService;
 import io.opengeobot.platform.robot.web.PageResponse;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,6 +40,7 @@ public class SafetyController {
     }
 
     @PostMapping("/emergency-stop")
+    @PreAuthorize("hasAuthority('safety.emergency_stop.execute')")
     public ResponseEntity<SafetyStateDto> emergencyStop(@RequestBody(required = false) EmergencyStopRequest request) {
         String robotId = request != null ? request.robotId() : null;
         String reason = request != null ? request.reason() : null;
@@ -47,6 +49,7 @@ public class SafetyController {
     }
 
     @PostMapping("/reset")
+    @PreAuthorize("hasAuthority('safety.emergency_stop.reset')")
     public ResponseEntity<SafetyStateDto> reset(@RequestBody(required = false) ResetRequest request) {
         String robotId = request != null ? request.robotId() : null;
         SafetyStateDto state = safetyService.reset(robotId);
@@ -54,11 +57,13 @@ public class SafetyController {
     }
 
     @GetMapping("/state")
+    @PreAuthorize("hasAuthority('safety.decision.read')")
     public SafetyStateDto getState(@RequestParam(required = false) String robotId) {
         return safetyService.getState(robotId);
     }
 
     @GetMapping("/events")
+    @PreAuthorize("hasAuthority('safety.decision.read')")
     public PageResponse<SafetyEventDto> getEvents(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,

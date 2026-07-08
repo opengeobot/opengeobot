@@ -16,6 +16,7 @@ import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,6 +44,7 @@ public class PolicyController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('policy.policy.read')")
     public PageResponse<PolicyDto> listPolicies(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -52,28 +54,33 @@ public class PolicyController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('policy.policy.manage')")
     public ResponseEntity<PolicyDto> createPolicy(@Valid @RequestBody CreatePolicyRequest request) {
         PolicyDto created = policyService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/{policyId}")
+    @PreAuthorize("hasAuthority('policy.policy.read')")
     public PolicyDto getPolicy(@PathVariable String policyId) {
         return policyService.get(policyId);
     }
 
     @PutMapping("/{policyId}")
+    @PreAuthorize("hasAuthority('policy.policy.manage')")
     public PolicyDto updatePolicy(@PathVariable String policyId,
                                   @Valid @RequestBody UpdatePolicyRequest request) {
         return policyService.update(policyId, request);
     }
 
     @PostMapping("/{policyId}/publish")
+    @PreAuthorize("hasAuthority('policy.policy.publish')")
     public PolicyDto publishPolicy(@PathVariable String policyId) {
         return policyService.publish(policyId);
     }
 
     @GetMapping("/{policyId}/versions")
+    @PreAuthorize("hasAuthority('policy.policy.read')")
     public PageResponse<PolicyVersionDto> listVersions(
             @PathVariable String policyId,
             @RequestParam(defaultValue = "1") int page,

@@ -14,6 +14,7 @@ import io.opengeobot.platform.robot.service.MemoryService;
 import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,6 +40,7 @@ public class MemoryController {
     }
 
     @GetMapping("/cases")
+    @PreAuthorize("hasAuthority('memory.memory.read')")
     public PageResponse<TaskCaseDto> listCases(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -51,11 +53,13 @@ public class MemoryController {
     }
 
     @GetMapping("/cases/{caseId}")
+    @PreAuthorize("hasAuthority('memory.memory.read')")
     public MemoryService.CaseDetail getCase(@PathVariable String caseId) {
         return memoryService.getCase(caseId);
     }
 
     @GetMapping("/suggestions")
+    @PreAuthorize("hasAuthority('memory.failure_case.read')")
     public PageResponse<ImprovementSuggestionDto> listSuggestions(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -66,6 +70,7 @@ public class MemoryController {
     }
 
     @PostMapping("/feedback")
+    @PreAuthorize("hasAuthority('memory.improvement.manage')")
     public ResponseEntity<ImprovementSuggestionDto> submitFeedback(@Valid @RequestBody FeedbackRequest request) {
         ImprovementSuggestionDto updated = memoryService.submitFeedback(request);
         return ResponseEntity.ok(updated);

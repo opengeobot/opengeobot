@@ -8,6 +8,7 @@ package io.opengeobot.platform.robot.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
@@ -15,6 +16,7 @@ import io.minio.MakeBucketArgs;
 import io.minio.BucketExistsArgs;
 import io.opengeobot.platform.common.audit.AuditEvent;
 import io.opengeobot.platform.common.audit.AuditService;
+import io.opengeobot.platform.common.event.NatsConnectionManager;
 import io.opengeobot.platform.common.event.OutboxEvent;
 import io.opengeobot.platform.common.event.OutboxRepository;
 import io.opengeobot.platform.common.id.PublicIdGenerator;
@@ -35,28 +37,35 @@ import io.opengeobot.platform.robot.repository.ReleaseCampaignRepository;
 import io.opengeobot.platform.robot.web.ActorResolver;
 import io.opengeobot.platform.robot.web.ConflictException;
 import io.opengeobot.platform.robot.web.ResourceNotFoundException;
+import io.nats.client.Connection;
+import io.nats.client.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Service for OTA publishing (F-OTA-001). Manages firmware/skill package
  * upload to MinIO/S3, release campaign creation with canary-wave selection,
- * simulated deployment to target robots, and rollback. Campaigns follow
- * SM-OTA-001 (CREATED → IN_PROGRESS → COMPLETED / ROLLED_BACK / FAILED);
- * per-robot deployments follow SM-OTA-002
+ * deployment to target robots via NATS request-reply to edge gateways, and
+ * rollback. Campaigns follow SM-OTA-001 (CREATED → IN_PROGRESS → COMPLETED /
+ * ROLLED_BACK / FAILED); per-robot deployments follow SM-OTA-002
  * (PENDING → IN_PROGRESS → SUCCESS / FAILED / ROLLED_BACK). All mutations emit
  * domain events via the transactional outbox and are recorded in the audit
  * trail.
@@ -75,9 +84,12 @@ public class OtaService {
     private static final String STATUS_ROLLED_BACK = "ROLLED_BACK";
     private static final String STATUS_PENDING = "PENDING";
     private static final String STATUS_SUCCESS = "SUCCESS";
+    private static final String STATUS_FAILED = "FAILED";
     private static final String OTA_RELEASE_STARTED_EVENT = "ota.release_started.v1";
     private static final String OTA_COMPLETED_EVENT = "ota.completed.v1";
     private static final String OTA_ROLLBACK_EVENT = "ota.rolled_back.v1";
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
+    };
 
     private final FirmwarePackageRepository packageRepository;
     private final ReleaseCampaignRepository campaignRepository;
@@ -90,6 +102,8 @@ public class OtaService {
     private final ClockProvider clockProvider;
     private final PublicIdGenerator idGenerator;
     private final ObjectMapper objectMapper;
+    private final ObjectProvider<NatsConnectionManager> natsConnectionManagerProvider;
+    private final long deploymentTimeoutMs;
 
     public OtaService(FirmwarePackageRepository packageRepository,
                      ReleaseCampaignRepository campaignRepository,
@@ -101,7 +115,9 @@ public class OtaService {
                      ActorResolver actorResolver,
                      ClockProvider clockProvider,
                      PublicIdGenerator idGenerator,
-                     ObjectMapper objectMapper) {
+                     ObjectMapper objectMapper,
+                     ObjectProvider<NatsConnectionManager> natsConnectionManagerProvider,
+                     @Value("${platform.ota.deployment-timeout-ms:300000}") long deploymentTimeoutMs) {
         this.packageRepository = packageRepository;
         this.campaignRepository = campaignRepository;
         this.deploymentRepository = deploymentRepository;
@@ -113,6 +129,8 @@ public class OtaService {
         this.clockProvider = clockProvider;
         this.idGenerator = idGenerator;
         this.objectMapper = objectMapper;
+        this.natsConnectionManagerProvider = natsConnectionManagerProvider;
+        this.deploymentTimeoutMs = deploymentTimeoutMs;
     }
 
     @Transactional
@@ -248,20 +266,34 @@ public class OtaService {
         campaignRepository.updateById(campaign);
 
         List<DeploymentRecord> deployments = findDeploymentsByCampaign(campaignId);
+        FirmwarePackage pkg = findPackageByPackageId(campaign.getPackageId());
         int successCount = 0;
         int failedCount = 0;
         for (DeploymentRecord record : deployments) {
             record.setStatus(STATUS_IN_PROGRESS);
             record.setStartedAt(now);
             deploymentRepository.updateById(record);
-            // Simulated OTA push — M3-M6 may replace this with real edge delivery.
-            record.setStatus(STATUS_SUCCESS);
-            record.setCompletedAt(OffsetDateTime.now(ZoneOffset.UTC));
+            try {
+                deployToRobot(pkg, record, campaign.getCampaignId());
+                record.setStatus(STATUS_SUCCESS);
+                record.setCompletedAt(OffsetDateTime.now(ZoneOffset.UTC));
+                record.setErrorMessage(null);
+                successCount++;
+            } catch (Exception e) {
+                log.error("OTA deployment to robot {} failed: {}", record.getRobotId(), e.getMessage());
+                record.setStatus(STATUS_FAILED);
+                record.setCompletedAt(OffsetDateTime.now(ZoneOffset.UTC));
+                record.setErrorMessage(e.getMessage());
+                failedCount++;
+            }
             deploymentRepository.updateById(record);
-            successCount++;
         }
 
-        campaign.setStatus(STATUS_COMPLETED);
+        if (failedCount > 0 && successCount == 0) {
+            campaign.setStatus(STATUS_FAILED);
+        } else {
+            campaign.setStatus(STATUS_COMPLETED);
+        }
         campaign.setCompletedAt(OffsetDateTime.now(ZoneOffset.UTC));
         campaignRepository.updateById(campaign);
         writeCompletedEvent(campaign, successCount, failedCount);
@@ -305,6 +337,60 @@ public class OtaService {
         }
         return findDeploymentsByCampaign(campaignId).stream()
                 .map(OtaService::toDeploymentDto).toList();
+    }
+
+    /**
+     * Sends the firmware package info to the target robot's edge gateway via
+     * NATS request-reply on subject {@code opengeobot.edge.{robotId}.ota.deploy}.
+     * Throws on timeout, NATS unavailability, or edge-reported failure.
+     */
+    private void deployToRobot(FirmwarePackage pkg, DeploymentRecord record, String campaignId) throws Exception {
+        NatsConnectionManager manager = natsConnectionManagerProvider.getIfAvailable();
+        if (manager == null || !manager.isConnected()) {
+            if (manager != null) {
+                manager.tryConnect();
+            }
+            if (manager == null || !manager.isConnected()) {
+                throw new IllegalStateException(
+                        "NATS is not available; cannot deploy to robot '" + record.getRobotId() + "'");
+            }
+        }
+        Connection connection = manager.getConnection();
+        if (connection == null) {
+            throw new IllegalStateException(
+                    "NATS connection is null; cannot deploy to robot '" + record.getRobotId() + "'");
+        }
+
+        String subject = "opengeobot.edge." + record.getRobotId() + ".ota.deploy";
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("campaign_id", campaignId);
+        payload.put("record_id", record.getRecordId());
+        payload.put("robot_id", record.getRobotId());
+        payload.put("package_id", pkg.getPackageId());
+        payload.put("name", pkg.getName());
+        payload.put("version", pkg.getVersion());
+        payload.put("type", pkg.getType());
+        payload.put("file_path", pkg.getFilePath());
+        payload.put("checksum", pkg.getChecksum());
+        payload.put("file_size", pkg.getFileSize());
+        payload.put("bucket", minioConfig.getBucket());
+        payload.put("trace_id", actorResolver.currentTraceId() != null ? actorResolver.currentTraceId() : "");
+
+        byte[] data = objectMapper.writeValueAsBytes(payload);
+        Duration timeout = Duration.ofMillis(deploymentTimeoutMs);
+        Message reply = connection.request(subject, data, timeout);
+        if (reply == null) {
+            throw new java.util.concurrent.TimeoutException(
+                    "OTA deployment to robot '" + record.getRobotId()
+                            + "' timed out after " + deploymentTimeoutMs + "ms");
+        }
+        String responseBody = new String(reply.getData(), StandardCharsets.UTF_8);
+        Map<String, Object> result = objectMapper.readValue(responseBody, MAP_TYPE);
+        String status = result.get("status") != null ? String.valueOf(result.get("status")) : "";
+        if (!"SUCCESS".equalsIgnoreCase(status)) {
+            String errorMsg = result.get("message") != null ? String.valueOf(result.get("message")) : "Edge reported failure";
+            throw new RuntimeException("Edge deployment to robot '" + record.getRobotId() + "' failed: " + errorMsg);
+        }
     }
 
     private List<String> selectCanaryRobots(List<String> targetRobots, int canaryPercent) {

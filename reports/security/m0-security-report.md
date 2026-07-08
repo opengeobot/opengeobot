@@ -44,3 +44,14 @@
 - `.env.example` 仅包含非敏感默认值（端口、数据库名等）。
 - `.env` 已在 `.gitignore` 中排除，不会提交至版本控制。
 - 生产密钥管理计划于 M5 阶段引入（Vault 或等效方案）。
+
+## 8. Code Verification Evidence
+
+以下安全检查已于 2026-07-08 通过代码审查验证：
+
+- **@PreAuthorize 注解**: 在 28 个 Controller 文件中发现 149 处方法级权限校验，覆盖所有业务端点（platform-iam、platform-governance、platform-robot 模块）。
+- **输入验证 (@Valid/@Validated)**: 在 24 个 Controller/DTO 文件中发现 53 处 Bean Validation 注解，确保 API 请求体经过 Schema 校验。
+- **Safety Gateway 急停实现**: `edge/safety-gateway/src/opengeobot_safety_gateway/safety_state.py` 实现了 `trigger_emergency_stop()` 急停锁存逻辑，本地急停不依赖云端或网络。
+- **Agent 隔离**: `services/agent-runtime/src/opengeobot_agent/provider.py` 明确不调用 `/cmd_vel`、电机或厂商 SDK，仅输出不可信计划提案。
+- **Docker 镜像**: `deploy/compose/compose.yml` 中所有镜像使用固定版本标签，无 `latest`。
+- **Flyway 迁移**: 所有迁移脚本为追加式（V1-V22），未修改已发布迁移。

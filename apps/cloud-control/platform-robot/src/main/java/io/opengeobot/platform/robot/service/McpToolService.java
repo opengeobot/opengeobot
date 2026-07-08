@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opengeobot.platform.common.audit.AuditEvent;
 import io.opengeobot.platform.common.audit.AuditService;
+import io.opengeobot.platform.common.event.NatsConnectionManager;
 import io.opengeobot.platform.common.event.OutboxEvent;
 import io.opengeobot.platform.common.event.OutboxRepository;
 import io.opengeobot.platform.common.id.PublicIdGenerator;
@@ -29,11 +30,20 @@ import io.opengeobot.platform.robot.repository.McpToolRepository;
 import io.opengeobot.platform.robot.web.ActorResolver;
 import io.opengeobot.platform.robot.web.ConflictException;
 import io.opengeobot.platform.robot.web.ResourceNotFoundException;
+import io.nats.client.Connection;
+import io.nats.client.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -61,6 +71,9 @@ public class McpToolService {
     private static final String STATUS_DISABLED = "DISABLED";
     private static final String INVOCATION_SUCCESS = "SUCCESS";
     private static final String INVOCATION_FAILED = "FAILED";
+    private static final String INVOCATION_TIMEOUT = "TIMEOUT";
+    private static final String HANDLER_NATS = "NATS";
+    private static final String HANDLER_HTTP = "HTTP";
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
 
@@ -72,6 +85,8 @@ public class McpToolService {
     private final ClockProvider clockProvider;
     private final PublicIdGenerator idGenerator;
     private final ObjectMapper objectMapper;
+    private final ObjectProvider<NatsConnectionManager> natsConnectionManagerProvider;
+    private final long toolTimeoutMs;
 
     public McpToolService(McpToolRepository toolRepository,
                           McpInvocationLogRepository invocationLogRepository,
@@ -80,7 +95,9 @@ public class McpToolService {
                           ActorResolver actorResolver,
                           ClockProvider clockProvider,
                           PublicIdGenerator idGenerator,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          ObjectProvider<NatsConnectionManager> natsConnectionManagerProvider,
+                          @Value("${platform.mcp.tool-timeout-ms:30000}") long toolTimeoutMs) {
         this.toolRepository = toolRepository;
         this.invocationLogRepository = invocationLogRepository;
         this.outboxRepository = outboxRepository;
@@ -89,6 +106,8 @@ public class McpToolService {
         this.clockProvider = clockProvider;
         this.idGenerator = idGenerator;
         this.objectMapper = objectMapper;
+        this.natsConnectionManagerProvider = natsConnectionManagerProvider;
+        this.toolTimeoutMs = toolTimeoutMs;
     }
 
     public PageResult<McpToolDto> listTools(String status, PageRequest pageRequest) {
@@ -124,6 +143,8 @@ public class McpToolService {
         entity.setOutputSchema(request.outputSchema());
         entity.setCanaryPercent(request.canaryPercent() != null ? request.canaryPercent() : 0);
         entity.setStatus(STATUS_DRAFT);
+        entity.setHandlerType(request.handlerType());
+        entity.setHandlerEndpoint(request.handlerEndpoint());
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         entity.setCreatedBy(actor);
@@ -158,11 +179,19 @@ public class McpToolService {
 
         InvocationResultDto result;
         try {
-            Map<String, Object> output = executeSimulated(tool, request.inputParams(), useCanary);
+            Map<String, Object> output = executeTool(tool, request.inputParams(), useCanary);
             logEntry.setOutputResult(toJson(output));
             logEntry.setDurationMs((int) Duration.between(now, Instant.now(clockProvider.getClock())).toMillis());
             result = new InvocationResultDto(
                     invocationId, toolId, INVOCATION_SUCCESS, output, null,
+                    logEntry.getDurationMs(), actor, logEntry.getInvokedAt(), traceId
+            );
+        } catch (java.util.concurrent.TimeoutException e) {
+            logEntry.setStatus(INVOCATION_TIMEOUT);
+            logEntry.setErrorMessage(e.getMessage());
+            logEntry.setDurationMs((int) Duration.between(now, Instant.now(clockProvider.getClock())).toMillis());
+            result = new InvocationResultDto(
+                    invocationId, toolId, INVOCATION_TIMEOUT, null, e.getMessage(),
                     logEntry.getDurationMs(), actor, logEntry.getInvokedAt(), traceId
             );
         } catch (Exception e) {
@@ -239,17 +268,101 @@ public class McpToolService {
     }
 
     /**
-     * For M2, tool execution is simulated. Returns a structured output that
-     * echoes the tool name and input parameters. Actual tool execution against
-     * edge skills is M3+ and must go through the Safety Gateway.
+     * Executes the tool by routing the invocation to the configured handler.
+     * Tools with a {@code NATS} handler type send a request-reply to the
+     * configured NATS subject (typically an edge gateway or MCP tool gateway).
+     * Tools with an {@code HTTP} handler type POST the input to the configured
+     * URL. Tools with no handler configured throw an error — success is never
+     * faked.
      */
-    private Map<String, Object> executeSimulated(McpTool tool, Map<String, Object> inputParams, boolean useCanary) {
-        Map<String, Object> output = new LinkedHashMap<>();
-        output.put("tool_name", tool.getName());
-        output.put("simulated", true);
-        output.put("canary", useCanary);
-        output.put("echoed_input", inputParams != null ? inputParams : Map.of());
-        return output;
+    private Map<String, Object> executeTool(McpTool tool, Map<String, Object> inputParams, boolean useCanary) throws Exception {
+        String handlerType = tool.getHandlerType();
+        if (handlerType == null || handlerType.isBlank()) {
+            throw new IllegalStateException(
+                    "Tool '" + tool.getToolId() + "' has no handler configured; cannot execute");
+        }
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("tool_id", tool.getToolId());
+        envelope.put("tool_name", tool.getName());
+        envelope.put("canary", useCanary);
+        envelope.put("input_params", inputParams != null ? inputParams : Map.of());
+        envelope.put("trace_id", actorResolver.currentTraceId() != null ? actorResolver.currentTraceId() : "");
+
+        if (HANDLER_NATS.equalsIgnoreCase(handlerType)) {
+            return executeViaNats(tool, envelope);
+        }
+        if (HANDLER_HTTP.equalsIgnoreCase(handlerType)) {
+            return executeViaHttp(tool, envelope);
+        }
+        throw new IllegalStateException(
+                "Unsupported handler type '" + handlerType + "' for tool '" + tool.getToolId() + "'");
+    }
+
+    /**
+     * Sends a NATS request-reply to the tool's configured subject and parses
+     * the response body as a JSON object. Throws {@link java.util.concurrent.TimeoutException}
+     * if no response is received within the configured timeout.
+     */
+    private Map<String, Object> executeViaNats(McpTool tool, Map<String, Object> envelope) throws Exception {
+        String subject = tool.getHandlerEndpoint();
+        if (subject == null || subject.isBlank()) {
+            throw new IllegalStateException(
+                    "Tool '" + tool.getToolId() + "' has NATS handler type but no endpoint subject configured");
+        }
+        NatsConnectionManager manager = natsConnectionManagerProvider.getIfAvailable();
+        if (manager == null || !manager.isConnected()) {
+            if (manager != null) {
+                manager.tryConnect();
+            }
+            if (manager == null || !manager.isConnected()) {
+                throw new IllegalStateException("NATS is not available; cannot invoke tool '" + tool.getToolId() + "'");
+            }
+        }
+        Connection connection = manager.getConnection();
+        if (connection == null) {
+            throw new IllegalStateException("NATS connection is null; cannot invoke tool '" + tool.getToolId() + "'");
+        }
+        byte[] data = objectMapper.writeValueAsBytes(envelope);
+        Duration timeout = Duration.ofMillis(toolTimeoutMs);
+        Message reply = connection.request(subject, data, timeout);
+        if (reply == null) {
+            throw new java.util.concurrent.TimeoutException(
+                    "Tool '" + tool.getToolId() + "' timed out after " + toolTimeoutMs + "ms (subject: " + subject + ")");
+        }
+        String responseBody = new String(reply.getData(), StandardCharsets.UTF_8);
+        return objectMapper.readValue(responseBody, MAP_TYPE);
+    }
+
+    /**
+     * Sends an HTTP POST with the invocation envelope to the tool's configured
+     * URL and parses the response body as a JSON object.
+     */
+    private Map<String, Object> executeViaHttp(McpTool tool, Map<String, Object> envelope) throws Exception {
+        String url = tool.getHandlerEndpoint();
+        if (url == null || url.isBlank()) {
+            throw new IllegalStateException(
+                    "Tool '" + tool.getToolId() + "' has HTTP handler type but no endpoint URL configured");
+        }
+        String payload = objectMapper.writeValueAsString(envelope);
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofMillis(toolTimeoutMs))
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new RuntimeException("Tool '" + tool.getToolId() + "' HTTP handler returned status "
+                    + response.statusCode() + ": " + response.body());
+        }
+        String body = response.body();
+        if (body == null || body.isBlank()) {
+            return Map.of();
+        }
+        return objectMapper.readValue(body, MAP_TYPE);
     }
 
     private void writeToolRegisteredEvent(McpTool entity) {
@@ -349,6 +462,8 @@ public class McpToolService {
                 entity.getOutputSchema(),
                 entity.getCanaryPercent(),
                 entity.getStatus(),
+                entity.getHandlerType(),
+                entity.getHandlerEndpoint(),
                 entity.getCreatedBy(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()

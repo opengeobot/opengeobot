@@ -16,6 +16,7 @@ import io.opengeobot.platform.robot.service.MissionService;
 import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,6 +45,7 @@ public class MissionController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('mission.mission.read')")
     public PageResponse<MissionDto> listMissions(
             @RequestParam(name = "page", defaultValue = "1") int page,
             @RequestParam(name = "page_size", defaultValue = "20") int pageSize,
@@ -54,6 +56,7 @@ public class MissionController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('mission.mission.create')")
     public ResponseEntity<MissionDto> createMission(@Valid @RequestBody CreateMissionRequest request) {
         MissionDto created = missionService.create(request);
         return ResponseEntity.created(URI.create("/api/v1/missions/" + created.missionId()))
@@ -61,51 +64,61 @@ public class MissionController {
     }
 
     @GetMapping("/{missionId}")
+    @PreAuthorize("hasAuthority('mission.mission.read')")
     public MissionDto getMission(@PathVariable String missionId) {
         return missionService.getDetail(missionId);
     }
 
     @PutMapping("/{missionId}")
+    @PreAuthorize("hasAuthority('mission.mission.create')")
     public MissionDto updateMission(@PathVariable String missionId, @RequestBody UpdateMissionRequest request) {
         return missionService.update(missionId, request);
     }
 
     @PostMapping("/{missionId}/plan")
+    @PreAuthorize("hasAuthority('mission.mission.create')")
     public MissionDto revisePlan(@PathVariable String missionId, @Valid @RequestBody RevisePlanRequest request) {
         return missionService.revisePlan(missionId, request);
     }
 
     @PostMapping("/{missionId}/start")
+    @PreAuthorize("hasAuthority('mission.mission.create')")
     public MissionDto startMission(@PathVariable String missionId) {
         return missionService.start(missionId);
     }
 
     @PostMapping("/{missionId}/pause")
+    @PreAuthorize("hasAuthority('mission.mission.pause')")
     public MissionDto pauseMission(@PathVariable String missionId) {
         return missionService.pause(missionId);
     }
 
     @PostMapping("/{missionId}/resume")
+    @PreAuthorize("hasAuthority('mission.mission.pause')")
     public MissionDto resumeMission(@PathVariable String missionId) {
         return missionService.resume(missionId);
     }
 
     @PostMapping("/{missionId}/cancel")
+    @PreAuthorize("hasAuthority('mission.mission.cancel')")
     public MissionDto cancelMission(@PathVariable String missionId) {
         return missionService.cancel(missionId);
     }
 
     @PostMapping("/{missionId}/submit-approval")
+    @PreAuthorize("hasAuthority('mission.mission.create')")
     public MissionApprovalDto submitApproval(@PathVariable String missionId) {
         return missionService.submitApproval(missionId);
     }
 
     @PostMapping("/{missionId}/approve")
+    @PreAuthorize("hasAuthority('mission.mission.approve')")
     public MissionApprovalDto approveMission(@PathVariable String missionId, @RequestBody ApprovalRequest request) {
         return missionService.approve(missionId, request);
     }
 
     @PostMapping("/{missionId}/reject")
+    @PreAuthorize("hasAuthority('mission.mission.approve')")
     public MissionApprovalDto rejectMission(@PathVariable String missionId, @RequestBody ApprovalRequest request) {
         return missionService.reject(missionId, request);
     }

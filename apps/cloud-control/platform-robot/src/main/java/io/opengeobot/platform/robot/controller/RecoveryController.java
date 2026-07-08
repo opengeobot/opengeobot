@@ -22,6 +22,7 @@ import io.opengeobot.platform.robot.web.ResourceNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -56,6 +57,7 @@ public class RecoveryController {
     }
 
     @GetMapping("/backups")
+    @PreAuthorize("hasAuthority('ops.backup.read')")
     public PageResponse<BackupRecordDto> listBackups(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -67,6 +69,7 @@ public class RecoveryController {
     }
 
     @PostMapping("/backups")
+    @PreAuthorize("hasAuthority('ops.backup.manage')")
     public ResponseEntity<BackupRecordDto> triggerBackup(@Valid @RequestBody BackupTypeRequest request) {
         String actor = actorResolver.currentActor();
         BackupRecordDto created;
@@ -79,6 +82,7 @@ public class RecoveryController {
     }
 
     @PostMapping("/restore")
+    @PreAuthorize("hasAuthority('ops.restore.execute')")
     public ResponseEntity<RestoreRecordDto> restore(@Valid @RequestBody RestoreRequest request) {
         BackupRecord backup = backupService.findBackupByBackupId(request.backupId());
         if (backup == null) {
@@ -95,6 +99,7 @@ public class RecoveryController {
     }
 
     @GetMapping("/drills")
+    @PreAuthorize("hasAuthority('ops.backup.read')")
     public PageResponse<DrillRecordDto> listDrills(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize) {
@@ -104,6 +109,7 @@ public class RecoveryController {
     }
 
     @PostMapping("/drills")
+    @PreAuthorize("hasAuthority('ops.backup.manage')")
     public ResponseEntity<DrillRecordDto> createDrill(@Valid @RequestBody CreateDrillRequest request) {
         DrillRecordDto created = drillService.createDrill(request.type(), request.notes());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);

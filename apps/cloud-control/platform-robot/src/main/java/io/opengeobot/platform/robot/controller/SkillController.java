@@ -16,6 +16,7 @@ import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,6 +45,7 @@ public class SkillController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('skill.skill.read')")
     public PageResponse<SkillDto> listSkills(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -54,39 +56,46 @@ public class SkillController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('skill.skill.manage')")
     public ResponseEntity<SkillDto> createSkill(@Valid @RequestBody CreateSkillRequest request) {
         SkillDto created = skillService.createSkill(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/{skillId}")
+    @PreAuthorize("hasAuthority('skill.skill.read')")
     public SkillDto getSkill(@PathVariable String skillId) {
         return skillService.getSkill(skillId);
     }
 
     @PutMapping("/{skillId}")
+    @PreAuthorize("hasAuthority('skill.skill.manage')")
     public SkillDto updateSkill(@PathVariable String skillId,
                                 @Valid @RequestBody UpdateSkillRequest request) {
         return skillService.updateSkill(skillId, request);
     }
 
     @PostMapping("/{skillId}/publish")
+    @PreAuthorize("hasAuthority('skill.skill.publish')")
     public SkillDto publishSkill(@PathVariable String skillId,
                                  @RequestBody(required = false) PublishSkillRequest request) {
         return skillService.publishSkill(skillId, request != null ? request.changelog() : null);
     }
 
     @PostMapping("/{skillId}/disable")
+    @PreAuthorize("hasAuthority('skill.skill.manage')")
     public SkillDto disableSkill(@PathVariable String skillId) {
         return skillService.disableSkill(skillId);
     }
 
     @PostMapping("/{skillId}/enable")
+    @PreAuthorize("hasAuthority('skill.skill.manage')")
     public SkillDto enableSkill(@PathVariable String skillId) {
         return skillService.enableSkill(skillId);
     }
 
     @GetMapping("/{skillId}/versions")
+    @PreAuthorize("hasAuthority('skill.skill.read')")
     public PageResponse<SkillVersionDto> listVersions(
             @PathVariable String skillId,
             @RequestParam(defaultValue = "1") int page,

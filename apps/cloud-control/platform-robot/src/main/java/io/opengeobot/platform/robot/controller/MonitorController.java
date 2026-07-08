@@ -10,6 +10,7 @@ import io.opengeobot.platform.robot.dto.MonitorOverview;
 import io.opengeobot.platform.robot.dto.RobotMonitorInfo;
 import io.opengeobot.platform.robot.dto.TakeoverRequest;
 import io.opengeobot.platform.robot.service.MonitorService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,16 +35,19 @@ public class MonitorController {
     }
 
     @GetMapping("/robots/{robotId}")
+    @PreAuthorize("hasAuthority('monitor.robot.view')")
     public RobotMonitorInfo getRobotMonitorInfo(@PathVariable String robotId) {
         return monitorService.getRobotMonitorInfo(robotId);
     }
 
     @GetMapping("/missions/{missionId}")
+    @PreAuthorize("hasAuthority('monitor.fleet.view')")
     public MissionMonitorInfo getMissionMonitorInfo(@PathVariable String missionId) {
         return monitorService.getMissionMonitorInfo(missionId);
     }
 
     @PostMapping("/robots/{robotId}/takeover")
+    @PreAuthorize("hasAuthority('robot.robot.control')")
     public RobotMonitorInfo takeover(@PathVariable String robotId,
                                      @RequestBody(required = false) TakeoverRequest request) {
         String reason = (request != null) ? request.reason() : null;
@@ -51,6 +55,7 @@ public class MonitorController {
     }
 
     @GetMapping("/overview")
+    @PreAuthorize("hasAuthority('monitor.fleet.view')")
     public MonitorOverview getOverview() {
         return monitorService.getOverview();
     }

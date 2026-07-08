@@ -118,7 +118,17 @@
     "robots": "Robot Status",
     "missions": "Mission Status",
     "alarms": "Alert Summary",
-    "safety": "Safety Interception Trend"
+    "safety": "Safety Status",
+    "online": "Online",
+    "offline": "Offline",
+    "busy": "Busy",
+    "error": "Error",
+    "completed": "Completed",
+    "failed": "Failed",
+    "acknowledged": "Acknowledged",
+    "resolved": "Resolved",
+    "safety_normal": "Normal",
+    "safety_emergency": "Emergency Stop"
   },
   "login": {
     "title": "Login",

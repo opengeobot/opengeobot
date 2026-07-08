@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
@@ -47,6 +48,19 @@ public class GovernanceOutboxRepository implements OutboxRepository {
     @Transactional
     public void markPublished(Long id) {
         outboxEventMapper.markPublished(id);
+    }
+
+    @Override
+    public List<OutboxEvent> findUnpublishedForRelay(int limit) {
+        return outboxEventMapper.findUnpublishedForRelay(limit).stream()
+                .map(GovernanceOutboxRepository::toRecord)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void markPublishFailed(Long id, OffsetDateTime nextRetryAt) {
+        outboxEventMapper.incrementRetryCount(id, nextRetryAt);
     }
 
     private static OutboxEventEntity toEntity(OutboxEvent event) {

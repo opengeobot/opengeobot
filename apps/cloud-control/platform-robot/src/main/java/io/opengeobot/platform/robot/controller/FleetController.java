@@ -13,6 +13,7 @@ import io.opengeobot.platform.robot.service.FleetService;
 import io.opengeobot.platform.robot.web.PageResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
@@ -29,6 +30,7 @@ public class FleetController {
     }
 
     @GetMapping("/schedule")
+    @PreAuthorize("hasAuthority('fleet.schedule.read')")
     public PageResponse<FleetScheduleDto> listSchedules(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int page_size,
@@ -37,6 +39,7 @@ public class FleetController {
     }
 
     @PostMapping("/schedule")
+    @PreAuthorize("hasAuthority('fleet.schedule.manage')")
     public ResponseEntity<FleetScheduleDto> createSchedule(@RequestBody Map<String, Object> body) {
         var dto = fleetService.createSchedule(
                 (String) body.get("mission_id"),
@@ -48,6 +51,7 @@ public class FleetController {
     }
 
     @GetMapping("/conflicts")
+    @PreAuthorize("hasAuthority('fleet.schedule.read')")
     public PageResponse<ConflictRecordDto> listConflicts(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int page_size) {
@@ -55,12 +59,14 @@ public class FleetController {
     }
 
     @PostMapping("/conflicts/{conflictId}/resolve")
+    @PreAuthorize("hasAuthority('fleet.schedule.manage')")
     public ResponseEntity<Void> resolveConflict(@PathVariable String conflictId, @RequestBody Map<String, String> body) {
         fleetService.resolveConflict(conflictId, body.get("resolution"));
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/failovers")
+    @PreAuthorize("hasAuthority('fleet.schedule.read')")
     public PageResponse<FailoverEventDto> listFailovers(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int page_size) {
@@ -68,6 +74,7 @@ public class FleetController {
     }
 
     @PostMapping("/failovers")
+    @PreAuthorize("hasAuthority('fleet.schedule.manage')")
     public ResponseEntity<FailoverEventDto> triggerFailover(@RequestBody Map<String, String> body) {
         var dto = fleetService.triggerFailover(
                 body.get("robot_id"),

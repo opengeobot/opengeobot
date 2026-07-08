@@ -17,6 +17,7 @@ import io.opengeobot.platform.governance.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,6 +46,7 @@ public class I18nController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('platform.i18n.read')")
     public PageResponse<I18nResourceDto> listResources(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -56,12 +58,14 @@ public class I18nController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('platform.i18n.manage')")
     public ResponseEntity<I18nResourceDto> createResource(@Valid @RequestBody CreateI18nResourceRequest request) {
         I18nResourceDto created = i18nService.createResource(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{resourceKey}")
+    @PreAuthorize("hasAuthority('platform.i18n.manage')")
     public I18nResourceDto updateResource(@PathVariable String resourceKey,
                                            @RequestParam String locale,
                                            @Valid @RequestBody UpdateI18nResourceRequest request) {
@@ -69,12 +73,14 @@ public class I18nController {
     }
 
     @DeleteMapping("/{resourceKey}")
+    @PreAuthorize("hasAuthority('platform.i18n.manage')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteResource(@PathVariable String resourceKey, @RequestParam String locale) {
         i18nService.deleteResource(resourceKey, locale);
     }
 
     @PostMapping("/batch")
+    @PreAuthorize("hasAuthority('platform.i18n.manage')")
     public BatchI18nResultDto batchImport(@Valid @RequestBody BatchI18nRequest request) {
         return i18nService.batchImport(request);
     }
