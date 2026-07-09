@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * Application service for the authenticated user's own profile. Supports
@@ -50,7 +51,8 @@ public class ProfileService {
     @Transactional(readOnly = true)
     public UserProfileResponse getCurrentProfile(String userId) {
         User user = findUserOrThrow(userId);
-        return toResponse(user);
+        List<String> permissions = userRepository.findPermissionCodesByUserId(userId);
+        return toResponse(user, permissions);
     }
 
     @Transactional
@@ -101,7 +103,7 @@ public class ProfileService {
             log.info("Profile updated: userId={}", userId);
         }
 
-        return toResponse(user);
+        return toResponse(user, userRepository.findPermissionCodesByUserId(userId));
     }
 
     private User findUserOrThrow(String userId) {
@@ -112,7 +114,7 @@ public class ProfileService {
         return user;
     }
 
-    private static UserProfileResponse toResponse(User user) {
+    private static UserProfileResponse toResponse(User user, List<String> permissions) {
         return new UserProfileResponse(
                 user.getUserId(),
                 user.getUsername(),
@@ -120,7 +122,8 @@ public class ProfileService {
                 user.getEmail(),
                 user.getPhone(),
                 user.getAvatar(),
-                user.getStatus()
+                user.getStatus(),
+                permissions
         );
     }
 }

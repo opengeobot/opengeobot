@@ -1,9 +1,11 @@
 /*
- * Function: User profile response DTO — public profile of the authenticated user
+ * Function: User profile response DTO - public profile of the authenticated user
  * Time: 2026-07-04
  * Author: AxeXie
  */
 package io.opengeobot.platform.iam.dto;
+
+import java.util.List;
 
 /**
  * Public profile of the authenticated user. Sensitive fields such as the
@@ -15,7 +17,8 @@ package io.opengeobot.platform.iam.dto;
  * @param email       contact email address of the user
  * @param phone       contact phone number of the user
  * @param avatar      URI reference to the user's avatar image
- * @param status      account status — ACTIVE, DISABLED or LOCKED
+ * @param status      account status - ACTIVE, DISABLED or LOCKED
+ * @param permissions list of permission codes granted to the user
  */
 public record UserProfileResponse(
         String userId,
@@ -24,6 +27,7 @@ public record UserProfileResponse(
         String email,
         String phone,
         String avatar,
-        String status
+        String status,
+        List<String> permissions
 ) {
 }

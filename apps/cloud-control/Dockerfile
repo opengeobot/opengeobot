@@ -17,6 +17,7 @@ COPY apps/cloud-control/pom.xml ./apps/cloud-control/
 COPY apps/cloud-control/platform-common/pom.xml ./apps/cloud-control/platform-common/
 COPY apps/cloud-control/platform-iam/pom.xml ./apps/cloud-control/platform-iam/
 COPY apps/cloud-control/platform-governance/pom.xml ./apps/cloud-control/platform-governance/
+COPY apps/cloud-control/platform-robot/pom.xml ./apps/cloud-control/platform-robot/
 COPY apps/cloud-control/bootstrap/pom.xml ./apps/cloud-control/bootstrap/
 
 # Pre-fetch dependencies for offline build

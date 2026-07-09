@@ -44,85 +44,85 @@ const routes: RouteRecordRaw[] = [
         path: 'robots',
         name: 'robots',
         component: () => import('@/views/RobotManagementView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.robot.read', titleKey: 'nav.robots' }
+        meta: { requiresAuth: true, permission: 'robot.robot.read', titleKey: 'nav.robots' }
       },
       {
         path: 'skills',
         name: 'skills',
         component: () => import('@/views/SkillManagementView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.skill.read', titleKey: 'nav.skills' }
+        meta: { requiresAuth: true, permission: 'skill.skill.read', titleKey: 'nav.skills' }
       },
       {
         path: 'missions',
         name: 'missions',
         component: () => import('@/views/MissionManagementView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.mission.read', titleKey: 'nav.missions' }
+        meta: { requiresAuth: true, permission: 'mission.mission.read', titleKey: 'nav.missions' }
       },
       {
         path: 'policies',
         name: 'policies',
         component: () => import('@/views/PolicyManagementView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.policy.read', titleKey: 'nav.policies' }
+        meta: { requiresAuth: true, permission: 'policy.policy.read', titleKey: 'nav.policies' }
       },
       {
         path: 'safety',
         name: 'safety',
         component: () => import('@/views/SafetyControlView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.safety.read', titleKey: 'nav.safety' }
+        meta: { requiresAuth: true, permission: 'safety.safety.view', titleKey: 'nav.safety' }
       },
       {
         path: 'maps',
         name: 'maps',
         component: () => import('@/views/MapManagementView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.map.read', titleKey: 'nav.maps' }
+        meta: { requiresAuth: true, permission: 'map.map.read', titleKey: 'nav.maps' }
       },
       {
         path: 'monitor',
         name: 'monitor',
         component: () => import('@/views/MonitorView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.monitor.read', titleKey: 'nav.monitor' }
+        meta: { requiresAuth: true, permission: 'monitor.robot.view', titleKey: 'nav.monitor' }
       },
       {
         path: 'media',
         name: 'media',
         component: () => import('@/views/MediaLibraryView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.media.read', titleKey: 'nav.media' }
+        meta: { requiresAuth: true, permission: 'media.media.read', titleKey: 'nav.media' }
       },
       {
         path: 'fleet',
         name: 'fleet',
         component: () => import('@/views/FleetManagementView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.fleet.read', titleKey: 'nav.fleet' }
+        meta: { requiresAuth: true, permission: 'fleet.fleet.read', titleKey: 'nav.fleet' }
       },
       {
         path: 'alarms',
         name: 'alarms',
         component: () => import('@/views/AlarmManagementView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.alarm.read', titleKey: 'nav.alarms' }
+        meta: { requiresAuth: true, permission: 'ops.alarm.read', titleKey: 'nav.alarms' }
       },
       {
         path: 'ops',
         name: 'ops',
         component: () => import('@/views/OpsDashboardView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.ops.read', titleKey: 'nav.ops' }
+        meta: { requiresAuth: true, permission: 'dashboard.view', titleKey: 'nav.ops' }
       },
       {
         path: 'ota',
         name: 'ota',
         component: () => import('@/views/OtaManagementView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.ota.read', titleKey: 'nav.ota' }
+        meta: { requiresAuth: true, permission: 'ota.ota.read', titleKey: 'nav.ota' }
       },
       {
         path: 'recovery',
         name: 'recovery',
         component: () => import('@/views/BackupRecoveryView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.recovery.read', titleKey: 'nav.recovery' }
+        meta: { requiresAuth: true, permission: 'recovery.recovery.read', titleKey: 'nav.recovery' }
       },
       {
         path: 'memory',
         name: 'memory',
         component: () => import('@/views/TaskMemoryView.vue'),
-        meta: { requiresAuth: true, permission: 'platform.memory.read', titleKey: 'nav.memory' }
+        meta: { requiresAuth: true, permission: 'memory.memory.read', titleKey: 'nav.memory' }
       },
       {
         path: 'trace',
