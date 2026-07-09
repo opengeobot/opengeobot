@@ -128,7 +128,7 @@ function toggleSidebar(): void {
       </div>
       <div class="top-bar-right">
         <AppOfflineIndicator v-if="!platformStore.isOnline" />
-        <button class="bell-btn" :title="t('common.notifications')">
+        <button class="bell-btn" :title="t('common.notifications')" @click="router.push('/alarms')">
           <span class="bell-icon">🔔</span>
           <span class="bell-dot" />
         </button>

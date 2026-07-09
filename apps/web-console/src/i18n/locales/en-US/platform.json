@@ -161,9 +161,9 @@
   },
   "status": {
     "health": {
-      "healthy": "Healthy",
-      "degraded": "Degraded",
-      "down": "Down",
+      "HEALTHY": "Healthy",
+      "UNHEALTHY": "Unhealthy",
+      "DEGRADED": "Degraded",
       "info": "Info",
       "warning": "Warning",
       "critical": "Critical",

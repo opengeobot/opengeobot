@@ -161,9 +161,9 @@
   },
   "status": {
     "health": {
-      "healthy": "健康",
-      "degraded": "降级",
-      "down": "离线",
+      "HEALTHY": "健康",
+      "UNHEALTHY": "不健康",
+      "DEGRADED": "降级",
       "info": "信息",
       "warning": "警告",
       "critical": "严重",

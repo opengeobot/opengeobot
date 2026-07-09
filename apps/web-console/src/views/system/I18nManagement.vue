@@ -133,7 +133,6 @@ function openCreate(): void {
 
 function openEdit(row: I18nResource): void {
   formMode.value = 'edit'
-  formModel.id = row.id
   formModel.resource_key = row.resource_key
   formModel.locale = row.locale
   formModel.resource_value = row.resource_value
@@ -153,7 +152,7 @@ async function handleFormSubmit(data: Record<string, unknown>): Promise<void> {
         module: String(data.module ?? '')
       })
     } else {
-      await updateI18nResource(String(formModel.id), {
+      await updateI18nResource(String(formModel.resource_key), String(formModel.locale), {
         resource_value: String(data.resource_value ?? ''),
         module: String(data.module ?? '')
       })
@@ -171,7 +170,7 @@ async function handleDelete(row: I18nResource): Promise<void> {
   successMsg.value = ''
   if (!confirm(t('common.confirm_delete'))) return
   try {
-    await deleteI18nResource(row.id)
+    await deleteI18nResource(row.resource_key, row.locale)
     successMsg.value = t('common.operation_success')
     await loadResources()
   } catch (err) {

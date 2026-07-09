@@ -36,12 +36,13 @@ export interface TokenResponse {
 
 /** User profile from GET /profile */
 export interface UserProfile {
-  id: string
+  user_id: string
   username: string
   display_name: string
-  email: string
-  phone: string
-  avatar: string
+  email: string | null
+  phone: string | null
+  avatar: string | null
+  status: string
   permissions: string[]
 }
 
@@ -257,7 +258,6 @@ export interface UpdateDictTypeRequest {
 }
 
 export interface CreateDictItemRequest {
-  type_id: string
   item_code: string
   item_value: string
   label_zh_cn: string

@@ -205,7 +205,7 @@ async function handleTakeover(robotId: string): Promise<void> {
   errorMsg.value = ''
   try {
     await takeover(robotId, {
-      operator_id: authStore.user?.id ?? '',
+      operator_id: authStore.user?.user_id ?? '',
       reason: 'manual takeover'
     })
   } catch (err) {

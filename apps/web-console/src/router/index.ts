@@ -86,13 +86,13 @@ const routes: RouteRecordRaw[] = [
         path: 'media',
         name: 'media',
         component: () => import('@/views/MediaLibraryView.vue'),
-        meta: { requiresAuth: true, permission: 'media.media.read', titleKey: 'nav.media' }
+        meta: { requiresAuth: true, permission: 'media.asset.read', titleKey: 'nav.media' }
       },
       {
         path: 'fleet',
         name: 'fleet',
         component: () => import('@/views/FleetManagementView.vue'),
-        meta: { requiresAuth: true, permission: 'fleet.fleet.read', titleKey: 'nav.fleet' }
+        meta: { requiresAuth: true, permission: 'fleet.schedule.read', titleKey: 'nav.fleet' }
       },
       {
         path: 'alarms',
@@ -110,13 +110,13 @@ const routes: RouteRecordRaw[] = [
         path: 'ota',
         name: 'ota',
         component: () => import('@/views/OtaManagementView.vue'),
-        meta: { requiresAuth: true, permission: 'ota.ota.read', titleKey: 'nav.ota' }
+        meta: { requiresAuth: true, permission: 'ops.ota.read', titleKey: 'nav.ota' }
       },
       {
         path: 'recovery',
         name: 'recovery',
         component: () => import('@/views/BackupRecoveryView.vue'),
-        meta: { requiresAuth: true, permission: 'recovery.recovery.read', titleKey: 'nav.recovery' }
+        meta: { requiresAuth: true, permission: 'ops.backup.read', titleKey: 'nav.recovery' }
       },
       {
         path: 'memory',
@@ -205,8 +205,9 @@ router.beforeEach((to, _from, next) => {
   }
 
   if (to.meta.permission && authStore.user) {
-    const required = to.meta.permission
+    const required = to.meta.permission as string
     if (!authStore.permissions.includes(required)) {
+      console.warn(`[Router] Permission denied: requires "${required}", user has [${authStore.permissions.slice(0, 5).join(', ')}...${authStore.permissions.length} total]`)
       next('/dashboard')
       return
     }

@@ -10,34 +10,38 @@ import type {
   PageResult
 } from '@/types/api'
 
-/** GET /i18n/resources — paginated i18n resource list */
+/** GET /i18n - paginated i18n resource list */
 export async function listI18nResources(params: I18nListParams): Promise<PageResult<I18nResource>> {
-  const response = await client.get<PageResult<I18nResource>>('/i18n/resources', { params })
+  const response = await client.get<PageResult<I18nResource>>('/i18n', { params })
   return response.data
 }
 
-/** POST /i18n/resources — create an i18n resource */
+/** POST /i18n - create an i18n resource */
 export async function createI18nResource(data: CreateI18nRequest): Promise<I18nResource> {
-  const response = await client.post<I18nResource>('/i18n/resources', data)
+  const response = await client.post<I18nResource>('/i18n', data)
   return response.data
 }
 
-/** PUT /i18n/resources/{id} — update an i18n resource */
-export async function updateI18nResource(id: string, data: UpdateI18nRequest): Promise<I18nResource> {
-  const response = await client.put<I18nResource>(`/i18n/resources/${id}`, data)
+/** PUT /i18n/{resourceKey} - update an i18n resource */
+export async function updateI18nResource(resourceKey: string, locale: string, data: UpdateI18nRequest): Promise<I18nResource> {
+  const response = await client.put<I18nResource>(`/i18n/${resourceKey}`, data, {
+    params: { locale }
+  })
   return response.data
 }
 
-/** DELETE /i18n/resources/{id} — delete an i18n resource */
-export async function deleteI18nResource(id: string): Promise<void> {
-  await client.delete(`/i18n/resources/${id}`)
+/** DELETE /i18n/{resourceKey} - delete an i18n resource */
+export async function deleteI18nResource(resourceKey: string, locale: string): Promise<void> {
+  await client.delete(`/i18n/${resourceKey}`, {
+    params: { locale }
+  })
 }
 
-/** POST /i18n/resources/batch-import — batch import CSV file */
+/** POST /i18n/batch - batch import */
 export async function batchImportI18n(file: File): Promise<{ imported: number }> {
   const formData = new FormData()
   formData.append('file', file)
-  const response = await client.post<{ imported: number }>('/i18n/resources/batch-import', formData, {
+  const response = await client.post<{ imported: number }>('/i18n/batch', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
   return response.data

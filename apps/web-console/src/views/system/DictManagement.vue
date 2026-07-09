@@ -86,7 +86,7 @@ async function loadItems(typeId: string): Promise<void> {
 
 function selectType(row: DictType): void {
   selectedType.value = row
-  loadItems(row.id)
+  loadItems(row.type_code)
 }
 
 // ---- Type modal ----
@@ -122,7 +122,6 @@ function openCreateType(): void {
 
 function openEditType(row: DictType): void {
   typeModalMode.value = 'edit'
-  typeModel.id = row.id
   typeModel.type_code = row.type_code
   typeModel.type_name = row.type_name
   typeModel.status = row.status
@@ -139,7 +138,7 @@ async function handleTypeSubmit(data: Record<string, unknown>): Promise<void> {
         type_name: String(data.type_name)
       })
     } else {
-      await updateDictType(String(typeModel.id), {
+      await updateDictType(String(typeModel.type_code), {
         type_name: String(data.type_name ?? ''),
         status: String(data.status ?? 'enabled')
       })
@@ -157,8 +156,8 @@ async function handleDeleteType(row: DictType): Promise<void> {
   successMsg.value = ''
   if (!confirm(t('common.confirm_delete'))) return
   try {
-    await deleteDictType(row.id)
-    if (selectedType.value?.id === row.id) {
+    await deleteDictType(row.type_code)
+    if (selectedType.value?.type_code === row.type_code) {
       selectedType.value = null
       items.value = []
     }
@@ -176,11 +175,11 @@ async function handlePublish(row: DictType): Promise<void> {
   successMsg.value = ''
   if (!confirm(t('common.confirm_publish'))) return
   try {
-    await publishDictType(row.id)
+    await publishDictType(row.type_code)
     successMsg.value = t('common.operation_success')
     await loadTypes()
-    if (selectedType.value?.id === row.id) {
-      const updated = types.value.find((tp) => tp.id === row.id)
+    if (selectedType.value?.type_code === row.type_code) {
+      const updated = types.value.find((tp) => tp.type_code === row.type_code)
       if (updated) selectedType.value = updated
     }
   } catch (err) {
@@ -220,13 +219,12 @@ function openCreateItem(): void {
   if (!selectedType.value) return
   itemModalMode.value = 'create'
   Object.keys(itemModel).forEach((k) => delete itemModel[k])
-  itemModel.type_id = selectedType.value.id
+  itemModel.type_code = selectedType.value.type_code
   itemModalVisible.value = true
 }
 
 function openEditItem(row: DictItem): void {
   itemModalMode.value = 'edit'
-  itemModel.id = row.id
   itemModel.item_code = row.item_code
   itemModel.item_value = row.item_value
   itemModel.label_zh_cn = row.label_zh_cn
@@ -241,8 +239,7 @@ async function handleItemSubmit(data: Record<string, unknown>): Promise<void> {
   successMsg.value = ''
   try {
     if (itemModalMode.value === 'create') {
-      await createDictItem({
-        type_id: String(itemModel.type_id),
+      await createDictItem(String(itemModel.type_code), {
         item_code: String(data.item_code),
         item_value: String(data.item_value),
         label_zh_cn: String(data.label_zh_cn),
@@ -250,17 +247,21 @@ async function handleItemSubmit(data: Record<string, unknown>): Promise<void> {
         sort_order: Number(data.sort_order ?? 0)
       })
     } else {
-      await updateDictItem(String(itemModel.id), {
-        item_value: String(data.item_value ?? ''),
-        label_zh_cn: String(data.label_zh_cn ?? ''),
-        label_en_us: String(data.label_en_us ?? ''),
-        sort_order: Number(data.sort_order ?? 0),
-        status: String(data.status ?? 'enabled')
-      })
+      await updateDictItem(
+        String(selectedType.value?.type_code),
+        String(itemModel.item_code),
+        {
+          item_value: String(data.item_value ?? ''),
+          label_zh_cn: String(data.label_zh_cn ?? ''),
+          label_en_us: String(data.label_en_us ?? ''),
+          sort_order: Number(data.sort_order ?? 0),
+          status: String(data.status ?? 'enabled')
+        }
+      )
     }
     itemModalVisible.value = false
     successMsg.value = t('common.operation_success')
-    if (selectedType.value) await loadItems(selectedType.value.id)
+    if (selectedType.value) await loadItems(selectedType.value.type_code)
   } catch (err) {
     errorMsg.value = resolveError(err as ProblemDetails)
   }
@@ -271,9 +272,9 @@ async function handleDeleteItem(row: DictItem): Promise<void> {
   successMsg.value = ''
   if (!confirm(t('common.confirm_delete'))) return
   try {
-    await deleteDictItem(row.id)
+    await deleteDictItem(String(selectedType.value?.type_code), row.item_code)
     successMsg.value = t('common.operation_success')
-    if (selectedType.value) await loadItems(selectedType.value.id)
+    if (selectedType.value) await loadItems(selectedType.value.type_code)
   } catch (err) {
     errorMsg.value = resolveError(err as ProblemDetails)
   }
@@ -319,8 +320,8 @@ onMounted(() => {
             </tr>
             <tr
               v-for="row in types"
-              :key="row.id"
-              :class="{ 'row-selected': selectedType?.id === row.id }"
+              :key="row.type_code"
+              :class="{ 'row-selected': selectedType?.type_code === row.type_code }"
               @click="selectType(row)"
             >
               <td class="code-cell">{{ row.type_code }}</td>
@@ -381,7 +382,7 @@ onMounted(() => {
             <tr v-else-if="items.length === 0">
               <td colspan="7" class="empty-cell">{{ t('common.no_data') }}</td>
             </tr>
-            <tr v-for="row in items" :key="row.id">
+            <tr v-for="row in items" :key="row.item_code">
               <td class="code-cell">{{ row.item_code }}</td>
               <td>{{ row.item_value }}</td>
               <td>{{ row.label_zh_cn }}</td>

@@ -80,6 +80,7 @@ async function handleSubmit(): Promise<void> {
 
   loading.value = true
   try {
+    authStore.clearAuth()
     await authStore.login(form.username, form.password)
     const redirect = (route.query.redirect as string) || '/dashboard'
     router.push(redirect)
