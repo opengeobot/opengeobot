@@ -135,7 +135,7 @@ const campaignLoading = ref(false)
 const campaignPagination = ref<DataTablePagination>({ page_number: 1, page_size: 10, total: 0 })
 
 const campaignColumns = computed<DataTableColumn[]>(() => [
-  { key: 'campaign_id', title: 'ID' },
+  { key: 'campaign_id', title: t('ota.column_campaign_id') },
   { key: 'package_id', title: t('ota.package_name') },
   { key: 'canary_percent', title: t('ota.canary_percent') },
   { key: 'status', title: t('ota.campaign_status') },
@@ -331,8 +331,8 @@ onMounted(() => {
         <div class="form-field">
           <label class="form-label">{{ t('ota.type') }}</label>
           <select v-model="uploadMeta.type" class="form-input">
-            <option value="FIRMWARE">FIRMWARE</option>
-            <option value="SKILL_BUNDLE">SKILL_BUNDLE</option>
+            <option value="FIRMWARE">{{ t('ota.type_firmware') }}</option>
+            <option value="SKILL_BUNDLE">{{ t('ota.type_skill_bundle') }}</option>
           </select>
         </div>
         <div class="form-field">

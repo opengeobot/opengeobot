@@ -112,8 +112,8 @@ class MemoryServiceTest {
         ArgumentCaptor<TaskCase> captor = ArgumentCaptor.forClass(TaskCase.class);
         verify(taskCaseRepository).insert(captor.capture());
         assertEquals("SUCCESS", captor.getValue().getResult());
-        verify(failureCaseRepository, never()).insert(any());
-        verify(suggestionRepository, never()).insert(any());
+        verify(failureCaseRepository, never()).insert(any(FailureCase.class));
+        verify(suggestionRepository, never()).insert(any(ImprovementSuggestion.class));
         verify(outboxRepository).save(any());
         verify(auditService).record(any());
     }
@@ -127,7 +127,7 @@ class MemoryServiceTest {
 
         assertEquals("FAILURE", result.result());
 
-        verify(taskCaseRepository).insert(any());
+        verify(taskCaseRepository).insert(any(TaskCase.class));
         verify(failureCaseRepository).insert(any(FailureCase.class));
         verify(suggestionRepository).insert(any(ImprovementSuggestion.class));
     }
@@ -177,7 +177,7 @@ class MemoryServiceTest {
         assertEquals("PENDING", result.status());
         assertEquals(0.85, result.confidence(), 0.001);
         assertTrue(result.suggestionText().contains("timeout"));
-        verify(suggestionRepository).insert(any());
+        verify(suggestionRepository).insert(any(ImprovementSuggestion.class));
         verify(outboxRepository).save(any());
         verify(auditService).record(any());
     }
@@ -192,7 +192,7 @@ class MemoryServiceTest {
 
         assertEquals("ACCEPTED", result.status());
         assertEquals("Good suggestion, will apply", result.feedback());
-        verify(suggestionRepository).updateById(any());
+        verify(suggestionRepository).updateById(any(ImprovementSuggestion.class));
         verify(auditService).record(any());
     }
 

@@ -28,7 +28,8 @@
     "dict": "Dictionaries",
     "i18n": "I18n Resources",
     "config": "Platform Config",
-    "audit": "Audit Log"
+    "audit": "Audit Log",
+    "trace": "Trace"
   },
   "common": {
     "login": "Login",
@@ -520,7 +521,10 @@
     "channel_name": "Channel Name",
     "channel_type": "Channel Type",
     "channel_config": "Channel Config (JSON)",
-    "create_channel_title": "Create Channel"
+    "create_channel_title": "Create Channel",
+    "channel_in_app": "In-App",
+    "channel_email": "Email",
+    "channel_webhook": "Webhook"
   },
   "ops": {
     "title": "Ops Dashboard",
@@ -585,7 +589,10 @@
     "rollback": "Rollback",
     "rollback_confirm": "Confirm rollback of this campaign?",
     "error_message": "Error Message",
-    "view_deployments": "View Deployments"
+    "view_deployments": "View Deployments",
+    "column_campaign_id": "ID",
+    "type_firmware": "Firmware",
+    "type_skill_bundle": "Skill Bundle"
   },
   "recovery": {
     "title": "Backup & Recovery",
@@ -608,7 +615,12 @@
     "notes": "Notes",
     "executed_at": "Executed At",
     "executed_by": "Executed By",
-    "create_drill_title": "Create Drill"
+    "create_drill_title": "Create Drill",
+    "type_database": "Database",
+    "type_minio": "Object Storage",
+    "drill_backup_verify": "Backup Verify",
+    "drill_restore_simulation": "Restore Simulation",
+    "drill_failover": "Failover"
   },
   "memory": {
     "title": "Task Memory",
@@ -637,5 +649,31 @@
     "submit_feedback": "Submit Feedback",
     "feedback_success": "Feedback submitted",
     "view_detail": "View Detail"
+  },
+  "trace": {
+    "title": "Full-Chain Trace",
+    "list": "Trace List",
+    "detail": "Trace Detail",
+    "replay": "Fact Replay",
+    "empty": "No trace data",
+    "filter": {
+      "robotId": "Robot ID",
+      "missionId": "Mission ID",
+      "startTime": "Start Time",
+      "endTime": "End Time",
+      "search": "Search"
+    },
+    "columns": {
+      "traceId": "Trace ID",
+      "robotId": "Robot",
+      "missionId": "Mission",
+      "startedAt": "Started At",
+      "duration": "Duration",
+      "status": "Status"
+    },
+    "forbidden": "You don't have permission to access trace data",
+    "loading": "Loading...",
+    "replayData": "Replay Data",
+    "eventSequence": "Event Sequence"
   }
 }

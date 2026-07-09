@@ -139,7 +139,7 @@ class RobotServiceTest {
 
         ConflictException ex = assertThrows(ConflictException.class, () -> service.create(request));
         assertTrue(ex.getMessage().contains("SN-001"));
-        verify(robotRepository, never()).insert(any());
+        verify(robotRepository, never()).insert(any(Robot.class));
     }
 
     @Test

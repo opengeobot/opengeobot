@@ -14,6 +14,7 @@ import io.opengeobot.platform.robot.service.RobotGroupService;
 import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,6 +46,7 @@ public class RobotGroupController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('robot.group.read')")
     public PageResponse<RobotGroupDto> listGroups(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
@@ -54,6 +56,7 @@ public class RobotGroupController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('robot.group.manage')")
     public ResponseEntity<RobotGroupDto> createGroup(@Valid @RequestBody CreateRobotGroupRequest request) {
         RobotGroupDto created = groupService.create(request);
         return ResponseEntity.created(URI.create("/api/v1/robot-groups/" + created.groupId()))
@@ -61,23 +64,27 @@ public class RobotGroupController {
     }
 
     @GetMapping("/{groupId}")
+    @PreAuthorize("hasAuthority('robot.group.read')")
     public RobotGroupDto getGroup(@PathVariable String groupId) {
         return groupService.getByGroupId(groupId);
     }
 
     @PutMapping("/{groupId}")
+    @PreAuthorize("hasAuthority('robot.group.manage')")
     public RobotGroupDto updateGroup(@PathVariable String groupId,
                                     @Valid @RequestBody UpdateRobotGroupRequest request) {
         return groupService.update(groupId, request);
     }
 
     @DeleteMapping("/{groupId}")
+    @PreAuthorize("hasAuthority('robot.group.manage')")
     public ResponseEntity<Void> deleteGroup(@PathVariable String groupId) {
         groupService.delete(groupId);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{groupId}/members/{robotId}")
+    @PreAuthorize("hasAuthority('robot.group.manage')")
     public ResponseEntity<Void> addMember(@PathVariable String groupId,
                                            @PathVariable String robotId) {
         groupService.addRobot(groupId, robotId);
@@ -85,6 +92,7 @@ public class RobotGroupController {
     }
 
     @DeleteMapping("/{groupId}/members/{robotId}")
+    @PreAuthorize("hasAuthority('robot.group.manage')")
     public ResponseEntity<Void> removeMember(@PathVariable String groupId,
                                               @PathVariable String robotId) {
         groupService.removeRobot(groupId, robotId);
@@ -92,6 +100,7 @@ public class RobotGroupController {
     }
 
     @GetMapping("/{groupId}/members")
+    @PreAuthorize("hasAuthority('robot.group.read')")
     public Map<String, Object> listMembers(@PathVariable String groupId) {
         List<String> robotIds = groupService.getMembers(groupId);
         return Map.of("group_id", groupId, "robot_ids", robotIds);

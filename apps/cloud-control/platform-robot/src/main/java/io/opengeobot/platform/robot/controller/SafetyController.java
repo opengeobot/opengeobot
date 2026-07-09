@@ -58,7 +58,7 @@ public class SafetyController {
 
     @GetMapping("/state")
     @PreAuthorize("hasAuthority('safety.decision.read')")
-    public SafetyStateDto getState(@RequestParam(required = false) String robotId) {
+    public SafetyStateDto getState(@RequestParam(name = "robot_id", required = false) String robotId) {
         return safetyService.getState(robotId);
     }
 

@@ -12,6 +12,7 @@ import io.opengeobot.platform.robot.service.MissionService;
 import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -37,6 +38,7 @@ public class MissionTemplateController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('mission.template.read')")
     public PageResponse<MissionTemplateDto> listTemplates(
             @RequestParam(name = "page", defaultValue = "1") int page,
             @RequestParam(name = "page_size", defaultValue = "20") int pageSize) {
@@ -45,6 +47,7 @@ public class MissionTemplateController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('mission.template.manage')")
     public ResponseEntity<MissionTemplateDto> createTemplate(@Valid @RequestBody CreateMissionTemplateRequest request) {
         MissionTemplateDto created = missionService.createTemplate(request);
         return ResponseEntity.created(URI.create("/api/v1/mission-templates/" + created.templateId()))

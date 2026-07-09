@@ -132,7 +132,7 @@ class PolicyServiceTest {
 
         ConflictException ex = assertThrows(ConflictException.class, () -> service.create(request));
         assertTrue(ex.getMessage().contains("safety_policy"));
-        verify(policyRepository, never()).insert(any());
+        verify(policyRepository, never()).insert(any(Policy.class));
     }
 
     @Test

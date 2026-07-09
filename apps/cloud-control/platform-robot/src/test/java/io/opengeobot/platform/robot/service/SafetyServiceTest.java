@@ -147,7 +147,7 @@ class SafetyServiceTest {
                 () -> service.reset("rbt_999"));
 
         assertTrue(ex.getMessage().contains("rbt_999"));
-        verify(safetyStateRepository, never()).updateById(any());
+        verify(safetyStateRepository, never()).updateById(any(SafetyState.class));
     }
 
     @Test

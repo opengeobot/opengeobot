@@ -136,7 +136,7 @@ class FleetServiceTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.resolveConflict("cfl_999", "IGNORED"));
         assertTrue(ex.getMessage().contains("cfl_999"));
-        verify(conflictRepository, never()).updateById(any());
+        verify(conflictRepository, never()).updateById(any(ConflictRecord.class));
     }
 
     @Test

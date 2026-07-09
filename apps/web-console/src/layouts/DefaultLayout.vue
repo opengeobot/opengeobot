@@ -42,6 +42,7 @@ const navItems: NavItem[] = [
   { key: 'nav.ota', path: '/ota' },
   { key: 'nav.recovery', path: '/recovery' },
   { key: 'nav.memory', path: '/memory' },
+  { key: 'nav.trace', path: '/trace' },
   {
     key: 'nav.system',
     path: '/system',

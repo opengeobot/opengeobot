@@ -135,7 +135,7 @@ class MediaServiceTest {
 
         assertThrows(IllegalStateException.class,
                 () -> service.upload(file, "IMAGE", "rbt_001", null, null));
-        verify(mediaObjectRepository, never()).insert(any());
+        verify(mediaObjectRepository, never()).insert(any(MediaObject.class));
     }
 
     @Test

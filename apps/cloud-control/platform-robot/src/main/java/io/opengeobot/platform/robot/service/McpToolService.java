@@ -54,9 +54,10 @@ import java.util.Map;
 /**
  * Application service for the MCP tool gateway (F-MCP-001). Handles tool
  * registration, listing, retrieval and invocation with full audit and
- * transactional outbox events. For M2, invocations return a simulated result;
- * actual tool execution against edge skills is M3+. All mutations write audit
- * records and outbox events within the same transaction.
+ * transactional outbox events. Tool invocations are forwarded to the
+ * configured handler via NATS request-reply or HTTP POST; no result is
+ * simulated. All mutations write audit records and outbox events within
+ * the same transaction.
  */
 @Service
 public class McpToolService {

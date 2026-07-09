@@ -121,7 +121,7 @@ class SkillServiceTest {
 
         ConflictException ex = assertThrows(ConflictException.class, () -> service.createSkill(request));
         assertTrue(ex.getMessage().contains("nav_skill"));
-        verify(skillRepository, never()).insert(any());
+        verify(skillRepository, never()).insert(any(Skill.class));
     }
 
     @Test

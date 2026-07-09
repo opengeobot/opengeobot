@@ -1033,6 +1033,7 @@ features:
     permission_codes:
     - robot.model.read
     - robot.model.manage
+    - robot.group.read
     - robot.group.manage
     - robot.robot.maintain
     - robot.robot.diagnose
@@ -1477,6 +1478,7 @@ features:
   security:
     risk_level: R3_HIGH_RISK
     permission_codes:
+    - mission.template.read
     - mission.template.manage
     - mission.mission.approve
     requires_edge_safety: true

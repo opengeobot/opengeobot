@@ -14,6 +14,7 @@ import io.opengeobot.platform.robot.service.RobotModelService;
 import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,6 +44,7 @@ public class RobotModelController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('robot.model.read')")
     public PageResponse<RobotModelDto> listModels(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize) {
@@ -51,6 +53,7 @@ public class RobotModelController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('robot.model.manage')")
     public ResponseEntity<RobotModelDto> createModel(@Valid @RequestBody CreateRobotModelRequest request) {
         RobotModelDto created = modelService.create(request);
         return ResponseEntity.created(URI.create("/api/v1/robot-models/" + created.modelId()))
@@ -58,17 +61,20 @@ public class RobotModelController {
     }
 
     @GetMapping("/{modelId}")
+    @PreAuthorize("hasAuthority('robot.model.read')")
     public RobotModelDto getModel(@PathVariable String modelId) {
         return modelService.getByModelId(modelId);
     }
 
     @PutMapping("/{modelId}")
+    @PreAuthorize("hasAuthority('robot.model.manage')")
     public RobotModelDto updateModel(@PathVariable String modelId,
                                      @Valid @RequestBody UpdateRobotModelRequest request) {
         return modelService.update(modelId, request);
     }
 
     @DeleteMapping("/{modelId}")
+    @PreAuthorize("hasAuthority('robot.model.manage')")
     public ResponseEntity<Void> deleteModel(@PathVariable String modelId) {
         modelService.delete(modelId);
         return ResponseEntity.noContent().build();

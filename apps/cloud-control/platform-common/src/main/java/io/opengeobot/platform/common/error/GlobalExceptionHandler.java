@@ -5,10 +5,13 @@
  */
 package io.opengeobot.platform.common.error;
 
+import io.opengeobot.platform.common.audit.AuditEvent;
+import io.opengeobot.platform.common.audit.AuditService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -18,6 +21,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.security.access.AccessDeniedException;
+
+import java.time.Instant;
 
 /**
  * Translates exceptions into the platform {@link ErrorEnvelope} ProblemDetails format.
@@ -29,6 +34,11 @@ import org.springframework.security.access.AccessDeniedException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private final ObjectProvider<AuditService> auditServiceProvider;
+
+    public GlobalExceptionHandler(ObjectProvider<AuditService> auditServiceProvider) {
+        this.auditServiceProvider = auditServiceProvider;
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorEnvelope> handleValidation(
@@ -59,9 +69,25 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorEnvelope> handleAccessDenied(
             AccessDeniedException ex, HttpServletRequest request) {
-        log.debug("Access denied: {}", ex.getMessage());
+        log.warn("Access denied for {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        String traceId = resolveTraceId();
+        AuditService auditService = auditServiceProvider.getIfAvailable();
+        if (auditService != null) {
+            try {
+                String actorId = request.getUserPrincipal() != null
+                        ? request.getUserPrincipal().getName() : "unknown";
+                AuditEvent event = new AuditEvent(
+                        "user", actorId, "PERMISSION_DENIED", "http_request",
+                        request.getRequestURI(), "DENIED", null,
+                        request.getRemoteAddr(), request.getHeader("User-Agent"),
+                        traceId, null, Instant.now(), null, null);
+                auditService.record(event);
+            } catch (Exception auditEx) {
+                log.warn("Failed to record permission denial audit for {}", request.getRequestURI(), auditEx);
+            }
+        }
         ErrorEnvelope envelope = ErrorEnvelope.of(
-                ErrorCode.PERMISSION_DENIED, resolveTraceId(), request.getRequestURI());
+                ErrorCode.PERMISSION_DENIED, traceId, request.getRequestURI());
         return buildResponse(envelope, HttpStatus.FORBIDDEN);
     }
 

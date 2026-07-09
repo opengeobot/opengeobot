@@ -28,7 +28,8 @@
     "dict": "字典管理",
     "i18n": "国际化资源",
     "config": "平台配置",
-    "audit": "审计日志"
+    "audit": "审计日志",
+    "trace": "链路追踪"
   },
   "common": {
     "login": "登录",
@@ -520,7 +521,10 @@
     "channel_name": "渠道名称",
     "channel_type": "渠道类型",
     "channel_config": "渠道配置(JSON)",
-    "create_channel_title": "新建渠道"
+    "create_channel_title": "新建渠道",
+    "channel_in_app": "应用内",
+    "channel_email": "邮件",
+    "channel_webhook": "Webhook"
   },
   "ops": {
     "title": "运维看板",
@@ -585,7 +589,10 @@
     "rollback": "回滚",
     "rollback_confirm": "确认回滚该发布活动？",
     "error_message": "错误信息",
-    "view_deployments": "查看部署"
+    "view_deployments": "查看部署",
+    "column_campaign_id": "ID",
+    "type_firmware": "固件",
+    "type_skill_bundle": "技能包"
   },
   "recovery": {
     "title": "备份恢复",
@@ -608,7 +615,12 @@
     "notes": "备注",
     "executed_at": "执行时间",
     "executed_by": "执行人",
-    "create_drill_title": "新建演练"
+    "create_drill_title": "新建演练",
+    "type_database": "数据库",
+    "type_minio": "对象存储",
+    "drill_backup_verify": "备份验证",
+    "drill_restore_simulation": "恢复模拟",
+    "drill_failover": "故障转移"
   },
   "memory": {
     "title": "任务记忆",
@@ -637,5 +649,31 @@
     "submit_feedback": "提交反馈",
     "feedback_success": "反馈已提交",
     "view_detail": "查看详情"
+  },
+  "trace": {
+    "title": "全链路追踪",
+    "list": "追踪列表",
+    "detail": "追踪详情",
+    "replay": "事实回放",
+    "empty": "暂无追踪数据",
+    "filter": {
+      "robotId": "机器人ID",
+      "missionId": "任务ID",
+      "startTime": "开始时间",
+      "endTime": "结束时间",
+      "search": "查询"
+    },
+    "columns": {
+      "traceId": "追踪ID",
+      "robotId": "机器人",
+      "missionId": "任务",
+      "startedAt": "开始时间",
+      "duration": "耗时",
+      "status": "状态"
+    },
+    "forbidden": "您没有权限访问追踪数据",
+    "loading": "加载中...",
+    "replayData": "回放数据",
+    "eventSequence": "事件序列"
   }
 }

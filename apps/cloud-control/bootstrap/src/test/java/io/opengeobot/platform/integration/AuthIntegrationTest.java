@@ -110,12 +110,12 @@ class AuthIntegrationTest {
     }
 
     @Test
-    void logout_unauthenticatedReturns403() throws Exception {
+    void logout_unauthenticatedReturns401() throws Exception {
         mockMvc.perform(post("/api/v1/auth/logout")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"refresh_token":"refresh-token-456"}
                                 """))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }

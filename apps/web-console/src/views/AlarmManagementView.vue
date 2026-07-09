@@ -257,9 +257,9 @@ const channelFields = computed<FormField[]>(() => [
     type: 'select',
     required: true,
     options: [
-      { label: 'in-app', value: 'in-app' },
-      { label: 'webhook', value: 'webhook' },
-      { label: 'email', value: 'email' }
+      { label: t('alarm.channel_in_app'), value: 'in-app' },
+      { label: t('alarm.channel_webhook'), value: 'webhook' },
+      { label: t('alarm.channel_email'), value: 'email' }
     ]
   },
   { key: 'config', label: t('alarm.channel_config'), type: 'textarea' },

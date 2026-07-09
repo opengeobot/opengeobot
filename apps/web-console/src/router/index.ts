@@ -125,6 +125,12 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, permission: 'platform.memory.read', titleKey: 'nav.memory' }
       },
       {
+        path: 'trace',
+        name: 'trace',
+        component: () => import('@/views/TraceView.vue'),
+        meta: { requiresAuth: true, permission: 'trace.trace.read', titleKey: 'nav.trace' }
+      },
+      {
         path: 'system/users',
         name: 'system-users',
         component: () => import('@/views/system/UserManagement.vue'),

@@ -89,8 +89,8 @@ const backupFields = computed<FormField[]>(() => [
     type: 'select',
     required: true,
     options: [
-      { label: 'DATABASE', value: 'DATABASE' },
-      { label: 'MINIO', value: 'MINIO' }
+      { label: t('recovery.type_database'), value: 'DATABASE' },
+      { label: t('recovery.type_minio'), value: 'MINIO' }
     ]
   }
 ])
@@ -169,9 +169,9 @@ const drillFields = computed<FormField[]>(() => [
     type: 'select',
     required: true,
     options: [
-      { label: 'BACKUP_VERIFY', value: 'BACKUP_VERIFY' },
-      { label: 'RESTORE_SIMULATION', value: 'RESTORE_SIMULATION' },
-      { label: 'FAILOVER', value: 'FAILOVER' }
+      { label: t('recovery.drill_backup_verify'), value: 'BACKUP_VERIFY' },
+      { label: t('recovery.drill_restore_simulation'), value: 'RESTORE_SIMULATION' },
+      { label: t('recovery.drill_failover'), value: 'FAILOVER' }
     ]
   },
   { key: 'notes', label: t('recovery.notes'), type: 'textarea' }
