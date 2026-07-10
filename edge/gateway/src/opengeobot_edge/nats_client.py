@@ -20,6 +20,8 @@ from loguru import logger
 from nats.aio.client import Client as NatsClient
 from nats.aio.msg import Msg
 from nats.errors import ConnectionClosedError, NoServersError
+from nats.js import JetStreamContext
+from nats.js.errors import NotFoundError
 
 from .config import EdgeConfig
 
@@ -37,6 +39,7 @@ class NatsBridge:
     def __init__(self, config: EdgeConfig) -> None:
         self._config = config
         self._nc: NatsClient | None = None
+        self._js: JetStreamContext | None = None
         self._connected = asyncio.Event()
         self._closed = asyncio.Event()
         # External hooks; reconciliation and state publisher attach to these.
@@ -62,6 +65,8 @@ class NatsBridge:
         async def _reconnected_cb() -> None:
             self._connected.set()
             logger.info("NATS reconnected; triggering reconciliation")
+            # Re-ensure the JetStream stream after a reconnect (server may have restarted).
+            await self._ensure_stream()
             if self.on_reconnect is not None:
                 try:
                     await self.on_reconnect()
@@ -94,6 +99,60 @@ class NatsBridge:
         self._connected.set()
         self._closed.clear()
         logger.info("NATS connected to {}", self._config.nats_url)
+
+        # Create JetStream context and ensure the edge stream exists.
+        await self._init_jetstream()
+
+    async def _init_jetstream(self) -> None:
+        """Create the JetStream context and ensure the edge stream exists."""
+        if self._nc is None:
+            raise NatsConnectionError("NATS client not connected")
+        self._js = self._nc.jetstream()
+        await self._ensure_stream()
+        logger.info("JetStream context ready (stream={})", self._config.jetstream_stream_name)
+
+    async def _ensure_stream(self) -> None:
+        """Create the edge stream if it does not already exist."""
+        if self._js is None:
+            return
+        stream_name = self._config.jetstream_stream_name
+        subjects = [self._config.jetstream_stream_subjects]
+        try:
+            await self._js.stream_info(stream_name)
+            logger.debug("JetStream stream '{}' already exists", stream_name)
+        except NotFoundError:
+            await self._js.add_stream(name=stream_name, subjects=subjects)
+            logger.info("Created JetStream stream '{}' for subjects {}", stream_name, subjects)
+        except Exception as exc:  # noqa: BLE001 - JetStream may be unavailable in some NATS deployments
+            logger.bind(error=str(exc)).warning(
+                "Could not ensure JetStream stream; JetStream features will be degraded"
+            )
+
+    @property
+    def jetstream(self) -> JetStreamContext:
+        """Return the JetStream context. Raises if not connected."""
+        if self._js is None:
+            raise NatsConnectionError("JetStream context not available (NATS not connected)")
+        return self._js
+
+    @property
+    def has_jetstream(self) -> bool:
+        """Return True if the JetStream context has been initialized."""
+        return self._js is not None
+
+    async def subscribe_jetstream(
+        self, subject: str, durable: str, handler: MsgHandler
+    ) -> Any:
+        """Subscribe via a JetStream durable push consumer.
+
+        The durable name ensures that on reconnect the consumer resumes from the
+        last acknowledged message, preventing loss of commands during transient
+        disconnects. This works alongside the offline cache, which handles truly
+        offline periods (NATS server unreachable).
+        """
+        if self._js is None:
+            raise NatsConnectionError("JetStream context not available")
+        return await self._js.subscribe(subject, durable=durable, cb=handler)
 
     async def subscribe(self, subject: str, handler: MsgHandler, queue: str | None = None) -> Any:
         """Subscribe with an async handler. Returns the subscription object."""
@@ -131,4 +190,5 @@ class NatsBridge:
             logger.bind(error=str(e)).debug("drain skipped (connection already closed)")
         finally:
             self._nc = None
+            self._js = None
             self._connected.clear()

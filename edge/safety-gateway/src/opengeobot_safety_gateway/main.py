@@ -77,6 +77,11 @@ class SafetyGateway:
         """Connect to NATS, subscribe to subjects, and start the health check."""
         await self._nats.connect()
 
+        await self._nats.ensure_stream(
+            self._config.jetstream_stream_name,
+            self._config.jetstream_stream_subjects,
+        )
+
         await self._nats.subscribe(
             self._config.emergency_stop_subject,
             self._handler.handle_emergency_stop,
@@ -85,9 +90,10 @@ class SafetyGateway:
             self._config.reset_subject,
             self._handler.handle_reset,
         )
-        await self._nats.subscribe(
+        await self._nats.subscribe_jetstream(
             self._config.skill_execute_subject,
             self._handler.handle_skill_execute,
+            durable=self._config.jetstream_durable_name,
         )
 
         await self._start_health_check()

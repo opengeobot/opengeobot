@@ -12,7 +12,11 @@ dependencies = [
     "aiohttp==3.10.10",
     "pydantic==2.9.2",
     "loguru==0.7.2",
+    "opengeobot-safety-gateway",
 ]
+
+[tool.uv.sources]
+opengeobot-safety-gateway = { path = "../safety-gateway", editable = true }
 
 [dependency-groups]
 dev = [

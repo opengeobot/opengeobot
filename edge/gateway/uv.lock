@@ -230,6 +230,7 @@ dependencies = [
     { name = "aiohttp" },
     { name = "loguru" },
     { name = "nats-py" },
+    { name = "opengeobot-safety-gateway" },
     { name = "pydantic" },
 ]
 
@@ -240,6 +241,35 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = "==3.10.10" },
+    { name = "loguru", specifier = "==0.7.2" },
+    { name = "nats-py", specifier = "==2.9.0" },
+    { name = "opengeobot-safety-gateway", editable = "../safety-gateway" },
+    { name = "pydantic", specifier = "==2.9.2" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = "==1.13.0" },
+    { name = "pytest", specifier = "==8.3.3" },
+    { name = "pytest-asyncio", specifier = "==0.24.0" },
+    { name = "pytest-cov", specifier = "==5.0.0" },
+    { name = "ruff", specifier = "==0.6.9" },
+]
+
+[[package]]
+name = "opengeobot-safety-gateway"
+version = "0.1.0"
+source = { editable = "../safety-gateway" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "loguru" },
+    { name = "nats-py" },
+    { name = "pydantic" },
 ]
 
 [package.metadata]

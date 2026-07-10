@@ -24,6 +24,7 @@ DEFAULT_MAX_LINEAR_SPEED = 1.5  # m/s
 DEFAULT_MAX_ANGULAR_SPEED = 1.0  # rad/s
 DEFAULT_COLLISION_PROXIMITY = 0.5  # metres
 DEFAULT_HEALTH_CHECK_PORT = 8081
+DEFAULT_JETSTREAM_STREAM = "SAFETY_STREAM"
 
 
 def _env_str(key: str, default: str) -> str:
@@ -77,6 +78,8 @@ class SafetyGatewayConfig:
     skill_forward_subject_suffix: str
     log_level: str
     restricted_zones: list[dict[str, float]] = field(default_factory=list)
+    # JetStream persistence.
+    jetstream_stream_name: str = DEFAULT_JETSTREAM_STREAM
 
     # ------------------------------------------------------------------
     # NATS subjects (edge.{gateway_id}.safety.* / edge.{gateway_id}.skill.*).
@@ -106,6 +109,19 @@ class SafetyGatewayConfig:
         """Outbound: safety state change broadcast."""
         return f"edge.{self.gateway_id}.safety.state_changed"
 
+    @property
+    def jetstream_stream_subjects(self) -> list[str]:
+        """Subjects covered by the JetStream persistence stream."""
+        return [
+            f"edge.{self.gateway_id}.safety.>",
+            f"edge.{self.gateway_id}.skill.execute",
+        ]
+
+    @property
+    def jetstream_durable_name(self) -> str:
+        """Durable consumer name for the skill.execute interception."""
+        return f"safety-gw-{self.gateway_id}-skill"
+
     @classmethod
     def from_env(cls) -> SafetyGatewayConfig:
         return cls(
@@ -123,4 +139,5 @@ class SafetyGatewayConfig:
             health_check_port=_env_int("SAFETY_HEALTH_CHECK_PORT", DEFAULT_HEALTH_CHECK_PORT),
             skill_forward_subject_suffix=_env_str("SKILL_FORWARD_SUFFIX", "execute.approved"),
             log_level=_env_str("LOG_LEVEL", "INFO"),
+            jetstream_stream_name=_env_str("SAFETY_JETSTREAM_STREAM", DEFAULT_JETSTREAM_STREAM),
         )

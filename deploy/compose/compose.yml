@@ -172,6 +172,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ../observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ../observability/grafana-alert-rules.yaml:/etc/grafana/provisioning/alerting/rules.yaml:ro
     networks: [opengeobot-net]
     depends_on:
       victoriametrics:

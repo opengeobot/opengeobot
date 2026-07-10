@@ -1,15 +1,8 @@
-# Function: Test profile — H2 in-memory database, Flyway disabled
-# Time: 2026-07-03
+# Function: Test profile - datasource provided by Testcontainers, Flyway enabled
+# Time: 2026-07-09
 # Author: AxeXie
 
 spring:
-  flyway:
-    enabled: false
-  datasource:
-    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: ""
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration

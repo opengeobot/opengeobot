@@ -2,7 +2,7 @@
 // Function: Safety control view with e-stop, reset, state and event log
 // Time: 2026-07-05
 // Author: AxeXie
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DataTable from '@/components/DataTable.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
@@ -30,6 +30,10 @@ const loading = ref(false)
 const stateLoading = ref(false)
 const errorMsg = ref('')
 const successMsg = ref('')
+
+const wsConnected = ref(false)
+let ws: WebSocket | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
 const filters = reactive({
   robot_id: '',
@@ -174,15 +178,149 @@ async function handleResetConfirm(): Promise<void> {
   }
 }
 
+// ---- WebSocket real-time updates ----
+
+function buildWsUrl(): string {
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  const token = localStorage.getItem('token') ?? ''
+  return `${proto}://${window.location.host}/ws/monitor?token=${encodeURIComponent(token)}`
+}
+
+function handleWsMessage(event: MessageEvent): void {
+  try {
+    const msg = JSON.parse(event.data as string) as {
+      type: string
+      payload: {
+        robot_id?: string
+        safety_state?: string
+        event_type?: string
+        level?: string
+        source?: string
+        description?: string
+        trace_id?: string
+        occurred_at?: string
+        id?: string
+        resolved?: boolean
+      }
+    }
+    const p = msg.payload
+    if (msg.type === 'safety.emergency_stop_triggered') {
+      if (state.value) {
+        state.value = {
+          ...state.value,
+          e_stopped: true,
+          locked: true,
+          updated_at: new Date().toISOString()
+        }
+      }
+      if (p.event_type) {
+        events.value.unshift({
+          id: p.id ?? '',
+          occurred_at: p.occurred_at ?? new Date().toISOString(),
+          robot_id: p.robot_id ?? '',
+          event_type: p.event_type,
+          level: p.level ?? 'critical',
+          source: p.source ?? 'edge',
+          description: p.description ?? '',
+          trace_id: p.trace_id ?? '',
+          resolved: p.resolved ?? false
+        })
+      }
+      errorMsg.value = t('safety.estop_triggered')
+      loadState()
+    } else if (msg.type === 'safety.estop_reset_requested') {
+      if (state.value) {
+        state.value = {
+          ...state.value,
+          e_stopped: false,
+          locked: true,
+          updated_at: new Date().toISOString()
+        }
+      }
+    } else if (msg.type === 'safety.estop_reset_completed') {
+      if (state.value) {
+        state.value = {
+          ...state.value,
+          e_stopped: false,
+          locked: false,
+          updated_at: new Date().toISOString()
+        }
+      }
+      successMsg.value = t('safety.reset_done')
+      loadState()
+    }
+  } catch {
+    // Ignore malformed messages
+  }
+}
+
+function connectWs(): void {
+  try {
+    ws = new WebSocket(buildWsUrl())
+  } catch {
+    scheduleReconnect()
+    return
+  }
+
+  ws.onopen = () => {
+    wsConnected.value = true
+  }
+
+  ws.onmessage = handleWsMessage
+
+  ws.onerror = () => {
+    // error handled on close
+  }
+
+  ws.onclose = () => {
+    wsConnected.value = false
+    scheduleReconnect()
+  }
+}
+
+function scheduleReconnect(): void {
+  if (reconnectTimer) return
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    connectWs()
+  }, 5000)
+}
+
+function disconnectWs(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  if (ws) {
+    ws.onclose = null
+    ws.onerror = null
+    ws.onmessage = null
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      ws.close()
+    }
+    ws = null
+  }
+  wsConnected.value = false
+}
+
 onMounted(() => {
   loadState()
   loadEvents()
+  connectWs()
+})
+
+onUnmounted(() => {
+  disconnectWs()
 })
 </script>
 
 <template>
   <div class="safety-control">
-    <h1 class="page-title">{{ t('safety.title') }}</h1>
+    <div class="safety-header">
+      <h1 class="page-title">{{ t('safety.title') }}</h1>
+      <span v-if="wsConnected" class="ws-status ws-online">●</span>
+      <span v-else class="ws-status ws-offline">●</span>
+    </div>
 
     <p v-if="errorMsg" class="alert alert-error">{{ errorMsg }}</p>
     <p v-if="successMsg" class="alert alert-success">{{ successMsg }}</p>
@@ -296,11 +434,30 @@ onMounted(() => {
   gap: 1rem;
 }
 
+.safety-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .page-title {
   font-size: 1.5rem;
   font-weight: 700;
   color: #1e293b;
   margin: 0;
+}
+
+.ws-status {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.ws-online {
+  color: #16a34a;
+}
+
+.ws-offline {
+  color: #dc2626;
 }
 
 .safety-top {

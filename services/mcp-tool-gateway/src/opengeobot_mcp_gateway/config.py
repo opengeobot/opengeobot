@@ -41,6 +41,10 @@ class GatewayConfig:
     # Timeout for remote tool backend calls via NATS request-reply.
     tool_backend_timeout: float
     log_level: str
+    # JetStream durable consumer configuration.
+    js_stream_name: str = "MCP_STREAM"
+    js_durable_consumer: str = "mcp-tool-gateway-consumer"
+    js_stream_subjects: str = "opengeobot.mcp.>"
 
     # ------------------------------------------------------------------
     # NATS subjects.
@@ -65,6 +69,11 @@ class GatewayConfig:
         """Inbound: tool unregistration requests."""
         return "opengeobot.mcp.tool.unregister"
 
+    @property
+    def audit_subject(self) -> str:
+        """Outbound: tool invocation audit events."""
+        return "opengeobot.audit.mcp_tool_call"
+
     @classmethod
     def from_env(cls) -> GatewayConfig:
         return cls(
@@ -74,4 +83,9 @@ class GatewayConfig:
             nats_connect_timeout=_env_float("NATS_CONNECT_TIMEOUT", 5.0),
             tool_backend_timeout=_env_float("MCP_TOOL_BACKEND_TIMEOUT", 30.0),
             log_level=_env_str("LOG_LEVEL", "INFO"),
+            js_stream_name=_env_str("MCP_JS_STREAM_NAME", "MCP_STREAM"),
+            js_durable_consumer=_env_str(
+                "MCP_JS_DURABLE_CONSUMER", "mcp-tool-gateway-consumer"
+            ),
+            js_stream_subjects=_env_str("MCP_JS_STREAM_SUBJECTS", "opengeobot.mcp.>"),
         )

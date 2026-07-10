@@ -20,6 +20,7 @@ DEFAULT_NATS_URL = "nats://localhost:4222"
 
 # Default adapter type when the robot model is not explicitly mapped.
 DEFAULT_ADAPTER_TYPE = "simulation"
+DEFAULT_JETSTREAM_STREAM = "SKILL_EXECUTOR_STREAM"
 
 
 def _env_str(key: str, default: str) -> str:
@@ -55,6 +56,8 @@ class ExecutorConfig:
     # Default adapter type: simulation | ros2 | ros1
     default_adapter_type: str
     log_level: str
+    # JetStream persistence.
+    jetstream_stream_name: str = DEFAULT_JETSTREAM_STREAM
 
     # ------------------------------------------------------------------
     # NATS subjects.
@@ -63,6 +66,16 @@ class ExecutorConfig:
     def skill_execute_approved_subject(self) -> str:
         """Inbound: skill execution requests approved by the Safety Gateway."""
         return f"edge.{self.gateway_id}.skill.execute.approved"
+
+    @property
+    def jetstream_stream_subjects(self) -> list[str]:
+        """Subjects covered by the JetStream persistence stream."""
+        return [f"edge.{self.gateway_id}.skill.execute.approved"]
+
+    @property
+    def jetstream_durable_name(self) -> str:
+        """Durable consumer name for the skill execution subject."""
+        return f"skill-executor-{self.gateway_id}"
 
     @property
     def sim_adapter_subject(self) -> str:
@@ -98,4 +111,5 @@ class ExecutorConfig:
             adapter_timeout=_env_float("SKILL_ADAPTER_TIMEOUT", 10.0),
             default_adapter_type=_env_str("DEFAULT_ADAPTER_TYPE", DEFAULT_ADAPTER_TYPE),
             log_level=_env_str("LOG_LEVEL", "INFO"),
+            jetstream_stream_name=_env_str("SKILL_JETSTREAM_STREAM", DEFAULT_JETSTREAM_STREAM),
         )

@@ -14,9 +14,12 @@ from opengeobot_agent.config import AgentConfig
 from opengeobot_agent.provider import (
     AgentRuntimeProvider,
     MissionContext,
-    PlanProposal,
+    PlanStep,
     QwenPawProvider,
     QwenPawProviderError,
+    SkillDefinition,
+    SkillRegistry,
+    StaticSkillRegistry,
 )
 
 
@@ -249,3 +252,298 @@ class TestQwenPawProviderNoDirectHardwareAccess:
             assert "cmd_vel" not in step.skill_id
             assert "motor" not in step.skill_id.lower()
             assert "joint" not in step.skill_id.lower()
+
+
+# ------------------------------------------------------------------
+# Skill registry and schema validation tests.
+# ------------------------------------------------------------------
+
+
+def _make_skill_registry(
+    skills: dict[str, SkillDefinition] | None = None,
+) -> StaticSkillRegistry:
+    return StaticSkillRegistry(skills or {})
+
+
+class TestSkillRegistry:
+    def test_is_abstract(self):
+        """SkillRegistry should be an abstract class."""
+        with pytest.raises(TypeError):
+            SkillRegistry()  # type: ignore[abstract]
+
+    async def test_static_registry_returns_known_skill(self):
+        skill = SkillDefinition(
+            skill_id="move_forward",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "distance": {"type": "number"},
+                    "speed": {"type": "number"},
+                },
+                "required": ["distance"],
+            },
+        )
+        registry = _make_skill_registry({"move_forward": skill})
+        result = await registry.get_skill("move_forward")
+        assert result is not None
+        assert result.skill_id == "move_forward"
+        assert "distance" in result.input_schema["properties"]
+
+    async def test_static_registry_returns_none_for_unknown(self):
+        registry = _make_skill_registry({})
+        result = await registry.get_skill("unknown_skill")
+        assert result is None
+
+
+class TestSchemaValidationUnregisteredSkill:
+    """Steps with unregistered skill_ids should be marked invalid."""
+
+    async def test_unregistered_skill_marked_invalid(self):
+        config = _make_config()
+        registry = _make_skill_registry({})  # no skills registered
+        provider = QwenPawProvider(config, skill_registry=registry)
+        mock_response = _make_qwenpaw_response(
+            steps=[{"skill_id": "phantom_skill", "params": {}}],
+        )
+
+        async def _mock_call(mission: MissionContext) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_api = _mock_call  # type: ignore[method-assign]
+
+        proposal = await provider.generate_plan(_make_mission())
+
+        assert len(proposal.steps) == 1
+        step = proposal.steps[0]
+        assert step.skill_id == "phantom_skill"
+        assert step.valid is False
+        assert step.validation_error is not None
+        assert "not registered" in step.validation_error
+
+    async def test_unregistered_skill_does_not_discard_proposal(self):
+        """The entire proposal should not be discarded for one bad step."""
+        config = _make_config()
+        registry = _make_skill_registry({})
+        provider = QwenPawProvider(config, skill_registry=registry)
+        mock_response = _make_qwenpaw_response(
+            steps=[
+                {"skill_id": "phantom_skill", "params": {}},
+            ],
+        )
+
+        async def _mock_call(mission: MissionContext) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_api = _mock_call  # type: ignore[method-assign]
+
+        proposal = await provider.generate_plan(_make_mission())
+
+        assert proposal.error is None
+        assert len(proposal.steps) == 1
+        assert proposal.is_trusted is False
+
+
+class TestSchemaValidationParamsMismatch:
+    """Steps with params that don't match the skill schema should be invalid."""
+
+    async def test_params_type_mismatch_marked_invalid(self):
+        config = _make_config()
+        skill = SkillDefinition(
+            skill_id="move_forward",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "distance": {"type": "number"},
+                },
+                "required": ["distance"],
+            },
+        )
+        registry = _make_skill_registry({"move_forward": skill})
+        provider = QwenPawProvider(config, skill_registry=registry)
+        # distance is a string, not a number
+        mock_response = _make_qwenpaw_response(
+            steps=[
+                {"skill_id": "move_forward", "params": {"distance": "far"}},
+            ],
+        )
+
+        async def _mock_call(mission: MissionContext) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_api = _mock_call  # type: ignore[method-assign]
+
+        proposal = await provider.generate_plan(_make_mission())
+
+        assert len(proposal.steps) == 1
+        step = proposal.steps[0]
+        assert step.valid is False
+        assert step.validation_error is not None
+
+    async def test_missing_required_param_marked_invalid(self):
+        config = _make_config()
+        skill = SkillDefinition(
+            skill_id="move_forward",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "distance": {"type": "number"},
+                },
+                "required": ["distance"],
+            },
+        )
+        registry = _make_skill_registry({"move_forward": skill})
+        provider = QwenPawProvider(config, skill_registry=registry)
+        # distance is required but missing
+        mock_response = _make_qwenpaw_response(
+            steps=[
+                {"skill_id": "move_forward", "params": {"speed": 0.5}},
+            ],
+        )
+
+        async def _mock_call(mission: MissionContext) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_api = _mock_call  # type: ignore[method-assign]
+
+        proposal = await provider.generate_plan(_make_mission())
+
+        step = proposal.steps[0]
+        assert step.valid is False
+        assert "distance" in (step.validation_error or "")
+
+    async def test_valid_params_remain_valid(self):
+        """A step with params that match the schema should remain valid."""
+        config = _make_config()
+        skill = SkillDefinition(
+            skill_id="move_forward",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "distance": {"type": "number"},
+                    "speed": {"type": "number"},
+                },
+                "required": ["distance"],
+            },
+        )
+        registry = _make_skill_registry({"move_forward": skill})
+        provider = QwenPawProvider(config, skill_registry=registry)
+        mock_response = _make_qwenpaw_response(
+            steps=[
+                {"skill_id": "move_forward", "params": {"distance": 5.0, "speed": 0.5}},
+            ],
+        )
+
+        async def _mock_call(mission: MissionContext) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_api = _mock_call  # type: ignore[method-assign]
+
+        proposal = await provider.generate_plan(_make_mission())
+
+        step = proposal.steps[0]
+        assert step.valid is True
+        assert step.validation_error is None
+
+
+class TestSchemaValidationPartialInvalid:
+    """A proposal with a mix of valid and invalid steps should retain all."""
+
+    async def test_mixed_valid_and_invalid_steps(self):
+        config = _make_config()
+        move_skill = SkillDefinition(
+            skill_id="move_forward",
+            input_schema={
+                "type": "object",
+                "properties": {"distance": {"type": "number"}},
+                "required": ["distance"],
+            },
+        )
+        capture_skill = SkillDefinition(
+            skill_id="capture_image",
+            input_schema={
+                "type": "object",
+                "properties": {"resolution": {"type": "string"}},
+            },
+        )
+        registry = _make_skill_registry({
+            "move_forward": move_skill,
+            "capture_image": capture_skill,
+        })
+        provider = QwenPawProvider(config, skill_registry=registry)
+        mock_response = _make_qwenpaw_response(
+            steps=[
+                # Valid step
+                {"skill_id": "move_forward", "params": {"distance": 3.0}},
+                # Invalid: wrong param type
+                {"skill_id": "capture_image", "params": {"resolution": 1080}},
+                # Invalid: unregistered skill
+                {"skill_id": "unknown_skill", "params": {}},
+            ],
+        )
+
+        async def _mock_call(mission: MissionContext) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_api = _mock_call  # type: ignore[method-assign]
+
+        proposal = await provider.generate_plan(_make_mission())
+
+        assert len(proposal.steps) == 3
+        assert proposal.error is None
+
+        # Step 0: valid
+        assert proposal.steps[0].valid is True
+        assert proposal.steps[0].validation_error is None
+
+        # Step 1: invalid params
+        assert proposal.steps[1].valid is False
+        assert proposal.steps[1].validation_error is not None
+
+        # Step 2: unregistered skill
+        assert proposal.steps[2].valid is False
+        assert "not registered" in (proposal.steps[2].validation_error or "")
+
+
+class TestSchemaValidationNoRegistry:
+    """Without a skill registry, all steps should remain valid (backward compat)."""
+
+    async def test_no_registry_all_steps_valid(self):
+        config = _make_config()
+        provider = QwenPawProvider(config)  # no skill_registry
+        mock_response = _make_qwenpaw_response(
+            steps=[
+                {"skill_id": "any_skill", "params": {"whatever": True}},
+                {"skill_id": "another_skill", "params": {}},
+            ],
+        )
+
+        async def _mock_call(mission: MissionContext) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_api = _mock_call  # type: ignore[method-assign]
+
+        proposal = await provider.generate_plan(_make_mission())
+
+        assert len(proposal.steps) == 2
+        for step in proposal.steps:
+            assert step.valid is True
+            assert step.validation_error is None
+
+
+class TestPlanStepValidationFields:
+    """Verify PlanStep default field values."""
+
+    def test_plan_step_defaults_valid_true(self):
+        step = PlanStep(step_id="s1", skill_id="move")
+        assert step.valid is True
+        assert step.validation_error is None
+
+    def test_plan_step_with_validation_error(self):
+        step = PlanStep(
+            step_id="s1",
+            skill_id="move",
+            valid=False,
+            validation_error="bad params",
+        )
+        assert step.valid is False
+        assert step.validation_error == "bad params"

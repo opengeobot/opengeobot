@@ -1,5 +1,5 @@
 /*
- * Function: Permission enforcement integration tests — 403 vs 200 based on authorities
+ * Function: Permission enforcement web-layer tests - 403 vs 200 based on authorities
  * Time: 2026-07-06
  * Author: AxeXie
  */
@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Integration tests for permission enforcement. Verifies that endpoints return
+ * Web-layer tests for permission enforcement. Verifies that endpoints return
  * 403 without proper permissions and 200 with proper permissions.
  *
  * <p>Uses @WithMockUser to simulate authenticated users with specific authorities.
@@ -41,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class PermissionEnforcementIntegrationTest {
+class PermissionEnforcementWebLayerTest {
 
     @Autowired private MockMvc mockMvc;
     @MockBean private RobotService robotService;

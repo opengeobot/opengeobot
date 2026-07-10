@@ -8,6 +8,7 @@
     "robots": "Robots",
     "missions": "Missions",
     "skills": "Skills",
+    "mcp": "MCP Tools",
     "policies": "Policies",
     "maps": "Maps & Scenes",
     "monitor": "Monitor",
@@ -358,6 +359,28 @@
     "create_title": "Create Skill",
     "edit_title": "Edit Skill"
   },
+  "mcp": {
+    "title": "MCP Tool Management",
+    "tool_name": "Tool Name",
+    "version": "Version",
+    "status": "Status",
+    "risk_level": "Risk Level",
+    "description": "Description",
+    "permission_code": "Permission Code",
+    "input_schema": "Input Schema",
+    "output_schema": "Output Schema",
+    "register_tool": "Register Tool",
+    "invoke": "Invoke Test",
+    "input": "Input (JSON)",
+    "result": "Result",
+    "invocation_history": "Invocation History",
+    "invoked_at": "Invoked At",
+    "duration": "Duration (ms)",
+    "trace_id": "Trace ID",
+    "active": "Active",
+    "inactive": "Inactive",
+    "invalid_json": "Invalid JSON format"
+  },
   "mission": {
     "title": "Mission Management",
     "name": "Mission Name",
@@ -381,7 +404,8 @@
     "template_code": "Template Code",
     "create_template": "Create Template",
     "create_title": "Create Mission",
-    "edit_title": "Edit Mission"
+    "edit_title": "Edit Mission",
+    "execution_failed": "Mission execution failed"
   },
   "policy": {
     "title": "Policy Management",

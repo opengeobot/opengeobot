@@ -9,6 +9,7 @@ import os
 from dataclasses import dataclass
 
 DEFAULT_NATS_URL = "nats://localhost:4222"
+DEFAULT_JETSTREAM_STREAM = "ROS1_ADAPTER_STREAM"
 
 
 def _env_str(key: str, default: str) -> str:
@@ -38,11 +39,22 @@ class Ros1Config:
     ros_master_uri: str
     node_name: str
     log_level: str
+    jetstream_stream_name: str = DEFAULT_JETSTREAM_STREAM
 
     @property
     def translate_subject(self) -> str:
-        """Cloud → adapter command translation request subject."""
+        """Cloud -> adapter command translation request subject."""
         return f"opengeobot.dev.adapter.translate.{self.adapter_id}"
+
+    @property
+    def jetstream_stream_subjects(self) -> list[str]:
+        """Subjects covered by the JetStream persistence stream."""
+        return [self.translate_subject]
+
+    @property
+    def jetstream_durable_name(self) -> str:
+        """Durable consumer name for the translation request subject."""
+        return f"ros1-adapter-{self.adapter_id}"
 
     @classmethod
     def from_env(cls) -> Ros1Config:
@@ -58,4 +70,5 @@ class Ros1Config:
             ros_master_uri=_env_str("ROS_MASTER_URI", "http://localhost:11311"),
             node_name=_env_str("ROS1_NODE_NAME", "opengeobot_ros1"),
             log_level=_env_str("LOG_LEVEL", "INFO"),
+            jetstream_stream_name=_env_str("ROS1_JETSTREAM_STREAM", DEFAULT_JETSTREAM_STREAM),
         )

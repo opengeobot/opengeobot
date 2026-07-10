@@ -87,6 +87,8 @@ class TestEdgeConfigDefaults:
             "ROBOT_ID", "NATS_URL", "NATS_MAX_RECONNECT", "EDGE_NATS_RECONNECT_WAIT",
             "NATS_CONNECT_TIMEOUT", "CLOUD_API_BASE_URL", "EDGE_STATE_PUBLISH_INTERVAL",
             "EDGE_SKILL_REQUEST_TIMEOUT", "EDGE_OFFLINE_CACHE_PATH", "LOG_LEVEL",
+            "EDGE_JETSTREAM_STREAM_NAME", "EDGE_JETSTREAM_STREAM_SUBJECTS",
+            "EDGE_JETSTREAM_CONSUMER_PREFIX",
         ):
             monkeypatch.delenv(key, raising=False)
 
@@ -102,6 +104,9 @@ class TestEdgeConfigDefaults:
         assert config.skill_request_timeout == 10.0
         assert config.offline_cache_path == "./.edge-data/offline-cache.json"
         assert config.log_level == "INFO"
+        assert config.jetstream_stream_name == "EDGE_STREAM"
+        assert config.jetstream_stream_subjects == "opengeobot.dev.edge.>"
+        assert config.jetstream_consumer_prefix == "edge-cmd"
 
 
 class TestEdgeConfigEnvOverrides:
@@ -145,6 +150,21 @@ class TestEdgeConfigEnvOverrides:
         config = EdgeConfig.from_env()
         assert config.cloud_api_base_url == "http://cloud:9090"
 
+    def test_jetstream_stream_name_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("EDGE_JETSTREAM_STREAM_NAME", "CUSTOM_EDGE_STREAM")
+        config = EdgeConfig.from_env()
+        assert config.jetstream_stream_name == "CUSTOM_EDGE_STREAM"
+
+    def test_jetstream_stream_subjects_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("EDGE_JETSTREAM_STREAM_SUBJECTS", "custom.edge.>")
+        config = EdgeConfig.from_env()
+        assert config.jetstream_stream_subjects == "custom.edge.>"
+
+    def test_jetstream_consumer_prefix_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("EDGE_JETSTREAM_CONSUMER_PREFIX", "edge-cmd-custom")
+        config = EdgeConfig.from_env()
+        assert config.jetstream_consumer_prefix == "edge-cmd-custom"
+
 
 class TestEdgeConfigSubjects:
     def test_command_subject_contains_robot_id(self) -> None:
@@ -182,6 +202,25 @@ class TestEdgeConfigSubjects:
             skill_request_timeout=10.0, offline_cache_path="", log_level="INFO",
         )
         assert config.reconciliation_subject == "opengeobot.dev.edge.reconcile.rbt_456"
+
+    def test_jetstream_consumer_name_contains_robot_id(self) -> None:
+        config = EdgeConfig(
+            robot_id="rbt_789", nats_url="", nats_max_reconnect=-1,
+            nats_reconnect_wait=2.0, nats_connect_timeout=5.0,
+            cloud_api_base_url="", state_publish_interval=5.0,
+            skill_request_timeout=10.0, offline_cache_path="", log_level="INFO",
+        )
+        assert config.jetstream_consumer_name == "edge-cmd-rbt_789"
+
+    def test_jetstream_consumer_name_with_custom_prefix(self) -> None:
+        config = EdgeConfig(
+            robot_id="rbt_789", nats_url="", nats_max_reconnect=-1,
+            nats_reconnect_wait=2.0, nats_connect_timeout=5.0,
+            cloud_api_base_url="", state_publish_interval=5.0,
+            skill_request_timeout=10.0, offline_cache_path="", log_level="INFO",
+            jetstream_consumer_prefix="gw-cmd",
+        )
+        assert config.jetstream_consumer_name == "gw-cmd-rbt_789"
 
 
 class TestEdgeConfigImmutable:

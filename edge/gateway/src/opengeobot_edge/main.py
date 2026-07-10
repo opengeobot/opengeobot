@@ -3,11 +3,16 @@
 # Author: AxeXie
 """Edge gateway runtime entry point.
 
-Wires configuration, NATS connection, command handler, state publisher, offline
-cache and reconciler. The gateway subscribes to the cloud command channel,
-forwards skill executions to the local skill executor (sim-adapter for M2), and
-publishes state back to the cloud. On NATS reconnect the reconciler flushes
-cached states and reports pending commands.
+Wires configuration, NATS connection, JetStream durable consumer, command
+handler, state publisher, offline cache and reconciler. The gateway subscribes
+to the cloud command channel via a JetStream durable consumer (so commands are
+not lost during transient disconnects), forwards skill executions to the local
+skill executor (sim-adapter for M2), and publishes state back to the cloud.
+
+Safety is enforced through a shared ``SafetyStateMachine`` (SM-SAFETY-001)
+that is local-first and does not depend on the cloud or NATS. On NATS reconnect
+the reconciler flushes cached states and reports pending commands; the JetStream
+durable consumer resumes from the last acknowledged message.
 
 Run directly:
     python -m opengeobot_edge.main
@@ -23,9 +28,11 @@ import sys
 
 from loguru import logger
 
+from opengeobot_safety_gateway.safety_state import SafetyStateMachine
+
 from .command_handler import CommandHandler
 from .config import EdgeConfig
-from .nats_client import NatsBridge
+from .nats_client import NatsBridge, NatsConnectionError
 from .offline_cache import OfflineCache
 from .reconciliation import Reconciler
 from .state_publisher import StatePublisher
@@ -54,9 +61,17 @@ class EdgeGateway:
         self._config = config
         self._nats = NatsBridge(config)
         self._offline_cache = OfflineCache(config.offline_cache_path)
-        self._state_publisher = StatePublisher(config, self._nats, self._offline_cache)
+        # Shared safety state machine (SM-SAFETY-001) - local-first, cloud-independent.
+        self._safety_state = SafetyStateMachine()
+        self._state_publisher = StatePublisher(
+            config, self._nats, self._offline_cache, safety_state=self._safety_state
+        )
         self._command_handler = CommandHandler(
-            config, self._nats, self._state_publisher, self._offline_cache
+            config,
+            self._nats,
+            self._state_publisher,
+            self._offline_cache,
+            safety_state=self._safety_state,
         )
         self._reconciler = Reconciler(
             config, self._nats, self._offline_cache, self._state_publisher
@@ -69,17 +84,49 @@ class EdgeGateway:
         self._nats.on_reconnect = self._reconciler.reconcile
 
         await self._nats.connect()
-        await self._nats.subscribe(
-            self._config.command_subject, self._command_handler.handle_command
-        )
+
+        # Subscribe to the command channel via a JetStream durable consumer.
+        # The durable name ensures the consumer resumes from the last acked
+        # message on reconnect, preventing command loss.
+        await self._subscribe_command_channel()
+
         await self._state_publisher.start_heartbeat()
 
         # Announce the edge is online.
         await self._state_publisher.publish_state(trace_id="edge-bootstrap")
 
         logger.bind(robot_id=self._config.robot_id).info(
-            "Edge gateway started and subscribed to command channel"
+            "Edge gateway started and subscribed to command channel via JetStream"
         )
+
+    async def _subscribe_command_channel(self) -> None:
+        """Subscribe to the command channel.
+
+        Prefers a JetStream durable consumer so commands survive transient
+        disconnects. Falls back to a plain NATS subscription if JetStream is
+        not available (e.g. NATS server without JetStream enabled).
+        """
+        if self._nats.has_jetstream:
+            try:
+                await self._nats.subscribe_jetstream(
+                    self._config.command_subject,
+                    durable=self._config.jetstream_consumer_name,
+                    handler=self._command_handler.handle_command,
+                )
+                logger.info(
+                    "Subscribed to command channel via JetStream durable consumer '{}'",
+                    self._config.jetstream_consumer_name,
+                )
+                return
+            except NatsConnectionError:
+                logger.warning(
+                    "JetStream subscription failed; falling back to plain NATS"
+                )
+        # Fallback: plain NATS subscription (no durability).
+        await self._nats.subscribe(
+            self._config.command_subject, self._command_handler.handle_command
+        )
+        logger.info("Subscribed to command channel via plain NATS (no JetStream)")
 
     async def stop(self) -> None:
         logger.info("Edge gateway stopping...")

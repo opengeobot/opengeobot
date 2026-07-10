@@ -1,167 +1,155 @@
 /*
- * Function: Mission lifecycle integration tests — create, plan, approve, execute
- * Time: 2026-07-06
+ * Function: Real mission lifecycle integration tests - DB-backed create, start, cancel
+ * Time: 2026-07-09
  * Author: AxeXie
  */
 package io.opengeobot.platform.integration;
 
-import io.opengeobot.platform.robot.dto.MissionApprovalDto;
+import io.opengeobot.platform.robot.dto.CreateMissionRequest;
 import io.opengeobot.platform.robot.dto.MissionDto;
+import io.opengeobot.platform.robot.dto.MissionStepDto;
+import io.opengeobot.platform.robot.dto.RevisePlanRequest;
 import io.opengeobot.platform.robot.service.MissionService;
-import io.opengeobot.platform.robot.web.ConflictException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for the mission lifecycle flow. Tests the full cycle:
- * create → plan → submit approval → approve → start → complete.
+ * Real integration tests for the mission lifecycle backed by a PostgreSQL
+ * container. Each test calls {@link MissionService} directly (no mocks) and
+ * verifies that database records and outbox events are persisted correctly.
+ *
+ * <p>{@code @Transactional} ensures each test method runs in a transaction
+ * that is rolled back at the end, providing full test isolation.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-class MissionLifecycleIntegrationTest {
+@Transactional
+class MissionLifecycleIntegrationTest extends AbstractIntegrationTest {
 
-    @Autowired private MockMvc mockMvc;
-    @MockBean private MissionService missionService;
+    @Autowired private MissionService missionService;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
-    private MissionDto createMissionDto(String status) {
-        return new MissionDto("msn_001", "Test Mission", "desc", "rbt_001",
-                status, "NORMAL", null, null, null, null,
-                "user_001", null, null, "trace_001", null);
+    private static final String SEEDED_ROBOT_ID = "rbt_01J00000000000000000000001";
+
+    private MissionStepDto step(int order, String skillId) {
+        return new MissionStepDto(null, null, skillId, order, Map.of(), null,
+                null, null, null, null);
+    }
+
+    private MissionDto createMission() {
+        CreateMissionRequest request = new CreateMissionRequest(
+                "Integration Test Mission",
+                "Created by integration test",
+                SEEDED_ROBOT_ID,
+                "NORMAL",
+                null,
+                List.of(step(1, "skl_nav"))
+        );
+        return missionService.create(request);
+    }
+
+    private void transitionToExecuting(String missionId) {
+        RevisePlanRequest planRequest = new RevisePlanRequest(
+                List.of(step(1, "skl_nav"))
+        );
+        missionService.revisePlan(missionId, planRequest);
+        missionService.start(missionId);
     }
 
     @Test
-    @WithMockUser(authorities = {"mission.mission.create"})
-    void createMission_validRequestReturns201() throws Exception {
-        when(missionService.create(any())).thenReturn(createMissionDto("PENDING"));
+    void createMission_persistsToDatabase() {
+        MissionDto result = createMission();
 
-        mockMvc.perform(post("/api/v1/missions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name":"Test Mission","description":"desc","robot_id":"rbt_001","priority":"NORMAL","steps":[{"skill_id":"skl_nav","step_order":1,"params":{}}]}
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.mission_id").value("msn_001"))
-                .andExpect(jsonPath("$.status").value("PENDING"));
+        assertNotNull(result.missionId());
+        assertEquals("PENDING", result.status());
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT mission_id, name, status, robot_id FROM mission.mission WHERE mission_id = ?",
+                result.missionId());
+
+        assertEquals(result.missionId(), row.get("mission_id"));
+        assertEquals("Integration Test Mission", row.get("name"));
+        assertEquals("PENDING", row.get("status"));
+        assertEquals(SEEDED_ROBOT_ID, row.get("robot_id"));
+
+        Long eventCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM platform_governance.outbox_event WHERE aggregate_id = ? AND event_type = ?",
+                Long.class, result.missionId(), "mission.created.v1");
+        assertNotNull(eventCount);
+        assertEquals(1L, eventCount, "mission.created.v1 outbox event should be created");
     }
 
     @Test
-    @WithMockUser(authorities = {"mission.mission.create"})
-    void revisePlan_validRequestReturns200() throws Exception {
-        when(missionService.revisePlan(any(), any())).thenReturn(createMissionDto("READY"));
+    void startMission_transitionsToExecutingAndCreatesOutboxEvent() {
+        MissionDto created = createMission();
+        transitionToExecuting(created.missionId());
 
-        mockMvc.perform(post("/api/v1/missions/msn_001/plan")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"steps":[{"skill_id":"skl_nav","step_order":1,"params":{"target":"room_a"}}]}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("READY"));
+        String status = jdbcTemplate.queryForObject(
+                "SELECT status FROM mission.mission WHERE mission_id = ?",
+                String.class, created.missionId());
+        assertEquals("EXECUTING", status);
+
+        Long startedEventCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM platform_governance.outbox_event WHERE aggregate_id = ? AND event_type = ?",
+                Long.class, created.missionId(), "mission.started.v1");
+        assertNotNull(startedEventCount);
+        assertEquals(1L, startedEventCount, "mission.started.v1 outbox event should be created");
+
+        Object startedAt = jdbcTemplate.queryForObject(
+                "SELECT started_at FROM mission.mission WHERE mission_id = ?",
+                Object.class, created.missionId());
+        assertNotNull(startedAt, "started_at should be populated");
     }
 
     @Test
-    @WithMockUser(authorities = {"mission.mission.create"})
-    void submitApproval_fromReadyReturns200() throws Exception {
-        MissionApprovalDto approval = new MissionApprovalDto(
-                "msn_001", "user_001", "PENDING", null, null, null);
-        when(missionService.submitApproval("msn_001")).thenReturn(approval);
+    void cancelMission_transitionsToCancelledAndCreatesOutboxEvent() {
+        MissionDto created = createMission();
+        transitionToExecuting(created.missionId());
 
-        mockMvc.perform(post("/api/v1/missions/msn_001/submit-approval"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING"));
+        MissionDto cancelled = missionService.cancel(created.missionId());
+        assertEquals("CANCELLED", cancelled.status());
+
+        String status = jdbcTemplate.queryForObject(
+                "SELECT status FROM mission.mission WHERE mission_id = ?",
+                String.class, created.missionId());
+        assertEquals("CANCELLED", status);
+
+        Object completedAt = jdbcTemplate.queryForObject(
+                "SELECT completed_at FROM mission.mission WHERE mission_id = ?",
+                Object.class, created.missionId());
+        assertNotNull(completedAt, "completed_at should be populated for cancelled mission");
+
+        Long cancelEventCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM platform_governance.outbox_event WHERE aggregate_id = ? AND event_type = ?",
+                Long.class, created.missionId(), "mission.cancelled.v1");
+        assertNotNull(cancelEventCount);
+        assertEquals(1L, cancelEventCount, "mission.cancelled.v1 outbox event should be created");
     }
 
     @Test
-    @WithMockUser(authorities = {"mission.mission.approve"})
-    void approveMission_pendingApprovalReturnsApproved() throws Exception {
-        MissionApprovalDto approval = new MissionApprovalDto(
-                "msn_001", "user_001", "APPROVED", "Looks good", null, null);
-        when(missionService.approve(any(), any())).thenReturn(approval);
+    void pauseAndResume_maintainsExecutingState() {
+        MissionDto created = createMission();
+        transitionToExecuting(created.missionId());
 
-        mockMvc.perform(post("/api/v1/missions/msn_001/approve")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"comment":"Looks good"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("APPROVED"));
-    }
+        MissionDto paused = missionService.pause(created.missionId());
+        assertEquals("PAUSED", paused.status());
 
-    @Test
-    @WithMockUser(authorities = {"mission.mission.approve"})
-    void rejectMission_pendingApprovalReturnsRejected() throws Exception {
-        MissionApprovalDto approval = new MissionApprovalDto(
-                "msn_001", "user_001", "REJECTED", "Safety concern", null, null);
-        when(missionService.reject(any(), any())).thenReturn(approval);
+        String pausedStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM mission.mission WHERE mission_id = ?",
+                String.class, created.missionId());
+        assertEquals("PAUSED", pausedStatus);
 
-        mockMvc.perform(post("/api/v1/missions/msn_001/reject")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"comment":"Safety concern"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("REJECTED"));
-    }
+        MissionDto resumed = missionService.resume(created.missionId());
+        assertEquals("EXECUTING", resumed.status());
 
-    @Test
-    @WithMockUser(authorities = {"mission.mission.create"})
-    void startMission_fromReadyReturnsExecuting() throws Exception {
-        when(missionService.start("msn_001")).thenReturn(createMissionDto("EXECUTING"));
-
-        mockMvc.perform(post("/api/v1/missions/msn_001/start"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("EXECUTING"));
-    }
-
-    @Test
-    @WithMockUser(authorities = {"mission.mission.create"})
-    void startMission_fromPendingReturns409() throws Exception {
-        when(missionService.start("msn_001"))
-                .thenThrow(new ConflictException("Mission not in READY state"));
-
-        mockMvc.perform(post("/api/v1/missions/msn_001/start"))
-                .andExpect(status().isConflict());
-    }
-
-    @Test
-    @WithMockUser(authorities = {"mission.mission.pause"})
-    void pauseMission_fromExecutingReturnsPaused() throws Exception {
-        when(missionService.pause("msn_001")).thenReturn(createMissionDto("PAUSED"));
-
-        mockMvc.perform(post("/api/v1/missions/msn_001/pause"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PAUSED"));
-    }
-
-    @Test
-    @WithMockUser(authorities = {"mission.mission.pause"})
-    void resumeMission_fromPausedReturnsExecuting() throws Exception {
-        when(missionService.resume("msn_001")).thenReturn(createMissionDto("EXECUTING"));
-
-        mockMvc.perform(post("/api/v1/missions/msn_001/resume"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("EXECUTING"));
-    }
-
-    @Test
-    @WithMockUser(authorities = {"mission.mission.cancel"})
-    void cancelMission_fromExecutingReturnsCancelled() throws Exception {
-        when(missionService.cancel("msn_001")).thenReturn(createMissionDto("CANCELLED"));
-
-        mockMvc.perform(post("/api/v1/missions/msn_001/cancel"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("CANCELLED"));
+        String resumedStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM mission.mission WHERE mission_id = ?",
+                String.class, created.missionId());
+        assertEquals("EXECUTING", resumedStatus);
     }
 }

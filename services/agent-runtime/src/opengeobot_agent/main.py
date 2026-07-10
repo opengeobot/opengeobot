@@ -24,7 +24,7 @@ from loguru import logger
 from .config import AgentConfig
 from .handler import PlanningRequestHandler
 from .nats_client import NatsBridge
-from .provider import QwenPawProvider
+from .provider import NatsSkillRegistry, QwenPawProvider
 
 
 def _configure_logging(level: str) -> None:
@@ -49,18 +49,28 @@ class AgentRuntime:
     def __init__(self, config: AgentConfig) -> None:
         self._config = config
         self._nats = NatsBridge(config)
-        self._provider = QwenPawProvider(config)
+        skill_registry = NatsSkillRegistry(
+            self._nats,
+            subject=config.skill_list_subject,
+            timeout=config.skill_request_timeout,
+        )
+        self._provider = QwenPawProvider(config, skill_registry=skill_registry)
         self._handler = PlanningRequestHandler(config, self._nats, self._provider)
         self._stop_event = asyncio.Event()
 
     async def start(self) -> None:
         await self._nats.connect()
-        await self._nats.subscribe(
+        await self._nats.ensure_stream()
+        await self._nats.subscribe_js(
             self._config.plan_request_subject,
             self._handler.handle_plan_request,
+            durable=self._config.js_durable_consumer,
         )
         logger.info(
-            "Agent runtime started — subscribed to {}", self._config.plan_request_subject
+            "Agent runtime started - JetStream durable consumer '{}' "
+            "subscribed to {}",
+            self._config.js_durable_consumer,
+            self._config.plan_request_subject,
         )
 
     async def stop(self) -> None:

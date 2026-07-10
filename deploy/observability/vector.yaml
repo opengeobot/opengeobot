@@ -1,15 +1,36 @@
-# OpenGeoBot — Vector log pipeline configuration
+# OpenGeoBot - Vector log pipeline configuration
 # Time: 2026-07-03
 # Author: AxeXie
 sources:
   docker_logs:
     type: docker_logs
 
+transforms:
+  # Filter out debug/trace-level logs (keep info and above)
+  filter_debug:
+    type: filter
+    inputs: [docker_logs]
+    condition: |
+      level = to_string(.level) ?? "info"
+      level = downcase(level)
+      level != "debug" && level != "trace"
+
+  # Redact sensitive fields before forwarding to Loki
+  redact_sensitive:
+    type: remap
+    inputs: [filter_debug]
+    source: |
+      if exists(.token) { .token = "[REDACTED]" }
+      if exists(.password) { .password = "[REDACTED]" }
+      if exists(.secret) { .secret = "[REDACTED]" }
+      if exists(.authorization) { .authorization = "[REDACTED]" }
+      if exists(.api_key) { .api_key = "[REDACTED]" }
+
 sinks:
   loki:
     type: loki
     inputs:
-      - docker_logs
+      - redact_sensitive
     endpoint: http://loki:3100
     labels:
       source: docker

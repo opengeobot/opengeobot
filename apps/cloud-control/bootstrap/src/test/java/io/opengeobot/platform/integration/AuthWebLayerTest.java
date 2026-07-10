@@ -1,5 +1,5 @@
 /*
- * Function: Auth integration tests — login, refresh, logout, profile flow
+ * Function: Auth web-layer tests - login, refresh, logout, profile flow
  * Time: 2026-07-06
  * Author: AxeXie
  */
@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Integration tests for the authentication flow. Tests login, refresh, and
+ * Web-layer tests for the authentication flow. Tests login, refresh, and
  * logout endpoints using MockMvc with a mocked {@link AuthService}.
  *
  * <p>Uses @SpringBootTest with the test profile (H2 in-memory database,
@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class AuthIntegrationTest {
+class AuthWebLayerTest {
 
     @Autowired private MockMvc mockMvc;
     @MockBean private AuthService authService;

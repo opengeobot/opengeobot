@@ -1,15 +1,48 @@
-# OpenGeoBot — vmagent scrape configuration
+# OpenGeoBot - vmagent scrape configuration
 # Time: 2026-07-03
 # Author: AxeXie
 global:
   scrape_interval: 15s
 
 scrape_configs:
+  # --- Cloud services ---
   - job_name: 'cloud-control'
     static_configs:
       - targets: ['cloud-control:8080']
     metrics_path: /actuator/prometheus
 
+  # --- Observability infra ---
   - job_name: 'victoriametrics'
     static_configs:
       - targets: ['victoriametrics:8428']
+
+  # --- Edge / sim services (sim profile) ---
+  - job_name: 'edge-gateway'
+    static_configs:
+      - targets: ['edge-gateway:9090']
+    metrics_path: /metrics
+
+  - job_name: 'safety-gateway'
+    static_configs:
+      - targets: ['safety-gateway:9091']
+    metrics_path: /metrics
+
+  - job_name: 'local-skill-executor'
+    static_configs:
+      - targets: ['local-skill-executor:9092']
+    metrics_path: /metrics
+
+  - job_name: 'sim-adapter'
+    static_configs:
+      - targets: ['sim-adapter:9093']
+    metrics_path: /metrics
+
+  - job_name: 'agent-runtime'
+    static_configs:
+      - targets: ['agent-runtime:9094']
+    metrics_path: /metrics
+
+  - job_name: 'mcp-tool-gateway'
+    static_configs:
+      - targets: ['mcp-tool-gateway:9095']
+    metrics_path: /metrics

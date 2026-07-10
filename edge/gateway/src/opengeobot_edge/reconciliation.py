@@ -10,6 +10,17 @@ When the NATS connection is restored after an offline period the reconciler:
      whether to reissue or cancel them.
   3. Publishes a fresh ``edge.reconciled``-style state summarizing the outcome.
 
+JetStream + offline_cache coordination:
+  - The JetStream durable consumer (``EDGE_STREAM`` / ``edge-cmd-{robot_id}``)
+    automatically resumes from the last acknowledged message on reconnect.
+    Commands published by the cloud while the edge was transiently disconnected
+    (but the NATS server was still running) are replayed by the server without
+    any explicit action from the reconciler.
+  - The offline cache handles truly offline periods (NATS server unreachable):
+    state updates that could not be published are cached locally and flushed
+    here. Pending commands that were received but not yet marked done are
+    reported so the cloud can decide to reissue or cancel them.
+
 All reconciliation events are logged with their trace ids so they appear in the
 end-to-end trace.
 """

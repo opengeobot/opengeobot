@@ -51,6 +51,13 @@ class AgentConfig:
     # NATS subject for receiving mission planning requests.
     plan_request_subject: str
     log_level: str
+    # JetStream durable consumer configuration.
+    js_stream_name: str = "AGENT_STREAM"
+    js_durable_consumer: str = "agent-runtime-consumer"
+    js_stream_subjects: str = "opengeobot.agent.>"
+    # Skill registry query configuration.
+    skill_list_subject: str = "opengeobot.skill.list"
+    skill_request_timeout: float = 5.0
 
     @classmethod
     def from_env(cls) -> AgentConfig:
@@ -67,4 +74,15 @@ class AgentConfig:
                 "opengeobot.agent.mission.plan_request",
             ),
             log_level=_env_str("LOG_LEVEL", "INFO"),
+            js_stream_name=_env_str("AGENT_JS_STREAM_NAME", "AGENT_STREAM"),
+            js_durable_consumer=_env_str(
+                "AGENT_JS_DURABLE_CONSUMER", "agent-runtime-consumer"
+            ),
+            js_stream_subjects=_env_str(
+                "AGENT_JS_STREAM_SUBJECTS", "opengeobot.agent.>"
+            ),
+            skill_list_subject=_env_str(
+                "AGENT_SKILL_LIST_SUBJECT", "opengeobot.skill.list"
+            ),
+            skill_request_timeout=_env_float("AGENT_SKILL_REQUEST_TIMEOUT", 5.0),
         )

@@ -21,9 +21,11 @@ import asyncio
 import json
 import random
 import uuid
+from collections import deque
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+import jsonschema
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -90,7 +92,9 @@ class ToolRouter:
         self._config = config
         self._nats = nats
         self._registry = registry
-        self._invocation_log: list[InvocationLogEntry] = []
+        # In-memory cache of the last 100 invocations for recent queries.
+        # Primary audit storage is NATS (opengeobot.audit.mcp_tool_call).
+        self._invocation_log: deque[InvocationLogEntry] = deque(maxlen=100)
         self._rng = random.Random()
 
     @property
@@ -136,7 +140,7 @@ class ToolRouter:
                 started_at=started_at,
                 completed_at=_now_iso(),
             )
-            self._log_invocation(invocation, result, {})
+            await self._log_invocation(invocation, result, {})
             return result
 
         routing = self.select_routing(entry)
@@ -156,7 +160,7 @@ class ToolRouter:
                     started_at=started_at,
                     completed_at=_now_iso(),
                 )
-                self._log_invocation(invocation, result, {})
+                await self._log_invocation(invocation, result, {})
                 return result
 
         logger.bind(
@@ -167,8 +171,42 @@ class ToolRouter:
             version=registration.definition.version,
         ).info("Invoking tool")
 
+        # Validate input against the tool's input schema before dispatching.
+        input_schema = registration.definition.input_schema
+        if input_schema:
+            try:
+                jsonschema.validate(invocation.input, input_schema)
+            except jsonschema.ValidationError as exc:
+                result = ToolInvocationResult(
+                    invocation_id=invocation.invocation_id,
+                    trace_id=invocation.trace_id,
+                    tool_name=invocation.tool_name,
+                    success=False,
+                    error=f"input_schema_invalid: {exc.message}",
+                    routing=routing,
+                    started_at=started_at,
+                    completed_at=_now_iso(),
+                )
+                await self._log_invocation(invocation, result, {})
+                return result
+
         try:
             output = await self._dispatch(registration, invocation)
+
+            # Validate output against the tool's output schema. On failure,
+            # log a warning but still return the result.
+            output_schema = registration.definition.output_schema
+            if output_schema:
+                try:
+                    jsonschema.validate(output, output_schema)
+                except jsonschema.ValidationError as exc:
+                    logger.bind(
+                        invocation_id=invocation.invocation_id,
+                        trace_id=invocation.trace_id,
+                        tool_name=invocation.tool_name,
+                        error=exc.message,
+                    ).warning("Output schema validation failed")
+
             result = ToolInvocationResult(
                 invocation_id=invocation.invocation_id,
                 trace_id=invocation.trace_id,
@@ -207,7 +245,7 @@ class ToolRouter:
                 completed_at=_now_iso(),
             )
 
-        self._log_invocation(invocation, result, output if result.success else {})
+        await self._log_invocation(invocation, result, output if result.success else {})
         return result
 
     async def _dispatch(
@@ -249,13 +287,18 @@ class ToolRouter:
 
         raise ValueError(f"Unknown backend_type '{reg.backend_type}'")
 
-    def _log_invocation(
+    async def _log_invocation(
         self,
         invocation: ToolInvocation,
         result: ToolInvocationResult,
         output: dict[str, Any],
     ) -> None:
-        """Record the invocation in the audit log."""
+        """Record the invocation in the audit log and publish to NATS.
+
+        The in-memory cache (last 100 entries) is kept for recent queries.
+        Primary audit storage is the NATS subject
+        ``opengeobot.audit.mcp_tool_call``.
+        """
         entry = InvocationLogEntry(
             invocation_id=result.invocation_id,
             trace_id=result.trace_id,
@@ -269,6 +312,17 @@ class ToolRouter:
             completed_at=result.completed_at,
         )
         self._invocation_log.append(entry)
+
+        try:
+            await self._nats.publish(
+                self._config.audit_subject,
+                entry.model_dump_json().encode("utf-8"),
+            )
+        except Exception as exc:  # noqa: BLE001 - audit publish failure must not crash router
+            logger.bind(
+                invocation_id=entry.invocation_id,
+                error=str(exc),
+            ).warning("Failed to publish audit event")
 
         logger.bind(
             invocation_id=entry.invocation_id,

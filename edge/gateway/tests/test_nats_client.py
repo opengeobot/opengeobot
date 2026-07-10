@@ -39,6 +39,12 @@ def _make_mock_nc() -> MagicMock:
     nc.publish = AsyncMock()
     nc.request = AsyncMock()
     nc.drain = AsyncMock()
+    # Mock JetStream context so _init_jetstream succeeds in tests.
+    mock_js = MagicMock()
+    mock_js.stream_info = AsyncMock(return_value=MagicMock())  # stream exists
+    mock_js.add_stream = AsyncMock()
+    mock_js.subscribe = AsyncMock(return_value=MagicMock())
+    nc.jetstream = MagicMock(return_value=mock_js)
     return nc
 
 

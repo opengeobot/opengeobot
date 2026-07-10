@@ -20,13 +20,17 @@ import abc
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
+import jsonschema
 from loguru import logger
 from pydantic import BaseModel, Field
 
 from .config import AgentConfig
+
+if TYPE_CHECKING:
+    from .nats_client import NatsBridge
 
 
 def _now_iso() -> str:
@@ -56,12 +60,28 @@ class MissionContext(BaseModel):
 
 
 class PlanStep(BaseModel):
-    """A single step in a mission plan proposal."""
+    """A single step in a mission plan proposal.
+
+    The ``valid`` and ``validation_error`` fields are populated by the
+    provider's schema validation pass.  Invalid steps are retained in the
+    proposal (not discarded) so downstream pipelines can inspect them.
+    """
 
     step_id: str
     skill_id: str
     params: dict[str, Any] = Field(default_factory=dict)
     description: str = ""
+    valid: bool = True
+    validation_error: str | None = None
+
+    model_config = {"extra": "ignore"}
+
+
+class SkillDefinition(BaseModel):
+    """A registered skill definition with its JSON Schema for input params."""
+
+    skill_id: str
+    input_schema: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"extra": "ignore"}
 
@@ -111,6 +131,78 @@ class AgentRuntimeProvider(abc.ABC):
 
 
 # ------------------------------------------------------------------
+# Skill registry – used to validate LLM-generated plan steps.
+# ------------------------------------------------------------------
+
+
+class SkillRegistry(abc.ABC):
+    """Abstract interface for looking up registered skill definitions.
+
+    The registry is used by the provider to validate that each ``skill_id``
+    in an LLM-generated plan refers to a registered skill and that the step
+    ``params`` conform to the skill's ``input_schema``.
+    """
+
+    @abc.abstractmethod
+    async def get_skill(self, skill_id: str) -> SkillDefinition | None:
+        """Return the skill definition for ``skill_id`` or ``None`` if unknown."""
+        ...
+
+
+class StaticSkillRegistry(SkillRegistry):
+    """In-memory skill registry backed by a static dictionary.
+
+    Useful for testing and as a fallback when NATS is unavailable.
+    """
+
+    def __init__(self, skills: dict[str, SkillDefinition]) -> None:
+        self._skills: dict[str, SkillDefinition] = dict(skills)
+
+    async def get_skill(self, skill_id: str) -> SkillDefinition | None:
+        return self._skills.get(skill_id)
+
+
+class NatsSkillRegistry(SkillRegistry):
+    """Skill registry that queries the platform via NATS request-reply.
+
+    Skill definitions are cached after the first successful lookup to reduce
+    NATS round-trips.  If the NATS request fails (timeout, no responder, etc.)
+    the registry returns ``None`` so the provider marks the step as invalid
+    rather than discarding the entire proposal.
+    """
+
+    def __init__(
+        self,
+        nats: NatsBridge,
+        subject: str = "opengeobot.skill.list",
+        timeout: float = 5.0,
+    ) -> None:
+        self._nats = nats
+        self._subject = subject
+        self._timeout = timeout
+        self._cache: dict[str, SkillDefinition] = {}
+
+    async def get_skill(self, skill_id: str) -> SkillDefinition | None:
+        if skill_id in self._cache:
+            return self._cache[skill_id]
+        try:
+            reply = await self._nats.request(
+                self._subject,
+                json.dumps({"skill_id": skill_id}).encode("utf-8"),
+                self._timeout,
+            )
+            data = json.loads(reply.data)
+            skill = SkillDefinition.model_validate(data)
+            self._cache[skill_id] = skill
+            return skill
+        except Exception as exc:  # noqa: BLE001 - lookup failure marks step invalid
+            logger.bind(skill_id=skill_id, error=str(exc)).warning(
+                "Skill registry lookup failed"
+            )
+            return None
+
+
+# ------------------------------------------------------------------
 # QwenPaw provider implementation.
 # ------------------------------------------------------------------
 
@@ -131,8 +223,13 @@ class QwenPawProvider(AgentRuntimeProvider):
     downstream pipeline can handle the failure gracefully.
     """
 
-    def __init__(self, config: AgentConfig) -> None:
+    def __init__(
+        self,
+        config: AgentConfig,
+        skill_registry: SkillRegistry | None = None,
+    ) -> None:
         self._config = config
+        self._skill_registry = skill_registry
 
     async def generate_plan(self, mission: MissionContext) -> PlanProposal:
         """Call the QwenPaw API and return an UNTRUSTED plan proposal."""
@@ -160,7 +257,41 @@ class QwenPawProvider(AgentRuntimeProvider):
                 generated_at=_now_iso(),
             )
 
-        return self._parse_response(mission, response_data)
+        proposal = self._parse_response(mission, response_data)
+        await self._validate_steps(proposal)
+        return proposal
+
+    async def _validate_steps(self, proposal: PlanProposal) -> None:
+        """Validate each step's skill_id and params against the skill registry.
+
+        Invalid steps are marked with ``valid=False`` and a ``validation_error``
+        but are NOT removed from the proposal.  If no skill registry is
+        configured the validation is skipped and all steps remain valid.
+        """
+        if self._skill_registry is None:
+            return
+
+        for step in proposal.steps:
+            try:
+                skill = await self._skill_registry.get_skill(step.skill_id)
+            except Exception as exc:  # noqa: BLE001 - lookup failure marks step invalid
+                step.valid = False
+                step.validation_error = f"Skill lookup failed: {exc}"
+                continue
+
+            if skill is None:
+                step.valid = False
+                step.validation_error = f"Skill '{step.skill_id}' is not registered"
+                continue
+
+            try:
+                jsonschema.validate(instance=step.params, schema=skill.input_schema)
+            except jsonschema.ValidationError as exc:
+                step.valid = False
+                step.validation_error = exc.message
+            except jsonschema.SchemaError as exc:
+                step.valid = False
+                step.validation_error = f"Invalid skill schema for '{step.skill_id}': {exc.message}"
 
     async def _call_qwenpaw_api(self, mission: MissionContext) -> dict[str, Any]:
         """Call the QwenPaw HTTP API and return the parsed response body."""

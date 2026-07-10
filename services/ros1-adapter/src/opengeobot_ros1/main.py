@@ -27,6 +27,7 @@ import nats
 from loguru import logger
 from nats.aio.client import Client as NatsClient
 from nats.aio.msg import Msg
+from nats.js.api import StorageType, StreamConfig
 from pydantic import BaseModel, Field
 
 from .adapter import ProtocolAdapter, TranslationError
@@ -86,6 +87,7 @@ class Ros1Adapter:
     def __init__(self, config: Ros1Config) -> None:
         self._config = config
         self._nc: NatsClient | None = None
+        self._js: Any = None
         self._handler: ProtocolAdapter = _select_protocol_handler(config.protocol_type)
         self._stop_event = asyncio.Event()
 
@@ -102,14 +104,42 @@ class Ros1Adapter:
             connect_timeout=self._config.nats_connect_timeout,
             allow_reconnect=True,
         )
-        await self._nc.subscribe(
-            self._config.translate_subject, cb=self._handle_request
+        self._js = self._nc.jetstream()
+        await self._ensure_stream(
+            self._config.jetstream_stream_name,
+            self._config.jetstream_stream_subjects,
+        )
+        await self._js.subscribe(
+            self._config.translate_subject,
+            cb=self._handle_request,
+            durable=self._config.jetstream_durable_name,
+            manual_ack=True,
         )
         logger.bind(
             adapter_id=self._config.adapter_id,
             robot_id=self._config.robot_id,
             protocol_type=self.protocol_type,
         ).info("ROS1 adapter started and subscribed to translate channel")
+
+    async def _ensure_stream(self, name: str, subjects: list[str]) -> None:
+        """Create or update a JetStream stream covering the given subjects."""
+        if self._js is None:
+            logger.warning("JetStream not initialised; cannot ensure stream")
+            return
+        try:
+            config = StreamConfig(
+                name=name,
+                subjects=subjects,
+                storage=StorageType.FILE,
+            )
+            await self._js.add_stream(config=config)
+            logger.bind(stream=name, subjects=subjects).info(
+                "JetStream stream ensured"
+            )
+        except Exception as exc:  # noqa: BLE001 - stream creation failure must not crash adapter
+            logger.bind(stream=name, error=str(exc)).warning(
+                "Failed to ensure JetStream stream; adapter continues"
+            )
 
     async def stop(self) -> None:
         self._stop_event.set()
@@ -118,6 +148,7 @@ class Ros1Adapter:
                 await self._nc.drain()
             finally:
                 self._nc = None
+                self._js = None
 
     async def wait_for_shutdown(self) -> None:
         await self._stop_event.wait()
@@ -130,6 +161,7 @@ class Ros1Adapter:
             await self._reply_error(
                 msg, request_id="", trace_id="", adapter_id="", skill_id="", error=str(exc)
             )
+            await self._ack(msg)
             return
 
         logger.bind(
@@ -180,6 +212,7 @@ class Ros1Adapter:
             )
 
         await self._respond(msg, response)
+        await self._ack(msg)
 
     async def _respond(self, msg: Msg, response: TranslateResponse) -> None:
         if msg.reply is None or self._nc is None:
@@ -210,6 +243,21 @@ class Ros1Adapter:
             translated_at=_now_iso(),
         )
         await self._respond(msg, response)
+
+    async def _ack(self, msg: Msg) -> None:
+        """Acknowledge a JetStream message if it supports ack.
+
+        Core NATS messages have no ``ack`` method and are silently skipped;
+        JetStream messages are explicitly acked after translation completes so
+        they are not redelivered.
+        """
+        ack = getattr(msg, "ack", None)
+        if ack is None:
+            return
+        try:
+            await ack()
+        except Exception as exc:  # noqa: BLE001 - ack failure must not crash adapter
+            logger.bind(error=str(exc)).warning("Failed to ack JetStream message")
 
 
 def _configure_logging(level: str) -> None:

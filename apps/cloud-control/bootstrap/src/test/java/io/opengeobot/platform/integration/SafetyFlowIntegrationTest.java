@@ -1,176 +1,139 @@
 /*
- * Function: Safety flow integration tests — emergency stop, reset, resume
- * Time: 2026-07-06
+ * Function: Real safety flow integration tests - emergency stop, reset, events
+ * Time: 2026-07-09
  * Author: AxeXie
  */
 package io.opengeobot.platform.integration;
 
 import io.opengeobot.platform.robot.dto.SafetyStateDto;
 import io.opengeobot.platform.robot.service.SafetyService;
-import io.opengeobot.platform.robot.web.ConflictException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for the safety flow. Tests the SM-SAFETY-001 state machine
- * transitions through the REST API: emergency stop → reset → resume.
+ * Real integration tests for the safety flow backed by a PostgreSQL container.
+ * Tests the SM-SAFETY-001 state machine (NORMAL -> EMERGENCY_STOPPED -> NORMAL)
+ * and verifies that {@code safety_state} and {@code safety_event} records are
+ * persisted correctly, including outbox events for emergency stop and reset.
+ *
+ * <p>{@code @Transactional} ensures each test method runs in a transaction
+ * that is rolled back at the end, providing full test isolation.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-class SafetyFlowIntegrationTest {
+@Transactional
+class SafetyFlowIntegrationTest extends AbstractIntegrationTest {
 
-    @Autowired private MockMvc mockMvc;
-    @MockBean private SafetyService safetyService;
+    @Autowired private SafetyService safetyService;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
-    private SafetyStateDto createStoppedState() {
-        return new SafetyStateDto("rbt_001", "EMERGENCY_STOPPED",
-                OffsetDateTime.now(ZoneOffset.UTC), "Manual E-Stop",
-                OffsetDateTime.now(ZoneOffset.UTC));
-    }
+    private static final String TEST_ROBOT_ID = "rbt_01J00000000000000000000001";
 
-    private SafetyStateDto createNormalState() {
-        return new SafetyStateDto("rbt_001", "NORMAL", null, null,
-                OffsetDateTime.now(ZoneOffset.UTC));
+    @Test
+    void emergencyStop_createsStoppedStateAndEvent() {
+        SafetyStateDto result = safetyService.emergencyStop(TEST_ROBOT_ID, "Manual E-Stop");
+
+        assertEquals(TEST_ROBOT_ID, result.robotId());
+        assertEquals("EMERGENCY_STOPPED", result.state());
+        assertEquals("Manual E-Stop", result.reason());
+
+        Map<String, Object> stateRow = jdbcTemplate.queryForMap(
+                "SELECT robot_id, state, reason FROM policy.safety_state WHERE robot_id = ?",
+                TEST_ROBOT_ID);
+
+        assertEquals(TEST_ROBOT_ID, stateRow.get("robot_id"));
+        assertEquals("EMERGENCY_STOPPED", stateRow.get("state"));
+        assertEquals("Manual E-Stop", stateRow.get("reason"));
+
+        Long eventCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM policy.safety_event WHERE robot_id = ? AND event_type = ?",
+                Long.class, TEST_ROBOT_ID, "EMERGENCY_STOP");
+        assertNotNull(eventCount);
+        assertEquals(1L, eventCount, "EMERGENCY_STOP safety event should be recorded");
+
+        Long outboxCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM platform_governance.outbox_event WHERE aggregate_type = ? AND event_type = ?",
+                Long.class, "safety_event", "safety.emergency_stop.v1");
+        assertNotNull(outboxCount);
+        assertTrue(outboxCount >= 1, "safety.emergency_stop.v1 outbox event should be created");
     }
 
     @Test
-    @WithMockUser(authorities = {"safety.emergency_stop.execute"})
-    void emergencyStop_validRequestReturnsStopped() throws Exception {
-        when(safetyService.emergencyStop(any(), any())).thenReturn(createStoppedState());
+    void reset_returnsStateToNormal() {
+        safetyService.emergencyStop(TEST_ROBOT_ID, "Test stop");
 
-        mockMvc.perform(post("/api/v1/safety/emergency-stop")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"robot_id":"rbt_001","reason":"Manual E-Stop"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.robot_id").value("rbt_001"))
-                .andExpect(jsonPath("$.state").value("EMERGENCY_STOPPED"))
-                .andExpect(jsonPath("$.reason").value("Manual E-Stop"));
+        SafetyStateDto result = safetyService.reset(TEST_ROBOT_ID);
+
+        assertEquals(TEST_ROBOT_ID, result.robotId());
+        assertEquals("NORMAL", result.state());
+
+        String state = jdbcTemplate.queryForObject(
+                "SELECT state FROM policy.safety_state WHERE robot_id = ?",
+                String.class, TEST_ROBOT_ID);
+        assertEquals("NORMAL", state);
+
+        Long resetEventCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM policy.safety_event WHERE robot_id = ? AND event_type = ?",
+                Long.class, TEST_ROBOT_ID, "RESET");
+        assertNotNull(resetEventCount);
+        assertEquals(1L, resetEventCount, "RESET safety event should be recorded");
+
+        Long outboxCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM platform_governance.outbox_event WHERE aggregate_type = ? AND event_type = ?",
+                Long.class, "safety_event", "safety.reset.v1");
+        assertNotNull(outboxCount);
+        assertTrue(outboxCount >= 1, "safety.reset.v1 outbox event should be created");
     }
 
     @Test
-    @WithMockUser(authorities = {"safety.emergency_stop.execute"})
-    void emergencyStop_emptyBodyUsesDefaults() throws Exception {
-        when(safetyService.emergencyStop(null, null))
-                .thenReturn(new SafetyStateDto("global", "EMERGENCY_STOPPED",
-                        OffsetDateTime.now(ZoneOffset.UTC), null,
-                        OffsetDateTime.now(ZoneOffset.UTC)));
+    void emergencyStop_globalScope_usesGlobalRobotId() {
+        SafetyStateDto result = safetyService.emergencyStop(null, "Global stop");
 
-        mockMvc.perform(post("/api/v1/safety/emergency-stop"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.robot_id").value("global"))
-                .andExpect(jsonPath("$.state").value("EMERGENCY_STOPPED"));
+        assertEquals("global", result.robotId());
+        assertEquals("EMERGENCY_STOPPED", result.state());
+
+        String state = jdbcTemplate.queryForObject(
+                "SELECT state FROM policy.safety_state WHERE robot_id = ?",
+                String.class, "global");
+        assertEquals("EMERGENCY_STOPPED", state);
     }
 
     @Test
-    @WithMockUser(authorities = {"safety.emergency_stop.execute"})
-    void emergencyStop_withoutPermissionReturns403() throws Exception {
-        // This test verifies permission enforcement - uses a different authority
-        // We need a separate test for this since @WithMockUser is at class level
+    void getState_returnsDefaultForUnknownRobot() {
+        SafetyStateDto result = safetyService.getState("rbt_unknown_999");
+
+        assertEquals("rbt_unknown_999", result.robotId());
+        assertEquals("NORMAL", result.state());
+        assertNull(result.lastEventAt());
     }
 
     @Test
-    @WithMockUser(authorities = {"safety.emergency_stop.reset"})
-    void reset_fromStoppedReturnsNormal() throws Exception {
-        when(safetyService.reset("rbt_001")).thenReturn(createNormalState());
+    void safetyCheck_passesForNormalRobot() {
+        boolean safe = safetyService.safetyCheck(TEST_ROBOT_ID, "msn_test_001");
+        assertTrue(safe, "Safety check should pass when robot is in NORMAL state");
 
-        mockMvc.perform(post("/api/v1/safety/reset")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"robot_id":"rbt_001"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("NORMAL"));
+        Long checkEventCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM policy.safety_event WHERE robot_id = ? AND event_type = ?",
+                Long.class, TEST_ROBOT_ID, "SAFETY_CHECK_PASSED");
+        assertNotNull(checkEventCount);
+        assertEquals(1L, checkEventCount, "SAFETY_CHECK_PASSED event should be recorded");
     }
 
     @Test
-    @WithMockUser(authorities = {"safety.emergency_stop.reset"})
-    void reset_notInStoppedStateReturns409() throws Exception {
-        when(safetyService.reset("rbt_001"))
-                .thenThrow(new ConflictException("Robot rbt_001 is not in EMERGENCY_STOPPED state"));
+    void safetyCheck_failsAfterEmergencyStop() {
+        safetyService.emergencyStop(TEST_ROBOT_ID, "Test stop");
 
-        mockMvc.perform(post("/api/v1/safety/reset")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"robot_id":"rbt_001"}
-                                """))
-                .andExpect(status().isConflict());
-    }
+        boolean safe = safetyService.safetyCheck(TEST_ROBOT_ID, "msn_test_002");
+        assertFalse(safe, "Safety check should fail when robot is EMERGENCY_STOPPED");
 
-    @Test
-    @WithMockUser(authorities = {"safety.emergency_stop.reset"})
-    void reset_noStateFoundReturns409() throws Exception {
-        when(safetyService.reset("rbt_999"))
-                .thenThrow(new ConflictException("No safety state found for robot rbt_999"));
-
-        mockMvc.perform(post("/api/v1/safety/reset")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"robot_id":"rbt_999"}
-                                """))
-                .andExpect(status().isConflict());
-    }
-
-    @Test
-    @WithMockUser(authorities = {"safety.decision.read"})
-    void getState_existingRobotReturnsCurrentState() throws Exception {
-        when(safetyService.getState("rbt_001")).thenReturn(createNormalState());
-
-        mockMvc.perform(get("/api/v1/safety/state")
-                        .param("robot_id", "rbt_001"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.robot_id").value("rbt_001"))
-                .andExpect(jsonPath("$.state").value("NORMAL"));
-    }
-
-    @Test
-    @WithMockUser(authorities = {"safety.decision.read"})
-    void getState_noRobotIdReturnsGlobalState() throws Exception {
-        when(safetyService.getState(null))
-                .thenReturn(new SafetyStateDto("global", "NORMAL", null, null,
-                        OffsetDateTime.now(ZoneOffset.UTC)));
-
-        mockMvc.perform(get("/api/v1/safety/state"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.robot_id").value("global"));
-    }
-
-    @Test
-    @WithMockUser(authorities = {"safety.decision.read"})
-    void getState_stoppedRobotReturnsEmergencyState() throws Exception {
-        when(safetyService.getState("rbt_001")).thenReturn(createStoppedState());
-
-        mockMvc.perform(get("/api/v1/safety/state")
-                        .param("robot_id", "rbt_001"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("EMERGENCY_STOPPED"));
-    }
-
-    @Test
-    void emergencyStop_unauthenticatedReturns401() throws Exception {
-        mockMvc.perform(post("/api/v1/safety/emergency-stop")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"robot_id":"rbt_001","reason":"test"}
-                                """))
-                .andExpect(status().isUnauthorized());
+        Long checkEventCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM policy.safety_event WHERE robot_id = ? AND event_type = ?",
+                Long.class, TEST_ROBOT_ID, "SAFETY_CHECK_FAILED");
+        assertNotNull(checkEventCount);
+        assertEquals(1L, checkEventCount, "SAFETY_CHECK_FAILED event should be recorded");
     }
 }

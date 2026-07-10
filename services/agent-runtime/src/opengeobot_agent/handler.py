@@ -56,6 +56,7 @@ class PlanningRequestHandler:
                 "Rejected malformed plan request payload"
             )
             await self._respond(msg, _error_proposal("", str(exc)))
+            await self._ack_message(msg)
             return
 
         logger.bind(
@@ -83,6 +84,23 @@ class PlanningRequestHandler:
         ).info("Plan proposal generated (UNTRUSTED)")
 
         await self._respond(msg, proposal)
+        await self._ack_message(msg)
+
+    async def _ack_message(self, msg: Msg) -> None:
+        """Ack the JetStream message after processing.
+
+        For core NATS messages (no ``ack`` coroutine) this is a no-op so the
+        handler remains backward-compatible with plain pub/sub.
+        """
+        ack = getattr(msg, "ack", None)
+        if ack is None:
+            return
+        try:
+            await ack()
+        except Exception as exc:  # noqa: BLE001 - ack failure must not crash handler
+            logger.bind(error=str(exc)).debug(
+                "Message ack skipped (not a JetStream message or already acked)"
+            )
 
     async def _respond(self, msg: Msg, proposal: PlanProposal) -> None:
         """Respond to the NATS request if a reply subject is available."""

@@ -86,6 +86,7 @@ class SkillExecutor:
                 "Rejected malformed skill.execute.approved payload"
             )
             await self._respond(msg, _error_response("", "", "", str(exc)))
+            await self._ack(msg)
             return
 
         logger.bind(
@@ -115,7 +116,7 @@ class SkillExecutor:
                 started_at=started_at,
                 completed_at=_now_iso(),
             )
-        except Exception as exc:  # noqa: BLE001 — adapter failure must not crash executor
+        except Exception as exc:  # noqa: BLE001 - adapter failure must not crash executor
             logger.bind(
                 request_id=request.request_id,
                 trace_id=request.trace_id,
@@ -141,6 +142,7 @@ class SkillExecutor:
         ).info("Skill execution completed")
 
         await self._respond(msg, response)
+        await self._ack(msg)
 
     async def _respond(self, msg: Msg, response: SkillExecutionResponse) -> None:
         """Respond to the original NATS request if a reply subject is available."""
@@ -152,11 +154,26 @@ class SkillExecutor:
             return
         try:
             await self._nats.publish(reply, response.model_dump_json().encode("utf-8"))
-        except Exception as exc:  # noqa: BLE001 — publish failure must not crash executor
+        except Exception as exc:  # noqa: BLE001 - publish failure must not crash executor
             logger.bind(
                 request_id=response.request_id,
                 error=str(exc),
             ).warning("Failed to publish skill execution response")
+
+    async def _ack(self, msg: object) -> None:
+        """Acknowledge a JetStream message if it supports ack.
+
+        Core NATS messages have no ``ack`` method and are silently skipped;
+        JetStream messages are explicitly acked after execution completes so
+        they are not redelivered.
+        """
+        ack = getattr(msg, "ack", None)
+        if ack is None:
+            return
+        try:
+            await ack()
+        except Exception as exc:  # noqa: BLE001 - ack failure must not crash executor
+            logger.bind(error=str(exc)).warning("Failed to ack JetStream message")
 
 
 def _error_response(

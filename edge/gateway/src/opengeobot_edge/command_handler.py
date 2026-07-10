@@ -3,15 +3,25 @@
 # Author: AxeXie
 """Receive and process cloud commands on the edge.
 
-Commands arrive on ``opengeobot.dev.edge.command.{robot_id}``. Mission lifecycle
-commands (start/pause/resume/cancel) drive the local mission state, while
-``execute_skill`` is forwarded to the local skill executor (sim-adapter for M2)
-as a registered skill invocation. ``emergency_stop`` latches the local Safety
-Gateway so no further motion skills may execute until reset — this latch is
-local and does not depend on the cloud, satisfying the safety red line.
+Commands arrive on ``opengeobot.dev.edge.command.{robot_id}`` via a JetStream
+durable consumer so that messages are not lost during transient disconnects.
+Mission lifecycle commands (start/pause/resume/cancel) drive the local mission
+state, while ``execute_skill`` is forwarded to the local skill executor
+(sim-adapter for M2) as a registered skill invocation.
 
-Every command carries a ``trace_id`` that is propagated through skill requests and
-state updates so the whole flow is traceable end-to-end.
+Safety is enforced through the unified ``SafetyStateMachine`` (SM-SAFETY-001)
+from the safety-gateway module:
+  * ``emergency_stop`` latches the state machine to EMERGENCY_STOPPED.
+  * ``execute_skill`` and mission ``start``/``resume`` are refused unless the
+    state machine is in NORMAL.
+  * ``reset_safety`` transitions EMERGENCY_STOPPED -> RESETTING -> NORMAL.
+
+The safety state machine is **entirely local** - it does not depend on the cloud
+or NATS, satisfying the safety red line that local emergency stop must not rely
+on network connectivity.
+
+Every command carries a ``trace_id`` that is propagated through skill requests,
+safety transitions and state updates so the whole flow is traceable end-to-end.
 """
 
 from __future__ import annotations
@@ -25,6 +35,8 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 from pydantic import BaseModel, Field
+
+from opengeobot_safety_gateway.safety_state import SafetyState, SafetyStateMachine
 
 from .config import EdgeConfig
 
@@ -53,7 +65,7 @@ class CommandType(str, Enum):
 
 
 class EdgeCommand(BaseModel):
-    """Cloud → edge command envelope."""
+    """Cloud -> edge command envelope."""
 
     command_id: str
     trace_id: str
@@ -67,7 +79,7 @@ class EdgeCommand(BaseModel):
 
 
 class SkillExecutionRequest(BaseModel):
-    """Edge → local skill executor request (sim-adapter for M2)."""
+    """Edge -> local skill executor request (sim-adapter for M2)."""
 
     request_id: str
     trace_id: str
@@ -78,7 +90,7 @@ class SkillExecutionRequest(BaseModel):
 
 
 class SkillExecutionResponse(BaseModel):
-    """Local skill executor → edge response."""
+    """Local skill executor -> edge response."""
 
     request_id: str
     trace_id: str
@@ -105,7 +117,13 @@ class CommandResult(BaseModel):
 
 
 class CommandHandler:
-    """Processes inbound cloud commands and forwards skill calls locally."""
+    """Processes inbound cloud commands and forwards skill calls locally.
+
+    Safety is enforced through the unified ``SafetyStateMachine`` from the
+    safety-gateway module (SM-SAFETY-001), not a local boolean. The same
+    state machine instance is shared with the ``StatePublisher`` so that state
+    updates accurately reflect the safety latch.
+    """
 
     def __init__(
         self,
@@ -113,33 +131,43 @@ class CommandHandler:
         nats: NatsBridge,
         state_publisher: StatePublisher,
         offline_cache: OfflineCache,
+        safety_state: SafetyStateMachine | None = None,
     ) -> None:
         self._config = config
         self._nats = nats
         self._state_publisher = state_publisher
         self._offline_cache = offline_cache
-        # Local, cloud-independent safety latch (F-SAFETY-001 red line).
-        self._safety_latched: bool = False
+        # Unified safety state machine from the safety-gateway module (SM-SAFETY-001).
+        # Local-first: does not depend on cloud or NATS.
+        self._safety_state = safety_state or SafetyStateMachine()
         # In-flight mission tracking (local view; authoritative state lives in cloud).
         self._active_mission_id: str | None = None
         self._active_skill_count: int = 0
 
     @property
     def safety_latched(self) -> bool:
-        return self._safety_latched
+        """True when the safety state machine is not in NORMAL (i.e. unsafe)."""
+        return not self._safety_state.is_safe()
+
+    @property
+    def safety_state(self) -> SafetyStateMachine:
+        """Expose the unified safety state machine."""
+        return self._safety_state
 
     @property
     def active_mission_id(self) -> str | None:
         return self._active_mission_id
 
     async def handle_command(self, msg: object) -> None:
-        """NATS subscription callback: parse, validate and dispatch a command."""
+        """NATS / JetStream subscription callback: parse, validate, dispatch, ack."""
         raw = getattr(msg, "data", b"")
         try:
             payload = json.loads(raw)
             command = EdgeCommand.model_validate(payload)
         except (json.JSONDecodeError, ValueError) as exc:
             logger.bind(error=str(exc)).warning("Rejected malformed command payload")
+            # Ack the JetStream message so it is not redelivered.
+            await self._ack_msg(msg)
             return
 
         logger.bind(
@@ -162,6 +190,19 @@ class CommandHandler:
 
         if result.accepted and result.success:
             await self._offline_cache.mark_command_done(command.command_id)
+
+        # Ack the JetStream message after processing so the durable consumer
+        # does not redeliver it. For plain NATS messages this is a no-op.
+        await self._ack_msg(msg)
+
+    async def _ack_msg(self, msg: object) -> None:
+        """Acknowledge a JetStream message. No-op for plain NATS messages."""
+        ack = getattr(msg, "ack", None)
+        if callable(ack):
+            try:
+                await ack()
+            except Exception:  # noqa: BLE001 - ack failure should not crash the handler
+                logger.warning("Failed to ack JetStream message")
 
     async def _dispatch(self, command: EdgeCommand) -> CommandResult:
         handler = {
@@ -189,7 +230,7 @@ class CommandHandler:
     # Mission lifecycle (local view; cloud remains authoritative).
     # ------------------------------------------------------------------
     async def _start_mission(self, command: EdgeCommand) -> CommandResult:
-        if self._safety_latched:
+        if not self._safety_state.is_safe():
             return CommandResult(
                 command_id=command.command_id,
                 trace_id=command.trace_id,
@@ -225,7 +266,7 @@ class CommandHandler:
         )
 
     async def _resume_mission(self, command: EdgeCommand) -> CommandResult:
-        if self._safety_latched:
+        if not self._safety_state.is_safe():
             return self._safety_refused(command)
         if self._active_mission_id is None:
             return self._no_active_mission(command)
@@ -255,10 +296,13 @@ class CommandHandler:
         )
 
     # ------------------------------------------------------------------
-    # Safety latch (cloud-independent, latching).
+    # Safety state machine integration (SM-SAFETY-001, cloud-independent).
     # ------------------------------------------------------------------
     async def _emergency_stop(self, command: EdgeCommand) -> CommandResult:
-        self._safety_latched = True
+        await self._safety_state.trigger_emergency_stop(
+            reason="Cloud emergency_stop command",
+            trace_id=command.trace_id,
+        )
         stopped = self._active_skill_count
         if self._active_mission_id is not None:
             logger.bind(mission_id=self._active_mission_id).warning(
@@ -276,22 +320,44 @@ class CommandHandler:
         )
 
     async def _reset_safety(self, command: EdgeCommand) -> CommandResult:
-        self._safety_latched = False
-        logger.info("Safety latch cleared")
+        current = self._safety_state.state
+        if current is SafetyState.EMERGENCY_STOPPED:
+            await self._safety_state.request_reset(trace_id=command.trace_id)
+            await self._safety_state.complete_reset(trace_id=command.trace_id)
+            logger.info("Safety reset completed; state machine back to NORMAL")
+            return CommandResult(
+                command_id=command.command_id,
+                trace_id=command.trace_id,
+                command_type=command.command_type,
+                accepted=True,
+                success=True,
+                detail="Safety latch cleared",
+            )
+        if current is SafetyState.NORMAL:
+            return CommandResult(
+                command_id=command.command_id,
+                trace_id=command.trace_id,
+                command_type=command.command_type,
+                accepted=True,
+                success=True,
+                detail="Safety already in NORMAL; no reset needed",
+            )
+        # In RESETTING state - complete the reset.
+        await self._safety_state.complete_reset(trace_id=command.trace_id)
         return CommandResult(
             command_id=command.command_id,
             trace_id=command.trace_id,
             command_type=command.command_type,
             accepted=True,
             success=True,
-            detail="Safety latch cleared",
+            detail="Safety reset completed from RESETTING",
         )
 
     # ------------------------------------------------------------------
-    # Skill execution → local skill executor (sim-adapter).
+    # Skill execution -> local skill executor (sim-adapter).
     # ------------------------------------------------------------------
     async def _execute_skill(self, command: EdgeCommand) -> CommandResult:
-        if self._safety_latched:
+        if not self._safety_state.is_safe():
             return self._safety_refused(command)
         if not command.skill_id:
             return CommandResult(
@@ -324,7 +390,7 @@ class CommandHandler:
                 success=False,
                 detail=f"Skill {command.skill_id} timed out at the local executor",
             )
-        except Exception as exc:  # noqa: BLE001 — executor unreachable must not crash gateway
+        except Exception as exc:  # noqa: BLE001 - executor unreachable must not crash gateway
             logger.bind(error=str(exc)).warning(
                 "Local skill executor unreachable; skill request cached for retry"
             )

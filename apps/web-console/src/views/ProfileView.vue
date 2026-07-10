@@ -70,8 +70,8 @@ async function loadProfile(): Promise<void> {
   try {
     profile.value = await getProfile()
     editForm.display_name = profile.value.display_name
-    editForm.email = profile.value.email
-    editForm.phone = profile.value.phone
+    editForm.email = profile.value.email ?? ''
+    editForm.phone = profile.value.phone ?? ''
   } catch (err) {
     errorMsg.value = resolveErrorMessage(err as ProblemDetails)
   } finally {

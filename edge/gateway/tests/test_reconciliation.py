@@ -112,12 +112,12 @@ class TestStatePublisherStatus:
         pub.mark_online()
         assert pub.status is RobotStatus.ONLINE
 
-    def test_set_safety_latched_sets_error_status(self, tmp_path: pytest.Path) -> None:
+    async def test_set_safety_latched_sets_error_status(self, tmp_path: pytest.Path) -> None:
         config = _make_config(offline_cache_path=str(tmp_path / "cache.json"))
         nats = MockNats()
         cache = OfflineCache(config.offline_cache_path)
         pub = StatePublisher(config, nats, cache)  # type: ignore[arg-type]
-        pub.set_safety_latched(True)
+        await pub.set_safety_latched(True)
         assert pub.safety_latched is True
         assert pub.status is RobotStatus.ERROR
 
@@ -143,11 +143,11 @@ class TestStatePublisherStatus:
         nats = MockNats()
         cache = OfflineCache(config.offline_cache_path)
         pub = StatePublisher(config, nats, cache)  # type: ignore[arg-type]
-        pub.set_safety_latched(True)
+        await pub.set_safety_latched(True)
         # Status is ERROR because of the safety latch.
         assert pub.status is RobotStatus.ERROR
         await pub.mark_online_after_reconnect()
-        # Safety latch still engaged → status preserved as ERROR.
+        # Safety latch still engaged -> status preserved as ERROR.
         assert pub.status is RobotStatus.ERROR
 
 
@@ -158,9 +158,9 @@ class TestDeriveStatus:
         cache = OfflineCache(config.offline_cache_path)
         return StatePublisher(config, nats, cache)  # type: ignore[arg-type]
 
-    def test_safety_latched_returns_error(self, tmp_path: pytest.Path) -> None:
+    async def test_safety_latched_returns_error(self, tmp_path: pytest.Path) -> None:
         pub = self._make_pub(tmp_path)
-        pub.set_safety_latched(True)
+        await pub.set_safety_latched(True)
         status = pub.derive_status(None, online=True)
         assert status is RobotStatus.ERROR
 

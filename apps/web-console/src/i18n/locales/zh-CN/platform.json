@@ -8,6 +8,7 @@
     "robots": "机器人",
     "missions": "任务中心",
     "skills": "能力中心",
+    "mcp": "MCP 工具",
     "policies": "策略中心",
     "maps": "地图场景",
     "monitor": "实时监控",
@@ -358,6 +359,28 @@
     "create_title": "新建能力",
     "edit_title": "编辑能力"
   },
+  "mcp": {
+    "title": "MCP 工具管理",
+    "tool_name": "工具名称",
+    "version": "版本",
+    "status": "状态",
+    "risk_level": "风险等级",
+    "description": "描述",
+    "permission_code": "权限码",
+    "input_schema": "输入 Schema",
+    "output_schema": "输出 Schema",
+    "register_tool": "注册工具",
+    "invoke": "调用测试",
+    "input": "输入参数 (JSON)",
+    "result": "调用结果",
+    "invocation_history": "调用历史",
+    "invoked_at": "调用时间",
+    "duration": "耗时 (ms)",
+    "trace_id": "追踪 ID",
+    "active": "活跃",
+    "inactive": "停用",
+    "invalid_json": "JSON 格式不正确"
+  },
   "mission": {
     "title": "任务管理",
     "name": "任务名称",
@@ -381,7 +404,8 @@
     "template_code": "模板编码",
     "create_template": "新建模板",
     "create_title": "新建任务",
-    "edit_title": "编辑任务"
+    "edit_title": "编辑任务",
+    "execution_failed": "任务执行失败"
   },
   "policy": {
     "title": "策略管理",

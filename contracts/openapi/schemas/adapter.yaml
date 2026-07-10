@@ -197,3 +197,107 @@ TranslateCommandResponse:
       type: string
       description: Error message when translation fails.
       example: null
+
+AdapterHealthStatus:
+  type: string
+  description: >-
+    Runtime health status of a protocol adapter compatibility entry. This is a
+    code contract governed by the platform, not editable dictionary data.
+  enum:
+    - HEALTHY
+    - DEGRADED
+    - UNHEALTHY
+    - UNKNOWN
+  example: HEALTHY
+
+AdapterType:
+  type: string
+  description: >-
+    Canonical adapter type describing which protocol family a compatibility
+    entry covers. Lower-case code contract; ROS2 is the primary path and ROS1
+    is isolated-compatibility only.
+  enum:
+    - ros2
+    - ros1
+    - unitree
+    - custom
+  example: ros2
+
+AdapterCompatibility:
+  type: object
+  description: >-
+    Compatibility of a robot hardware model with a protocol adapter type
+    (ROS2/ROS1/Unitree/custom), including the ROS version, native control
+    protocol, compatibility flag and runtime health status. The
+    `adapter_type` and `health_status` fields are platform code contracts.
+    All field names use snake_case.
+  required: [adapter_id, robot_model_id, adapter_type, created_at]
+  additionalProperties: false
+  properties:
+    adapter_id:
+      type: string
+      description: Stable public identifier of the adapter compatibility entry (ULID-based).
+      example: adp_01JX2Q3R4T5V6W7X8Y9Z0A1B2C
+    robot_model_id:
+      type: string
+      description: Public identifier of the robot model this entry relates to.
+      example: mdl_01J00000000000000000000001
+    adapter_type:
+      $ref: '#/AdapterType'
+    ros_version:
+      type: string
+      description: ROS distribution version (e.g. humble, noetic).
+      example: humble
+    control_protocol:
+      type: string
+      description: Native control protocol (e.g. zenoh, rosbridge).
+      example: zenoh
+    compatible:
+      type: boolean
+      description: Whether the combination is verified compatible.
+      example: true
+    health_status:
+      $ref: '#/AdapterHealthStatus'
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the entry was created.
+      example: '2026-07-09T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the entry was last updated.
+      example: '2026-07-09T08:00:00Z'
+
+AdapterCompatibilityList:
+  type: object
+  description: List wrapper for adapter compatibility entries of a robot model.
+  required: [items, total]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdapterCompatibility'
+    total:
+      type: integer
+      format: int64
+      description: Number of returned compatibility entries.
+      example: 1
+
+UpdateAdapterHealthRequest:
+  type: object
+  description: >-
+    Request body for updating the runtime health status of a protocol adapter.
+    The `health_status` must be one of the platform code-contract values. The
+    optional `reason` is recorded in the audit log. All field names use
+    snake_case.
+  required: [health_status]
+  additionalProperties: false
+  properties:
+    health_status:
+      $ref: '#/AdapterHealthStatus'
+    reason:
+      type: string
+      description: Machine-readable reason for the health status change.
+      example: ADAPTER_LAG_DETECTED

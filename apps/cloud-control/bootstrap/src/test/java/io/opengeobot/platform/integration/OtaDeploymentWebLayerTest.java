@@ -1,5 +1,5 @@
 /*
- * Function: OTA deployment integration tests — create campaign, deploy, status, rollback
+ * Function: OTA deployment web-layer tests - create campaign, deploy, status, rollback
  * Time: 2026-07-06
  * Author: AxeXie
  */
@@ -29,14 +29,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Integration tests for the OTA deployment flow. Tests the full cycle:
- * create campaign → check status → rollback. Follows SM-OTA-001 state machine
- * (CREATED → IN_PROGRESS → COMPLETED / ROLLED_BACK).
+ * Web-layer tests for the OTA deployment flow. Tests the full cycle:
+ * create campaign -> check status -> rollback. Follows SM-OTA-001 state machine
+ * (CREATED -> IN_PROGRESS -> COMPLETED / ROLLED_BACK).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class OtaDeploymentIntegrationTest {
+class OtaDeploymentWebLayerTest {
 
     @Autowired private MockMvc mockMvc;
     @MockBean private OtaService otaService;

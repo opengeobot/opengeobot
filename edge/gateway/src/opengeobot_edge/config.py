@@ -16,6 +16,9 @@ from dataclasses import dataclass
 DEFAULT_ROBOT_ID = "rbt_01J00000000000000000000001"
 DEFAULT_NATS_URL = "nats://localhost:4222"
 DEFAULT_CLOUD_API = "http://localhost:8080"
+DEFAULT_JETSTREAM_STREAM_NAME = "EDGE_STREAM"
+DEFAULT_JETSTREAM_STREAM_SUBJECTS = "opengeobot.dev.edge.>"
+DEFAULT_JETSTREAM_CONSUMER_PREFIX = "edge-cmd"
 
 
 def _env_str(key: str, default: str) -> str:
@@ -51,6 +54,9 @@ class EdgeConfig:
     skill_request_timeout: float
     offline_cache_path: str
     log_level: str
+    jetstream_stream_name: str = DEFAULT_JETSTREAM_STREAM_NAME
+    jetstream_stream_subjects: str = DEFAULT_JETSTREAM_STREAM_SUBJECTS
+    jetstream_consumer_prefix: str = DEFAULT_JETSTREAM_CONSUMER_PREFIX
 
     @property
     def command_subject(self) -> str:
@@ -72,6 +78,11 @@ class EdgeConfig:
         """Cloud → edge reconciliation channel (pending commands on reconnect)."""
         return f"opengeobot.dev.edge.reconcile.{self.robot_id}"
 
+    @property
+    def jetstream_consumer_name(self) -> str:
+        """Durable consumer name for the command JetStream consumer."""
+        return f"{self.jetstream_consumer_prefix}-{self.robot_id}"
+
     @classmethod
     def from_env(cls) -> EdgeConfig:
         return cls(
@@ -87,4 +98,13 @@ class EdgeConfig:
                 "EDGE_OFFLINE_CACHE_PATH", "./.edge-data/offline-cache.json"
             ),
             log_level=_env_str("LOG_LEVEL", "INFO"),
+            jetstream_stream_name=_env_str(
+                "EDGE_JETSTREAM_STREAM_NAME", DEFAULT_JETSTREAM_STREAM_NAME
+            ),
+            jetstream_stream_subjects=_env_str(
+                "EDGE_JETSTREAM_STREAM_SUBJECTS", DEFAULT_JETSTREAM_STREAM_SUBJECTS
+            ),
+            jetstream_consumer_prefix=_env_str(
+                "EDGE_JETSTREAM_CONSUMER_PREFIX", DEFAULT_JETSTREAM_CONSUMER_PREFIX
+            ),
         )

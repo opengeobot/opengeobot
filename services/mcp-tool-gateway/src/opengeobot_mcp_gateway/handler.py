@@ -223,6 +223,7 @@ class ToolGatewayHandler:
             await self._respond(msg, InvokeToolResponse(
                 success=False, error=str(exc)
             ))
+            await self._ack_message(msg)
             return
 
         if not invocation.invocation_id:
@@ -235,10 +236,27 @@ class ToolGatewayHandler:
             error=result.error,
         )
         await self._respond(msg, response)
+        await self._ack_message(msg)
 
     # ------------------------------------------------------------------
     # Helpers.
     # ------------------------------------------------------------------
+    async def _ack_message(self, msg: Msg) -> None:
+        """Ack the JetStream message after processing.
+
+        For core NATS messages (no ``ack`` coroutine) this is a no-op so the
+        handler remains backward-compatible with plain pub/sub.
+        """
+        ack = getattr(msg, "ack", None)
+        if ack is None:
+            return
+        try:
+            await ack()
+        except Exception as exc:  # noqa: BLE001 - ack failure must not crash handler
+            logger.bind(error=str(exc)).debug(
+                "Message ack skipped (not a JetStream message or already acked)"
+            )
+
     async def _respond(self, msg: Msg, response: BaseModel) -> None:
         reply = getattr(msg, "reply", None)
         if not reply:

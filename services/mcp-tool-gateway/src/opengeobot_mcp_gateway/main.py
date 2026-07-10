@@ -67,11 +67,16 @@ class McpToolGateway:
 
     async def start(self) -> None:
         await self._nats.connect()
+        await self._nats.ensure_stream()
         await self._nats.subscribe(
             self._config.register_subject, self._handler.handle_register
         )
-        await self._nats.subscribe(
-            self._config.invoke_subject, self._handler.handle_invoke
+        # JetStream durable consumer for tool invocations so messages survive
+        # consumer disconnect/reconnect scenarios.
+        await self._nats.subscribe_js(
+            self._config.invoke_subject,
+            self._handler.handle_invoke,
+            durable=self._config.js_durable_consumer,
         )
         await self._nats.subscribe(
             self._config.list_subject, self._handler.handle_list
@@ -79,7 +84,7 @@ class McpToolGateway:
         await self._nats.subscribe(
             self._config.unregister_subject, self._handler.handle_unregister
         )
-        logger.info("MCP tool gateway started — subscribed to tool subjects")
+        logger.info("MCP tool gateway started - subscribed to tool subjects")
 
     async def stop(self) -> None:
         logger.info("MCP tool gateway stopping...")

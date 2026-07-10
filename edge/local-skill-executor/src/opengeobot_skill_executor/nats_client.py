@@ -19,6 +19,7 @@ from loguru import logger
 from nats.aio.client import Client as NatsClient
 from nats.aio.msg import Msg
 from nats.errors import ConnectionClosedError, NoServersError
+from nats.js.api import StorageType, StreamConfig
 
 from .config import ExecutorConfig
 
@@ -36,6 +37,7 @@ class NatsBridge:
     def __init__(self, config: ExecutorConfig) -> None:
         self._config = config
         self._nc: NatsClient | None = None
+        self._js: Any = None
         self._connected = asyncio.Event()
         self._closed = asyncio.Event()
         # External hooks.
@@ -90,6 +92,7 @@ class NatsBridge:
         )
         self._connected.set()
         self._closed.clear()
+        self._js = self._nc.jetstream()
         logger.info("NATS connected to {}", self._config.nats_url)
 
     async def subscribe(self, subject: str, handler: MsgHandler, queue: str | None = None) -> Any:
@@ -97,6 +100,48 @@ class NatsBridge:
         if self._nc is None:
             raise NatsConnectionError("NATS client not connected")
         return await self._nc.subscribe(subject, cb=handler, queue=queue)
+
+    async def ensure_stream(self, name: str, subjects: list[str]) -> None:
+        """Create or update a JetStream stream covering the given subjects.
+
+        Safe to call repeatedly - if the stream already exists, no action is
+        taken. Failures are logged but do not prevent the executor from
+        operating.
+        """
+        if self._js is None:
+            logger.warning("JetStream not initialised; cannot ensure stream")
+            return
+        try:
+            config = StreamConfig(
+                name=name,
+                subjects=subjects,
+                storage=StorageType.FILE,
+            )
+            await self._js.add_stream(config=config)
+            logger.bind(stream=name, subjects=subjects).info(
+                "JetStream stream ensured"
+            )
+        except Exception as exc:  # noqa: BLE001 - stream creation failure must not crash executor
+            logger.bind(stream=name, error=str(exc)).warning(
+                "Failed to ensure JetStream stream; executor continues"
+            )
+
+    async def subscribe_jetstream(
+        self,
+        subject: str,
+        handler: MsgHandler,
+        durable: str,
+        manual_ack: bool = True,
+    ) -> Any:
+        """Subscribe via a JetStream durable consumer with manual ack."""
+        if self._js is None:
+            raise NatsConnectionError("JetStream context not initialised")
+        return await self._js.subscribe(
+            subject,
+            cb=handler,
+            durable=durable,
+            manual_ack=manual_ack,
+        )
 
     async def publish(self, subject: str, data: bytes) -> None:
         """Publish a message; raises if the connection is permanently closed."""
@@ -128,4 +173,5 @@ class NatsBridge:
             logger.bind(error=str(e)).debug("drain skipped (connection already closed)")
         finally:
             self._nc = None
+            self._js = None
             self._connected.clear()

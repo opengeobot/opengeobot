@@ -2,7 +2,7 @@
 // Function: Mission management view with steps, execution control and templates
 // Time: 2026-07-05
 // Author: AxeXie
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DataTable from '@/components/DataTable.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
@@ -40,6 +40,10 @@ const missions = ref<Mission[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
 const successMsg = ref('')
+
+const wsConnected = ref(false)
+let ws: WebSocket | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
 const filters = reactive({
   keyword: '',
@@ -398,15 +402,129 @@ async function handleCreateTemplate(): Promise<void> {
   }
 }
 
+// ---- WebSocket real-time updates ----
+
+function buildWsUrl(): string {
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  const token = localStorage.getItem('token') ?? ''
+  return `${proto}://${window.location.host}/ws/monitor?token=${encodeURIComponent(token)}`
+}
+
+function handleWsMessage(event: MessageEvent): void {
+  let msg: { type: string; payload: Record<string, unknown> }
+  try {
+    msg = JSON.parse(event.data as string) as { type: string; payload: Record<string, unknown> }
+  } catch {
+    return
+  }
+  const payload = msg.payload
+  const missionId = payload.mission_id as string | undefined
+  if (!missionId) return
+
+  const idx = missions.value.findIndex((m) => m.id === missionId)
+  if (idx < 0) return
+  const mission = missions.value[idx]
+  const currentDetail = detail.value?.id === missionId ? detail.value : null
+  const status = payload.status as string | undefined
+  const currentStep = payload.current_step as number | undefined
+
+  if (msg.type === 'mission.started') {
+    mission.status = 'running'
+    if (currentDetail) currentDetail.status = 'running'
+  } else if (msg.type === 'mission.step_completed') {
+    if (currentDetail?.steps) {
+      const stepId = payload.step_id as string | undefined
+      const stepIndex = payload.step_index as number | undefined
+      const step = currentDetail.steps.find(
+        (s) => (stepId ? s.id === stepId : typeof stepIndex === 'number' && s.step_index === stepIndex)
+      )
+      if (step) step.status = (payload.step_status as string) ?? 'completed'
+    }
+  } else if (msg.type === 'mission.completed') {
+    mission.status = 'completed'
+    if (currentDetail) currentDetail.status = 'completed'
+    loadMissions()
+  } else if (msg.type === 'mission.failed') {
+    mission.status = 'failed'
+    if (currentDetail) currentDetail.status = 'failed'
+    errorMsg.value = (payload.error as string) || (payload.reason as string) || t('mission.execution_failed')
+  } else if (msg.type === 'mission.progress') {
+    if (status) {
+      mission.status = status
+      if (currentDetail) currentDetail.status = status
+    }
+    if (currentDetail?.steps && typeof currentStep === 'number') {
+      currentDetail.steps.forEach((s, i) => {
+        if (i < currentStep) s.status = 'completed'
+        else if (i === currentStep) s.status = 'running'
+      })
+    }
+  }
+}
+
+function connectWs(): void {
+  try {
+    ws = new WebSocket(buildWsUrl())
+  } catch {
+    scheduleReconnect()
+    return
+  }
+
+  ws.onopen = () => {
+    wsConnected.value = true
+  }
+
+  ws.onmessage = handleWsMessage
+
+  ws.onclose = () => {
+    wsConnected.value = false
+    scheduleReconnect()
+  }
+}
+
+function scheduleReconnect(): void {
+  if (reconnectTimer) return
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    connectWs()
+  }, 5000)
+}
+
+function disconnectWs(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  if (ws) {
+    ws.onclose = null
+    ws.onerror = null
+    ws.onmessage = null
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      ws.close()
+    }
+    ws = null
+  }
+  wsConnected.value = false
+}
+
 onMounted(() => {
   loadRobots()
   loadMissions()
+  connectWs()
+})
+
+onUnmounted(() => {
+  disconnectWs()
 })
 </script>
 
 <template>
   <div class="mission-management">
-    <h1 class="page-title">{{ t('mission.title') }}</h1>
+    <div class="page-header">
+      <h1 class="page-title">{{ t('mission.title') }}</h1>
+      <span v-if="wsConnected" class="ws-status ws-online">●</span>
+      <span v-else class="ws-status ws-offline">●</span>
+    </div>
 
     <div class="toolbar">
       <input
@@ -696,11 +814,30 @@ onMounted(() => {
   gap: 1rem;
 }
 
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .page-title {
   font-size: 1.5rem;
   font-weight: 700;
   color: #1e293b;
   margin: 0;
+}
+
+.ws-status {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.ws-online {
+  color: #16a34a;
+}
+
+.ws-offline {
+  color: #dc2626;
 }
 
 .toolbar {

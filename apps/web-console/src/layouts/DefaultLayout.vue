@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { key: 'nav.robots', path: '/robots' },
   { key: 'nav.missions', path: '/missions' },
   { key: 'nav.skills', path: '/skills' },
+  { key: 'nav.mcp', path: '/mcp' },
   { key: 'nav.policies', path: '/policies' },
   { key: 'nav.maps', path: '/maps' },
   { key: 'nav.monitor', path: '/monitor' },

@@ -53,6 +53,12 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, permission: 'skill.skill.read', titleKey: 'nav.skills' }
       },
       {
+        path: 'mcp',
+        name: 'mcp',
+        component: () => import('@/views/McpManagementView.vue'),
+        meta: { requiresAuth: true, permission: 'mcp.tool.read', titleKey: 'nav.mcp' }
+      },
+      {
         path: 'missions',
         name: 'missions',
         component: () => import('@/views/MissionManagementView.vue'),

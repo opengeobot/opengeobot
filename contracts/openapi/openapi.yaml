@@ -389,6 +389,10 @@ paths:
     $ref: './paths/adapter.yaml#/adapterStatus'
   /adapters/{adapterId}/translate:
     $ref: './paths/adapter.yaml#/adapterTranslate'
+  /adapters/compatibility/{robotModelId}:
+    $ref: './paths/adapter.yaml#/adapterCompatibility'
+  /adapters/{adapterId}/health:
+    $ref: './paths/adapter.yaml#/adapterHealth'
   /fleet/schedule:
     $ref: './paths/fleet.yaml#/fleetScheduleCollection'
   /fleet/conflicts:
@@ -618,6 +622,16 @@ components:
       $ref: './schemas/adapter.yaml#/TranslateCommandRequest'
     TranslateCommandResponse:
       $ref: './schemas/adapter.yaml#/TranslateCommandResponse'
+    AdapterHealthStatus:
+      $ref: './schemas/adapter.yaml#/AdapterHealthStatus'
+    AdapterType:
+      $ref: './schemas/adapter.yaml#/AdapterType'
+    AdapterCompatibility:
+      $ref: './schemas/adapter.yaml#/AdapterCompatibility'
+    AdapterCompatibilityList:
+      $ref: './schemas/adapter.yaml#/AdapterCompatibilityList'
+    UpdateAdapterHealthRequest:
+      $ref: './schemas/adapter.yaml#/UpdateAdapterHealthRequest'
     FleetSchedule:
       $ref: './schemas/fleet.yaml#/FleetSchedule'
     FleetSchedulePage:

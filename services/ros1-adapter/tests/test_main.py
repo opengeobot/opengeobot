@@ -26,11 +26,44 @@ class MockMsg:
         self.reply = reply
 
 
+class MockJetStream:
+    """Records stream creation and durable subscriptions."""
+
+    def __init__(self) -> None:
+        self.streams_created: list[Any] = []
+        self.subscriptions: list[dict[str, Any]] = []
+
+    async def add_stream(self, config: Any = None, **kwargs: Any) -> Any:
+        self.streams_created.append(config)
+        return MagicMock()
+
+    async def subscribe(
+        self,
+        subject: str,
+        cb: Any = None,
+        durable: str | None = None,
+        manual_ack: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        sub = {
+            "subject": subject,
+            "cb": cb,
+            "durable": durable,
+            "manual_ack": manual_ack,
+        }
+        self.subscriptions.append(sub)
+        return MagicMock()
+
+
 class MockNats:
     """Records publishes for verification."""
 
     def __init__(self) -> None:
         self.published: list[tuple[str, bytes]] = []
+        self._js = MockJetStream()
+
+    def jetstream(self) -> MockJetStream:
+        return self._js
 
     async def publish(self, subject: str, data: bytes) -> None:
         self.published.append((subject, data))
@@ -275,6 +308,14 @@ class TestStartStop:
         mock_connect.assert_called_once()
         assert mock_connect.call_args.kwargs["servers"] == "nats://localhost:4222"
         assert mock_connect.call_args.kwargs["name"] == "ros1-adapter-adp_test"
+        # JetStream durable consumer subscription should be registered.
+        assert len(mock_nc._js.subscriptions) == 1
+        sub = mock_nc._js.subscriptions[0]
+        assert sub["subject"] == "opengeobot.dev.adapter.translate.adp_test"
+        assert sub["durable"] == "ros1-adapter-adp_test"
+        assert sub["manual_ack"] is True
+        # Stream should be created.
+        assert len(mock_nc._js.streams_created) == 1
 
     async def test_stop_drains_and_clears_nc(self, monkeypatch: pytest.MonkeyPatch) -> None:
         mock_nc = MockNats()
@@ -287,6 +328,7 @@ class TestStartStop:
         await adapter.stop()
 
         assert adapter._nc is None
+        assert adapter._js is None
 
     async def test_stop_without_start_does_not_crash(self) -> None:
         adapter = Ros1Adapter(_make_config())

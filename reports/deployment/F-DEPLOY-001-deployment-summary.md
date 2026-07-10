@@ -17,13 +17,13 @@
 | Profile | 服务 | 镜像 (固定版本) | 健康检查 |
 |---------|------|-----------------|----------|
 | infra | postgres | `pgvector/pgvector:pg16` | pg_isready (10s/5s/5) |
-| infra | nats | `nats:2.10-alpine` | NATS healthcheck |
-| infra | minio | `minio/minio:RELEASE.2024-01-01T00-00-00Z` | mc ready (10s/5s/5) |
-| observability | victoriametrics | `victoriametrics/victoria-metrics:v1.102.0` | HTTP /health |
-| observability | vmagent | `victoriametrics/vmagent:v1.102.0` | HTTP /health |
-| observability | loki | `grafana/loki:2.9.0` | HTTP /ready |
-| observability | vector | `timberio/vector:0.36.0-debian` | none (log shipper) |
-| observability | grafana | `grafana/grafana:10.4.0` | HTTP /api/health |
+| infra | nats | `nats:2.10.22-alpine` | wget healthz (10s/5s/5) |
+| infra | minio | `minio/minio:RELEASE.2024-10-13T13-34-11Z` | curl health/live (10s/5s/5) |
+| observability | victoriametrics | `victoriametrics/victoria-metrics:v1.108.1` | wget /health (10s/5s/5) |
+| observability | vmagent | `victoriametrics/vmagent:v1.108.1` | none (metric scraper) |
+| observability | loki | `grafana/loki:3.2.1` | wget /ready (10s/5s/5) |
+| observability | vector | `timberio/vector:0.41.1-debian` | none (log shipper) |
+| observability | grafana | `grafana/grafana:11.3.0` | none |
 | cloud | cloud-control | 本地构建 (Maven) | Spring Boot actuator |
 | cloud | web-console | 本地构建 (Vite) | HTTP / |
 | sim | sim-adapter | Python 本地构建 | HTTP /health |
