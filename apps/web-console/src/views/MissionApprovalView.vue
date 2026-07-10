@@ -74,7 +74,7 @@ async function loadRows(): Promise<void> {
     const result = await listMissions({
       page_number: pagination.value.page_number,
       page_size: pagination.value.page_size,
-      status: 'WAITING_APPROVAL'
+      status: 'READY'
     })
     rows.value = result.items
     pagination.value.total = result.total
@@ -87,9 +87,13 @@ async function loadRows(): Promise<void> {
   }
 }
 
+function missionIdOf(row: Mission): string {
+  return row.mission_id || row.id || ''
+}
+
 async function handleApprove(row: Mission): Promise<void> {
   try {
-    await approveMission(row.id)
+    await approveMission(missionIdOf(row))
     successMsg.value = t('common.operation_success')
     await loadRows()
   } catch (err) {
@@ -106,7 +110,7 @@ function openReject(row: Mission): void {
 async function confirmReject(): Promise<void> {
   if (!rejectTarget.value || !rejectReason.value.trim()) return
   try {
-    await rejectMission(rejectTarget.value.id, { reason: rejectReason.value.trim() })
+    await rejectMission(missionIdOf(rejectTarget.value), { reason: rejectReason.value.trim() })
     rejectVisible.value = false
     successMsg.value = t('common.operation_success')
     await loadRows()
@@ -143,7 +147,7 @@ onMounted(() => {
         @size-change="(s) => { pagination.page_size = s; pagination.page_number = 1; loadRows() }"
       >
         <template #cell-name="{ row }">
-          <button class="btn-link" @click="router.push(`/missions/${(row as unknown as Mission).id}`)">
+          <button class="btn-link" @click="router.push(`/missions/${missionIdOf(row as unknown as Mission)}`)">
             {{ (row as unknown as Mission).name }}
           </button>
         </template>
@@ -152,13 +156,21 @@ onMounted(() => {
         </template>
         <template #actions="{ row }">
           <div class="action-buttons">
-            <button class="btn-link" @click="router.push(`/missions/${(row as unknown as Mission).id}`)">
+            <button class="btn-link" @click="router.push(`/missions/${missionIdOf(row as unknown as Mission)}`)">
               {{ t('common.view_detail') }}
             </button>
-            <button v-permission="'mission.mission.approve'" class="btn-link" @click="handleApprove(row as unknown as Mission)">
+            <button
+              v-if="authStore.permissions.includes('mission.mission.approve')"
+              class="btn-link"
+              @click="handleApprove(row as unknown as Mission)"
+            >
               {{ t('mission.approve') }}
             </button>
-            <button v-permission="'mission.mission.approve'" class="btn-link btn-danger" @click="openReject(row as unknown as Mission)">
+            <button
+              v-if="authStore.permissions.includes('mission.mission.approve')"
+              class="btn-link btn-danger"
+              @click="openReject(row as unknown as Mission)"
+            >
               {{ t('mission.reject') }}
             </button>
           </div>

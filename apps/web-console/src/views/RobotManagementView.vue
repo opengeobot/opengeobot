@@ -22,6 +22,7 @@ import {
 import { listOrgs } from '@/api/org'
 import type {
   Robot,
+  RobotCapability,
   RobotModel,
   Org,
   FormField,
@@ -186,16 +187,23 @@ const formFields = computed<FormField[]>(() => [
   }
 ])
 
-function capabilitiesToText(capabilities: string[]): string {
-  return capabilities.join('\n')
+function capabilitiesToText(capabilities: RobotCapability[] | string[]): string {
+  return capabilities
+    .map((cap) => (typeof cap === 'string' ? cap : cap.capability_type))
+    .filter(Boolean)
+    .join('\n')
 }
 
-function textToCapabilities(text: unknown): string[] {
+function textToCapabilities(text: unknown): RobotCapability[] {
   if (!text) return []
   return String(text)
     .split(/[\n,]/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
+    .map((capability_type) => ({
+      capability_type,
+      capability_value: 'enabled'
+    }))
 }
 
 function openCreate(): void {
@@ -207,7 +215,7 @@ function openCreate(): void {
 
 function openEdit(row: Robot): void {
   formMode.value = 'edit'
-  formModel.id = row.id
+  formModel.id = row.robot_id
   formModel.name = row.name
   formModel.model_id = row.model_id
   formModel.serial_number = row.serial_number
@@ -261,7 +269,7 @@ function openStatusUpdate(row: Robot): void {
 async function handleStatusConfirm(): Promise<void> {
   if (!statusTarget.value) return
   try {
-    await updateRobotStatus(statusTarget.value.id, statusValue.value)
+    await updateRobotStatus(statusTarget.value.robot_id, statusValue.value)
     statusModalVisible.value = false
     successMsg.value = t('common.operation_success')
     await loadRobots()
@@ -283,7 +291,7 @@ function openDelete(row: Robot): void {
 async function handleDeleteConfirm(): Promise<void> {
   if (!deleteTarget.value) return
   try {
-    await deleteRobot(deleteTarget.value.id)
+    await deleteRobot(deleteTarget.value.robot_id)
     deleteModalVisible.value = false
     successMsg.value = t('common.operation_success')
     await loadRobots()
@@ -305,9 +313,14 @@ async function openCapabilities(row: Robot): Promise<void> {
   capsLoading.value = true
   errorMsg.value = ''
   try {
-    capsList.value = await getRobotCapabilities(row.id)
+    const caps = await getRobotCapabilities(row.robot_id)
+    capsList.value = caps.map((c) =>
+      typeof c === 'string' ? c : `${c.capability_type}=${c.capability_value}`
+    )
   } catch (err) {
-    capsList.value = row.capabilities ?? []
+    capsList.value = (row.capabilities ?? []).map((c) =>
+      typeof c === 'string' ? c : c.capability_type
+    )
     errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
     capsLoading.value = false
@@ -357,7 +370,7 @@ onMounted(() => {
       @size-change="handleSizeChange"
     >
       <template #cell-name="{ row }">
-        <button class="btn-link" @click="router.push(`/robots/${(row as unknown as Robot).id}`)">
+        <button class="btn-link" @click="router.push(`/robots/${(row as unknown as Robot).robot_id}`)">
           {{ (row as unknown as Robot).name }}
         </button>
       </template>
@@ -366,7 +379,7 @@ onMounted(() => {
       </template>
       <template #actions="{ row }">
         <div class="action-buttons">
-          <button class="btn-link" @click="router.push(`/robots/${(row as unknown as Robot).id}`)">
+          <button class="btn-link" @click="router.push(`/robots/${(row as unknown as Robot).robot_id}`)">
             {{ t('common.view_detail') }}
           </button>
           <button v-permission="'platform.robot.manage'" class="btn-link" @click="openEdit(row as unknown as Robot)">

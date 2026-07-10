@@ -64,10 +64,15 @@ const levelOptions = computed<SelectOption[]>(() => [
   { label: t('safety.level_critical'), value: 'critical' }
 ])
 
-const eStopped = computed<boolean>(() => !!state.value?.e_stopped)
-const locked = computed<boolean>(() => !!state.value?.locked)
+const eStopped = computed<boolean>(() => state.value?.state === 'EMERGENCY_STOPPED')
+const locked = computed<boolean>(() =>
+  state.value?.state === 'EMERGENCY_STOPPED' || state.value?.state === 'RESETTING'
+)
 
 function resolveError(problem: ProblemDetails): string {
+  if (problem.status === 409) {
+    return t('safety.reset_requires_estop')
+  }
   if (problem.message_key && te(problem.message_key)) {
     return t(problem.message_key, problem.arguments)
   }
@@ -208,9 +213,9 @@ function handleWsMessage(event: MessageEvent): void {
       if (state.value) {
         state.value = {
           ...state.value,
-          e_stopped: true,
-          locked: true,
-          updated_at: new Date().toISOString()
+          state: 'EMERGENCY_STOPPED',
+          reason: p.description || state.value.reason,
+          updated_at: p.occurred_at || new Date().toISOString()
         }
       }
       if (p.event_type) {
@@ -232,8 +237,7 @@ function handleWsMessage(event: MessageEvent): void {
       if (state.value) {
         state.value = {
           ...state.value,
-          e_stopped: false,
-          locked: true,
+          state: 'RESETTING',
           updated_at: new Date().toISOString()
         }
       }
@@ -241,8 +245,8 @@ function handleWsMessage(event: MessageEvent): void {
       if (state.value) {
         state.value = {
           ...state.value,
-          e_stopped: false,
-          locked: false,
+          state: 'NORMAL',
+          reason: null,
           updated_at: new Date().toISOString()
         }
       }
@@ -361,7 +365,7 @@ onUnmounted(() => {
           <span class="estop-icon">⛔</span>
           <span class="estop-text">{{ t('safety.estop') }}</span>
         </button>
-        <button class="btn-reset" @click="openReset">
+        <button class="btn-reset" :disabled="!eStopped" @click="openReset">
           {{ t('safety.reset') }}
         </button>
       </div>
@@ -575,8 +579,13 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.btn-reset:hover {
+.btn-reset:hover:not(:disabled) {
   background-color: #f1f5f9;
+}
+
+.btn-reset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .toolbar {

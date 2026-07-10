@@ -64,3 +64,19 @@ python3 scripts/acceptance/run_c13_c16_sim.py
 2. F-ADAPTER-002 / F-OTA-001 HIL 证据  
 3. 蓝图与实现持续一致  
 4. `--require-complete` 持续通过  
+
+## 5. 控制台契约漂移修复（2026-07-10）
+
+对照蓝图相关页面做了本轮触及范围的合规复查与修复（不扩大重写）：
+
+| 页面 / 能力 | 检查点 | 结果 |
+| --- | --- | --- |
+| P-ROBOT-002 | 详情路由使用 `robot_id`，与 OpenAPI/DTO 一致 | 已修；`GET /robots/{robot_id}` 冒烟 200 |
+| P-SKILL-002 | 详情路由使用 `skill_id`，展示 `name` | 已修；`GET /skills/{skill_id}` 冒烟 200 |
+| P-MISSION-005 | 审批路由 `mission.mission.read`；列表 `status=READY`；批准按钮仍校验 `mission.mission.approve` | 已修；可进入，不再静默跳转工作台 |
+| P-CAP-001 | 能力目录按 `skill.name` / `RobotCapability.capability_type` 聚合 | 已修；不再把 capability 对象当 string |
+| P-CONTROL / SM-SAFETY | UI 使用 `state`；未急停禁用复位；409 文案 `safety.reset_requires_estop`；路由 `safety.decision.read` | 已修；NORMAL→409，E-STOP→reset→NORMAL |
+
+证据：Vitest 208 PASS；`pnpm build` PASS；web-console 镜像重建并重启；API 冒烟见本会话记录。
+
+**ROSClaw sandbox（并行）：** `rosclaw 1.0.1` @ `0839828`；`sandbox validate/run ur5e tabletop reach` **PASS**。证据见 `reports/acceptance/rosclaw-sandbox-sim-result.md`。**非本轮范围：** ROSClaw NATS 主路径接入仍待真实契约锁定后实施；sandbox 仅并行仿真验证，不得宣称平台主路径 DONE。

@@ -131,7 +131,7 @@ onMounted(() => {
       <section v-if="robot" class="card">
         <h2 class="section-title">{{ robot.name }}</h2>
         <div class="info-grid">
-          <div><span class="label">ID</span><span class="mono">{{ robot.id }}</span></div>
+          <div><span class="label">ID</span><span class="mono">{{ robot.robot_id }}</span></div>
           <div><span class="label">{{ t('common.status') }}</span><StatusTag :status="robot.status" type="robot" /></div>
         </div>
       </section>

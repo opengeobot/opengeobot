@@ -41,7 +41,7 @@ const form = reactive({
 })
 
 const robotOptions = computed<SelectOption[]>(() =>
-  robots.value.map((r) => ({ label: r.name, value: r.id }))
+  robots.value.map((r) => ({ label: r.name, value: r.robot_id }))
 )
 
 function resolveError(problem: ProblemDetails): string {
@@ -83,7 +83,7 @@ async function handleSubmit(): Promise<void> {
       priority: Number(form.priority) || 5,
       steps
     })
-    router.push(`/missions/${mission.id}`)
+    router.push(`/missions/${mission.mission_id || mission.id}`)
   } catch (err) {
     errorMsg.value = resolveError(err as ProblemDetails)
   } finally {

@@ -13,7 +13,14 @@ import type {
 
 /** GET /skills — paginated skill list */
 export async function listSkills(params: SkillListParams): Promise<PageResult<Skill>> {
-  const response = await client.get<PageResult<Skill>>('/skills', { params })
+  const response = await client.get<PageResult<Skill>>('/skills', {
+    params: {
+      page: params.page_number,
+      page_size: params.page_size,
+      module: params.module,
+      status: params.status
+    }
+  })
   return response.data
 }
 

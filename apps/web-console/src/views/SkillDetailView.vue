@@ -94,8 +94,8 @@ onMounted(() => {
     <template v-else-if="skill">
       <section class="card">
         <div class="info-grid">
-          <div><span class="label">{{ t('skill.name') }}</span><span>{{ skill.skill_name }}</span></div>
-          <div><span class="label">{{ t('skill.code') }}</span><span class="mono">{{ skill.skill_code }}</span></div>
+          <div><span class="label">{{ t('skill.name') }}</span><span>{{ skill.name }}</span></div>
+          <div><span class="label">{{ t('skill.code') }}</span><span class="mono">{{ skill.skill_id }}</span></div>
           <div><span class="label">{{ t('common.status') }}</span><StatusTag :status="skill.status" type="publish" /></div>
           <div><span class="label">{{ t('common.module') }}</span><span>{{ skill.module }}</span></div>
           <div><span class="label">{{ t('skill.current_version') }}</span><span>{{ skill.current_version }}</span></div>

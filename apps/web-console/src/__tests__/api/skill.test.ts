@@ -26,33 +26,41 @@ beforeEach(() => {
 })
 
 const mockSkill = {
-  id: 's1', skill_code: 'move', skill_name: 'Move', module: 'navigation',
-  description: '', status: 'active', current_version: '1.0.0', created_at: ''
+  skill_id: 's1',
+  name: 'Move',
+  module: 'navigation',
+  description: '',
+  status: 'active',
+  current_version: 1,
+  created_at: ''
 }
 
 describe('skill API', () => {
-  it('listSkills gets /skills with params', async () => {
+  it('listSkills maps page_number to page query param', async () => {
     const page = { items: [], total: 0, page_number: 1, page_size: 20 }
     mockClient.get.mockResolvedValue({ data: page })
 
     const result = await listSkills({ page_number: 1, page_size: 20, module: 'navigation' })
 
-    expect(mockClient.get).toHaveBeenCalledWith('/skills', { params: { page_number: 1, page_size: 20, module: 'navigation' } })
+    expect(mockClient.get).toHaveBeenCalledWith('/skills', {
+      params: { page: 1, page_size: 20, module: 'navigation', status: undefined }
+    })
     expect(result).toEqual(page)
   })
 
-  it('getSkill gets /skills/{id}', async () => {
+  it('getSkill gets /skills/{skill_id}', async () => {
     mockClient.get.mockResolvedValue({ data: mockSkill })
 
     const result = await getSkill('s1')
 
     expect(mockClient.get).toHaveBeenCalledWith('/skills/s1')
     expect(result).toEqual(mockSkill)
+    expect(result.skill_id).toBe('s1')
   })
 
-  it('createSkill posts to /skills', async () => {
+  it('createSkill posts to /skills with name field', async () => {
     mockClient.post.mockResolvedValue({ data: mockSkill })
-    const data = { skill_code: 'move', skill_name: 'Move', module: 'navigation', description: '' }
+    const data = { name: 'Move', module: 'navigation', description: '' }
 
     const result = await createSkill(data)
 
@@ -60,16 +68,16 @@ describe('skill API', () => {
     expect(result).toEqual(mockSkill)
   })
 
-  it('updateSkill puts to /skills/{id}', async () => {
+  it('updateSkill puts to /skills/{skill_id}', async () => {
     mockClient.put.mockResolvedValue({ data: mockSkill })
 
-    const result = await updateSkill('s1', { skill_name: 'Updated' })
+    const result = await updateSkill('s1', { description: 'Updated' })
 
-    expect(mockClient.put).toHaveBeenCalledWith('/skills/s1', { skill_name: 'Updated' })
+    expect(mockClient.put).toHaveBeenCalledWith('/skills/s1', { description: 'Updated' })
     expect(result).toEqual(mockSkill)
   })
 
-  it('publishSkill posts to /skills/{id}/publish', async () => {
+  it('publishSkill posts to /skills/{skill_id}/publish', async () => {
     mockClient.post.mockResolvedValue({ data: mockSkill })
 
     const result = await publishSkill('s1')
@@ -78,7 +86,7 @@ describe('skill API', () => {
     expect(result).toEqual(mockSkill)
   })
 
-  it('disableSkill posts to /skills/{id}/disable', async () => {
+  it('disableSkill posts to /skills/{skill_id}/disable', async () => {
     mockClient.post.mockResolvedValue({ data: mockSkill })
 
     const result = await disableSkill('s1')
@@ -87,7 +95,7 @@ describe('skill API', () => {
     expect(result).toEqual(mockSkill)
   })
 
-  it('enableSkill posts to /skills/{id}/enable', async () => {
+  it('enableSkill posts to /skills/{skill_id}/enable', async () => {
     mockClient.post.mockResolvedValue({ data: mockSkill })
 
     const result = await enableSkill('s1')
@@ -96,9 +104,9 @@ describe('skill API', () => {
     expect(result).toEqual(mockSkill)
   })
 
-  it('getSkillVersions gets /skills/{id}/versions', async () => {
+  it('getSkillVersions gets /skills/{skill_id}/versions', async () => {
     const versions = [
-      { id: 'v1', skill_id: 's1', version: '1.0.0', change_log: '', status: 'active', published_by: 'u1', published_at: '' }
+      { skill_id: 's1', version: 1, change_log: '', status: 'active', published_by: 'u1', published_at: '' }
     ]
     mockClient.get.mockResolvedValue({ data: versions })
 

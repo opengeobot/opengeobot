@@ -530,7 +530,8 @@
     "reason": "Reason",
     "reset": "Reset",
     "reset_confirm": "Confirm reset of the safety state?",
-    "reset_done": "Safety state has been reset"
+    "reset_done": "Safety state has been reset",
+    "reset_requires_estop": "Reset is only allowed while emergency-stopped. Trigger e-stop first."
   },
   "map": {
     "title": "Map Management",

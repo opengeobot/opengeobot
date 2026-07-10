@@ -36,6 +36,11 @@ import type {
 } from '@/types/api'
 
 const { t, te } = useI18n()
+
+function missionIdOf(m: Mission | null | undefined): string {
+  if (!m) return ''
+  return m.mission_id || m.id || ''
+}
 const router = useRouter()
 
 const missions = ref<Mission[]>([])
@@ -80,7 +85,7 @@ const statusFilterOptions = computed<SelectOption[]>(() => [
 ])
 
 const robotOptions = computed<SelectOption[]>(() =>
-  robots.value.map((r) => ({ label: r.name, value: r.id }))
+  robots.value.map((r) => ({ label: r.name, value: r.robot_id }))
 )
 
 function resolveError(problem: ProblemDetails): string {
@@ -185,7 +190,7 @@ function openCreate(): void {
 
 function openEdit(row: Mission): void {
   formMode.value = 'edit'
-  formModel.id = row.id
+  formModel.id = missionIdOf(row)
   formModel.name = row.name
   formModel.description = row.description
   formModel.robot_id = row.robot_id
@@ -276,7 +281,7 @@ async function openDetail(row: Mission): Promise<void> {
   detailLoading.value = true
   errorMsg.value = ''
   try {
-    detail.value = await getMission(row.id)
+    detail.value = await getMission(missionIdOf(row))
   } catch (err) {
     detail.value = row
     errorMsg.value = resolveError(err as ProblemDetails)
@@ -325,7 +330,7 @@ async function handleRejectConfirm(): Promise<void> {
   successMsg.value = ''
   try {
     const updated = await rejectMission(rejectTargetId.value, { reason: rejectReason.value })
-    if (detail.value && detail.value.id === rejectTargetId.value) detail.value = updated
+    if (detail.value && missionIdOf(detail.value) === rejectTargetId.value) detail.value = updated
     rejectVisible.value = false
     successMsg.value = t('common.operation_success')
     await loadMissions()
@@ -423,10 +428,10 @@ function handleWsMessage(event: MessageEvent): void {
   const missionId = payload.mission_id as string | undefined
   if (!missionId) return
 
-  const idx = missions.value.findIndex((m) => m.id === missionId)
+  const idx = missions.value.findIndex((m) => missionIdOf(m) === missionId)
   if (idx < 0) return
   const mission = missions.value[idx]
-  const currentDetail = detail.value?.id === missionId ? detail.value : null
+  const currentDetail = missionIdOf(detail.value) === missionId ? detail.value : null
   const status = payload.status as string | undefined
   const currentStep = payload.current_step as number | undefined
 
@@ -538,7 +543,7 @@ onUnmounted(() => {
       />
       <select v-model="filters.robot_id" class="filter-select">
         <option value="">{{ t('common.all') }}</option>
-        <option v-for="r in robots" :key="r.id" :value="r.id">{{ r.name }}</option>
+        <option v-for="r in robots" :key="r.robot_id" :value="r.robot_id">{{ r.name }}</option>
       </select>
       <select v-model="filters.status" class="filter-select">
         <option v-for="opt in statusFilterOptions" :key="opt.value" :value="opt.value">
@@ -567,7 +572,7 @@ onUnmounted(() => {
       @size-change="handleSizeChange"
     >
       <template #cell-name="{ row }">
-        <button class="btn-link" @click="router.push(`/missions/${(row as unknown as Mission).id}`)">
+        <button class="btn-link" @click="router.push(`/missions/${missionIdOf(row as unknown as Mission)}`)">
           {{ (row as unknown as Mission).name }}
         </button>
       </template>
@@ -576,7 +581,7 @@ onUnmounted(() => {
       </template>
       <template #actions="{ row }">
         <div class="action-buttons">
-          <button class="btn-link" @click="router.push(`/missions/${(row as unknown as Mission).id}`)">
+          <button class="btn-link" @click="router.push(`/missions/${missionIdOf(row as unknown as Mission)}`)">
             {{ t('common.view_detail') }}
           </button>
           <button v-permission="'platform.mission.manage'" class="btn-link" @click="openEdit(row as unknown as Mission)">
@@ -654,7 +659,7 @@ onUnmounted(() => {
         <div class="detail-meta">
           <span>{{ t('mission.robot') }}: {{ detail.robot_name || detail.robot_id }}</span>
           <span>{{ t('mission.priority') }}: {{ detail.priority }}</span>
-          <span>{{ t('common.trace_id') }}: {{ detail.id }}</span>
+          <span>{{ t('common.trace_id') }}: {{ missionIdOf(detail) }}</span>
         </div>
         <h4 class="steps-title">{{ t('mission.steps') }}</h4>
         <ol v-if="detail.steps && detail.steps.length > 0" class="step-detail-list">
@@ -674,7 +679,7 @@ onUnmounted(() => {
             v-permission="'platform.mission.manage'"
             class="btn btn-primary"
             :disabled="detail.status !== 'pending' && detail.status !== 'paused'"
-            @click="runControl('start', detail.id)"
+            @click="runControl('start', missionIdOf(detail))"
           >
             {{ t('mission.start') }}
           </button>
@@ -683,7 +688,7 @@ onUnmounted(() => {
             v-permission="'platform.mission.manage'"
             class="btn btn-secondary"
             :disabled="detail.status !== 'running'"
-            @click="runControl('pause', detail.id)"
+            @click="runControl('pause', missionIdOf(detail))"
           >
             {{ t('mission.pause') }}
           </button>
@@ -692,7 +697,7 @@ onUnmounted(() => {
             v-permission="'platform.mission.manage'"
             class="btn btn-secondary"
             :disabled="detail.status !== 'paused'"
-            @click="runControl('resume', detail.id)"
+            @click="runControl('resume', missionIdOf(detail))"
           >
             {{ t('mission.resume') }}
           </button>
@@ -700,7 +705,7 @@ onUnmounted(() => {
             v-if="canControl(detail.status)"
             v-permission="'platform.mission.manage'"
             class="btn btn-danger"
-            @click="runControl('cancel', detail.id)"
+            @click="runControl('cancel', missionIdOf(detail))"
           >
             {{ t('mission.cancel') }}
           </button>
@@ -708,7 +713,7 @@ onUnmounted(() => {
             v-if="detail.status === 'pending'"
             v-permission="'platform.mission.manage'"
             class="btn btn-secondary"
-            @click="runControl('submit', detail.id)"
+            @click="runControl('submit', missionIdOf(detail))"
           >
             {{ t('mission.submit_approval') }}
           </button>
@@ -716,7 +721,7 @@ onUnmounted(() => {
             v-if="detail.status === 'pending_approval'"
             v-permission="'platform.mission.manage'"
             class="btn btn-primary"
-            @click="runControl('approve', detail.id)"
+            @click="runControl('approve', missionIdOf(detail))"
           >
             {{ t('mission.approve') }}
           </button>
@@ -724,7 +729,7 @@ onUnmounted(() => {
             v-if="detail.status === 'pending_approval'"
             v-permission="'platform.mission.manage'"
             class="btn btn-danger"
-            @click="openReject(detail.id)"
+            @click="openReject(missionIdOf(detail))"
           >
             {{ t('mission.reject') }}
           </button>

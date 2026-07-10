@@ -10,7 +10,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import StatusTag from '@/components/StatusTag.vue'
 import { getRobot, getRobotCapabilities } from '@/api/robot'
-import type { Robot, ProblemDetails } from '@/types/api'
+import type { Robot, RobotCapability, ProblemDetails } from '@/types/api'
 
 const { t, te } = useI18n()
 const route = useRoute()
@@ -21,7 +21,7 @@ type ViewState = 'LOADING' | 'READY' | 'FORBIDDEN' | 'ERROR'
 
 const robotId = computed(() => String(route.params.robotId ?? ''))
 const robot = ref<Robot | null>(null)
-const capabilities = ref<string[]>([])
+const capabilities = ref<RobotCapability[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
 const forbidden = ref(false)
@@ -94,7 +94,7 @@ onMounted(() => {
       <section class="card">
         <div class="info-grid">
           <div><span class="label">{{ t('robot.name') }}</span><span>{{ robot.name }}</span></div>
-          <div><span class="label">ID</span><span class="mono">{{ robot.id }}</span></div>
+          <div><span class="label">ID</span><span class="mono">{{ robot.robot_id }}</span></div>
           <div><span class="label">{{ t('common.status') }}</span><StatusTag :status="robot.status" type="robot" /></div>
           <div><span class="label">{{ t('robot.model') }}</span><span>{{ robot.model_name || robot.model_id }}</span></div>
           <div><span class="label">{{ t('robot.serial_number') }}</span><span>{{ robot.serial_number }}</span></div>
@@ -108,7 +108,9 @@ onMounted(() => {
         <h2 class="section-title">{{ t('robot.capabilities_title') }}</h2>
         <p v-if="capabilities.length === 0" class="empty-text">{{ t('common.no_data') }}</p>
         <ul v-else class="caps-list">
-          <li v-for="cap in capabilities" :key="cap">{{ cap }}</li>
+          <li v-for="cap in capabilities" :key="cap.capability_type + ':' + cap.capability_value">
+            {{ cap.capability_type }}{{ cap.capability_value ? ` = ${cap.capability_value}` : '' }}
+          </li>
         </ul>
       </section>
     </template>

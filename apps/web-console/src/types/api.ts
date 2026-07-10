@@ -364,8 +364,14 @@ export interface AuditListParams extends FilterParams {
 
 // ---- Robot ----
 
+export interface RobotCapability {
+  capability_type: string
+  capability_value: string
+  details?: Record<string, unknown>
+}
+
 export interface Robot {
-  id: string
+  robot_id: string
   name: string
   model_id: string
   model_name?: string
@@ -373,9 +379,11 @@ export interface Robot {
   org_id: string
   org_name?: string
   status: string
-  last_seen: string | null
-  capabilities: string[]
+  last_seen_at?: string | null
+  last_seen?: string | null
+  capabilities: RobotCapability[]
   created_at: string
+  updated_at?: string
 }
 
 export interface RobotModel {
@@ -519,7 +527,7 @@ export interface CreateRobotRequest {
   model_id: string
   serial_number: string
   org_id: string
-  capabilities: string[]
+  capabilities: RobotCapability[]
 }
 
 export interface UpdateRobotRequest {
@@ -539,37 +547,41 @@ export interface RobotListParams extends FilterParams {
 // ---- Skill / Capability ----
 
 export interface Skill {
-  id: string
-  skill_code: string
-  skill_name: string
+  skill_id: string
+  name: string
   module: string
   description: string
   status: string
-  current_version: string
+  current_version: number
+  input_schema?: string
+  output_schema?: string
   created_at: string
+  updated_at?: string
 }
 
 export interface SkillVersion {
-  id: string
+  version_id?: string
+  id?: string
   skill_id: string
-  version: string
-  change_log: string
+  version: number | string
+  change_log?: string
   status: string
-  published_by: string
-  published_at: string
+  published_by?: string
+  published_at?: string
 }
 
 export interface CreateSkillRequest {
-  skill_code: string
-  skill_name: string
+  name: string
   module: string
-  description: string
+  description?: string
+  input_schema?: string
+  output_schema?: string
 }
 
 export interface UpdateSkillRequest {
-  skill_name?: string
-  module?: string
   description?: string
+  input_schema?: string
+  output_schema?: string
 }
 
 export interface SkillListParams extends FilterParams {
@@ -631,7 +643,9 @@ export interface MissionStep {
 }
 
 export interface Mission {
-  id: string
+  mission_id: string
+  /** @deprecated use mission_id — kept for transitional UI bindings */
+  id?: string
   name: string
   description: string
   robot_id: string
@@ -745,13 +759,18 @@ export interface PolicyListParams extends FilterParams {
 
 // ---- Safety ----
 
+export type SafetyStateCode = 'NORMAL' | 'EMERGENCY_STOPPED' | 'RESETTING'
+
 export interface SafetyState {
   robot_id: string | null
-  e_stopped: boolean
-  locked: boolean
-  reason: string
-  last_event_id: string | null
+  state: SafetyStateCode | string
+  last_event_at?: string | null
+  reason: string | null
   updated_at: string
+  /** Derived client-side helpers (optional, not from API) */
+  e_stopped?: boolean
+  locked?: boolean
+  last_event_id?: string | null
 }
 
 export interface SafetyEvent {

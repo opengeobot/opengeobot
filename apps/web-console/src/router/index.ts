@@ -128,7 +128,7 @@ const routes: RouteRecordRaw[] = [
         path: 'mission-approvals',
         name: 'mission-approvals',
         component: () => import('@/views/MissionApprovalView.vue'),
-        meta: { requiresAuth: true, permission: 'mission.mission.approve', titleKey: 'nav.mission_approvals' }
+        meta: { requiresAuth: true, permission: 'mission.mission.read', titleKey: 'nav.mission_approvals' }
       },
       {
         path: 'policies',
@@ -140,7 +140,7 @@ const routes: RouteRecordRaw[] = [
         path: 'safety',
         name: 'safety',
         component: () => import('@/views/SafetyControlView.vue'),
-        meta: { requiresAuth: true, permission: 'safety.safety.view', titleKey: 'nav.safety' }
+        meta: { requiresAuth: true, permission: 'safety.decision.read', titleKey: 'nav.safety' }
       },
       {
         path: 'maps',

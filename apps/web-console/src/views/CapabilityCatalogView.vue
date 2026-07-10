@@ -72,12 +72,13 @@ async function loadCatalog(): Promise<void> {
     if (authStore.permissions.includes('skill.skill.read')) {
       const skills = await listSkills({ page_number: 1, page_size: 200 })
       for (const skill of skills.items) {
-        const code = skill.skill_code
+        const code = skill.name
+        if (!code) continue
         map.set(code, {
           code,
           source: 'skill',
-          skill_id: skill.id,
-          skill_name: skill.skill_name,
+          skill_id: skill.skill_id,
+          skill_name: skill.name,
           robot_count: 0
         })
       }
@@ -87,12 +88,14 @@ async function loadCatalog(): Promise<void> {
       const robots = await listRobots({ page_number: 1, page_size: 200 })
       for (const robot of robots.items) {
         for (const cap of robot.capabilities ?? []) {
-          const existing = map.get(cap)
+          const capCode = typeof cap === 'string' ? cap : cap.capability_type
+          if (!capCode) continue
+          const existing = map.get(capCode)
           if (existing) {
             existing.robot_count += 1
             if (existing.source === 'skill') existing.source = 'skill+robot'
           } else {
-            map.set(cap, { code: cap, source: 'robot', robot_count: 1 })
+            map.set(capCode, { code: capCode, source: 'robot', robot_count: 1 })
           }
         }
       }

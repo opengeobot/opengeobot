@@ -62,16 +62,20 @@ async function loadOverview(): Promise<void> {
   }
 }
 
+function missionIdOf(m: { mission_id?: string; id?: string }): string {
+  return m.mission_id || m.id || ''
+}
+
 async function loadRobots(): Promise<void> {
   try {
     const result = await listRobots({ page_number: 1, page_size: 200 })
     const monitors: RobotMonitor[] = []
     for (const r of result.items) {
       try {
-        monitors.push(await getRobotMonitor(r.id))
+        monitors.push(await getRobotMonitor(r.robot_id))
       } catch {
         monitors.push({
-          robot_id: r.id,
+          robot_id: r.robot_id,
           robot_name: r.name,
           status: r.status,
           battery: 0,
@@ -93,17 +97,17 @@ async function loadMissions(): Promise<void> {
     const monitors: MissionMonitor[] = []
     for (const m of result.items) {
       try {
-        monitors.push(await getMissionMonitor(m.id))
+        monitors.push(await getMissionMonitor(missionIdOf(m)))
       } catch {
         monitors.push({
-          mission_id: m.id,
+          mission_id: missionIdOf(m),
           mission_name: m.name,
           robot_name: m.robot_name ?? m.robot_id,
           status: m.status,
           progress: 0,
           current_step: 0,
           total_steps: m.steps?.length ?? 0,
-          trace_id: m.id
+          trace_id: missionIdOf(m)
         })
       }
     }

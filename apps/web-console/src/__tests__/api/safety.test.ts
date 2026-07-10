@@ -16,24 +16,36 @@ import {
   getSafetyState,
   listSafetyEvents
 } from '@/api/safety'
+import type { SafetyState } from '@/types/api'
 
 beforeEach(() => {
   vi.clearAllMocks()
 })
 
-const mockState = {
-  robot_id: null, e_stopped: false, locked: false, reason: '', last_event_id: null, updated_at: ''
+const mockState: SafetyState = {
+  robot_id: null,
+  state: 'NORMAL',
+  reason: null,
+  updated_at: ''
+}
+
+/** Mirrors SafetyControlView derived flags from SM-SAFETY state. */
+function deriveSafetyFlags(state: SafetyState): { eStopped: boolean; locked: boolean } {
+  return {
+    eStopped: state.state === 'EMERGENCY_STOPPED',
+    locked: state.state === 'EMERGENCY_STOPPED' || state.state === 'RESETTING'
+  }
 }
 
 describe('safety API', () => {
   it('emergencyStop posts to /safety/emergency-stop with data', async () => {
-    mockClient.post.mockResolvedValue({ data: mockState })
+    mockClient.post.mockResolvedValue({ data: { ...mockState, state: 'EMERGENCY_STOPPED' } })
     const data = { robot_id: 'r1', reason: 'manual' }
 
     const result = await emergencyStop(data)
 
     expect(mockClient.post).toHaveBeenCalledWith('/safety/emergency-stop', data)
-    expect(result).toEqual(mockState)
+    expect(result.state).toBe('EMERGENCY_STOPPED')
   })
 
   it('emergencyStop sends empty object when no data', async () => {
@@ -83,9 +95,31 @@ describe('safety API', () => {
     const page = { items: [], total: 0, page_number: 1, page_size: 20 }
     mockClient.get.mockResolvedValue({ data: page })
 
-    const result = await listSafetyEvents({ page_number: 1, page_size: 20, robot_id: 'r1', level: 'critical' })
+    const result = await listSafetyEvents({
+      page_number: 1,
+      page_size: 20,
+      robot_id: 'r1',
+      level: 'critical'
+    })
 
-    expect(mockClient.get).toHaveBeenCalledWith('/safety/events', { params: { page_number: 1, page_size: 20, robot_id: 'r1', level: 'critical' } })
+    expect(mockClient.get).toHaveBeenCalledWith('/safety/events', {
+      params: { page_number: 1, page_size: 20, robot_id: 'r1', level: 'critical' }
+    })
     expect(result).toEqual(page)
+  })
+
+  it('derives eStopped and locked from state enum', () => {
+    expect(deriveSafetyFlags({ ...mockState, state: 'NORMAL' })).toEqual({
+      eStopped: false,
+      locked: false
+    })
+    expect(deriveSafetyFlags({ ...mockState, state: 'EMERGENCY_STOPPED' })).toEqual({
+      eStopped: true,
+      locked: true
+    })
+    expect(deriveSafetyFlags({ ...mockState, state: 'RESETTING' })).toEqual({
+      eStopped: false,
+      locked: true
+    })
   })
 })

@@ -49,8 +49,8 @@ const pagination = ref<DataTablePagination>({
 })
 
 const columns = computed<DataTableColumn[]>(() => [
-  { key: 'skill_name', title: t('skill.name'), sortable: true },
-  { key: 'skill_code', title: t('skill.code') },
+  { key: 'name', title: t('skill.name'), sortable: true },
+  { key: 'module', title: t('common.module') },
   { key: 'module', title: t('common.module') },
   { key: 'status', title: t('common.status') },
   { key: 'current_version', title: t('skill.current_version') }
@@ -121,8 +121,7 @@ const formMode = ref<'create' | 'edit'>('create')
 const formModel = reactive<Record<string, unknown>>({})
 
 const formFields = computed<FormField[]>(() => [
-  { key: 'skill_name', label: t('skill.name'), type: 'text', required: true },
-  { key: 'skill_code', label: t('skill.code'), type: 'text', required: true },
+  { key: 'name', label: t('skill.name'), type: 'text', required: true },
   { key: 'module', label: t('common.module'), type: 'text' },
   { key: 'description', label: t('common.description'), type: 'textarea' }
 ])
@@ -135,9 +134,8 @@ function openCreate(): void {
 
 function openEdit(row: Skill): void {
   formMode.value = 'edit'
-  formModel.id = row.id
-  formModel.skill_name = row.skill_name
-  formModel.skill_code = row.skill_code
+  formModel.skill_id = row.skill_id
+  formModel.name = row.name
   formModel.module = row.module
   formModel.description = row.description
   formVisible.value = true
@@ -149,15 +147,12 @@ async function handleFormSubmit(data: Record<string, unknown>): Promise<void> {
   try {
     if (formMode.value === 'create') {
       await createSkill({
-        skill_code: String(data.skill_code),
-        skill_name: String(data.skill_name),
+        name: String(data.name),
         module: String(data.module ?? ''),
         description: String(data.description ?? '')
       })
     } else {
-      await updateSkill(String(formModel.id), {
-        skill_name: String(data.skill_name),
-        module: String(data.module ?? ''),
+      await updateSkill(String(formModel.skill_id), {
         description: String(data.description ?? '')
       })
     }
@@ -175,7 +170,7 @@ async function handlePublish(row: Skill): Promise<void> {
   errorMsg.value = ''
   successMsg.value = ''
   try {
-    await publishSkill(row.id)
+    await publishSkill(row.skill_id)
     successMsg.value = t('common.operation_success')
     await loadSkills()
   } catch (err) {
@@ -187,7 +182,7 @@ async function handleDisable(row: Skill): Promise<void> {
   errorMsg.value = ''
   successMsg.value = ''
   try {
-    await disableSkill(row.id)
+    await disableSkill(row.skill_id)
     successMsg.value = t('common.operation_success')
     await loadSkills()
   } catch (err) {
@@ -199,7 +194,7 @@ async function handleEnable(row: Skill): Promise<void> {
   errorMsg.value = ''
   successMsg.value = ''
   try {
-    await enableSkill(row.id)
+    await enableSkill(row.skill_id)
     successMsg.value = t('common.operation_success')
     await loadSkills()
   } catch (err) {
@@ -220,7 +215,7 @@ async function openHistory(row: Skill): Promise<void> {
   historyLoading.value = true
   errorMsg.value = ''
   try {
-    history.value = await getSkillVersions(row.id)
+    history.value = await getSkillVersions(row.skill_id)
   } catch (err) {
     errorMsg.value = resolveError(err as ProblemDetails)
   } finally {
@@ -271,9 +266,9 @@ onMounted(() => {
           @page-change="handlePageChange"
           @size-change="handleSizeChange"
         >
-          <template #cell-skill_name="{ row }">
-            <button class="btn-link" @click="router.push(`/skills/${(row as unknown as Skill).id}`)">
-              {{ (row as unknown as Skill).skill_name }}
+          <template #cell-name="{ row }">
+            <button class="btn-link" @click="router.push(`/skills/${(row as unknown as Skill).skill_id}`)">
+              {{ (row as unknown as Skill).name }}
             </button>
           </template>
           <template #cell-status="{ row }">
@@ -281,7 +276,7 @@ onMounted(() => {
           </template>
           <template #actions="{ row }">
             <div class="action-buttons">
-              <button class="btn-link" @click="router.push(`/skills/${(row as unknown as Skill).id}`)">
+              <button class="btn-link" @click="router.push(`/skills/${(row as unknown as Skill).skill_id}`)">
                 {{ t('common.view_detail') }}
               </button>
               <button v-permission="'platform.skill.manage'" class="btn-link" @click="openEdit(row as unknown as Skill)">
@@ -311,7 +306,7 @@ onMounted(() => {
           <button class="panel-close" @click="historyVisible = false">×</button>
         </div>
         <div class="panel-body">
-          <p v-if="historyTarget" class="history-key">{{ historyTarget.skill_name }}</p>
+          <p v-if="historyTarget" class="history-key">{{ historyTarget.name }}</p>
           <p v-if="historyLoading" class="loading-text">{{ t('common.loading') }}</p>
           <div v-else-if="history.length === 0" class="empty-cell">{{ t('common.no_data') }}</div>
           <ul v-else class="history-list">

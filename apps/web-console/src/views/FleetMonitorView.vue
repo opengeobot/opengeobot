@@ -96,9 +96,9 @@ onMounted(() => {
         <div v-else class="robot-grid">
           <button
             v-for="robot in robots"
-            :key="robot.id"
+            :key="robot.robot_id"
             class="robot-tile"
-            @click="router.push(`/monitor/robots/${robot.id}`)"
+            @click="router.push(`/monitor/robots/${robot.robot_id}`)"
           >
             <span class="robot-name">{{ robot.name }}</span>
             <span class="robot-status">{{ robot.status }}</span>

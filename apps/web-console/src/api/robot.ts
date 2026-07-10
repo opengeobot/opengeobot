@@ -7,6 +7,7 @@ import type {
   RobotModel,
   RobotGroup,
   RobotGroupMembers,
+  RobotCapability,
   CreateRobotRequest,
   UpdateRobotRequest,
   CreateRobotModelRequest,
@@ -23,7 +24,16 @@ import type {
 
 /** GET /robots — paginated robot list with filters */
 export async function listRobots(params: RobotListParams): Promise<PageResult<Robot>> {
-  const response = await client.get<PageResult<Robot>>('/robots', { params })
+  const response = await client.get<PageResult<Robot>>('/robots', {
+    params: {
+      page: params.page_number,
+      page_size: params.page_size,
+      name: params.name,
+      status: params.status,
+      org_id: params.org_id,
+      model_id: params.model_id
+    }
+  })
   return response.data
 }
 
@@ -57,13 +67,18 @@ export async function updateRobotStatus(id: string, status: string): Promise<Rob
 }
 
 /** GET /robots/{id}/capabilities — fetch capabilities bound to a robot */
-export async function getRobotCapabilities(id: string): Promise<string[]> {
-  const response = await client.get<string[]>(`/robots/${id}/capabilities`)
-  return response.data
+export async function getRobotCapabilities(id: string): Promise<RobotCapability[]> {
+  const response = await client.get<{ robot_id: string; capabilities: RobotCapability[] }>(
+    `/robots/${id}/capabilities`
+  )
+  return response.data.capabilities ?? []
 }
 
 /** PUT /robots/{id}/capabilities — update capabilities bound to a robot */
-export async function updateRobotCapabilities(id: string, capabilities: string[]): Promise<void> {
+export async function updateRobotCapabilities(
+  id: string,
+  capabilities: RobotCapability[]
+): Promise<void> {
   await client.put(`/robots/${id}/capabilities`, { capabilities })
 }
 

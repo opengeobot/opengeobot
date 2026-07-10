@@ -18,7 +18,7 @@ const errorMsg = ref('')
 const robotStats = computed(() => dashboard.value?.robot_stats)
 const missionStats = computed(() => dashboard.value?.mission_stats)
 const alarmStats = computed(() => dashboard.value?.alarm_stats)
-const eStopped = computed<boolean>(() => !!safetyState.value?.e_stopped)
+const eStopped = computed<boolean>(() => safetyState.value?.state === 'EMERGENCY_STOPPED')
 
 function resolveError(problem: ProblemDetails): string {
   if (problem.message_key && te(problem.message_key)) {
