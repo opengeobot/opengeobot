@@ -4,6 +4,7 @@
 // Author: AxeXie
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import DataTable from '@/components/DataTable.vue'
 import FormBuilder from '@/components/FormBuilder.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
@@ -31,6 +32,7 @@ import type {
 } from '@/types/api'
 
 const { t, te } = useI18n()
+const router = useRouter()
 
 const robots = ref<Robot[]>([])
 const loading = ref(false)
@@ -78,7 +80,7 @@ const statusActionOptions = computed<SelectOption[]>(() => [
 ])
 
 const modelOptions = computed<SelectOption[]>(() =>
-  models.value.map((m) => ({ label: m.model_name, value: m.id }))
+  models.value.map((m) => ({ label: m.model_name, value: m.model_id }))
 )
 
 const orgOptions = computed<SelectOption[]>(() =>
@@ -121,7 +123,8 @@ async function loadOrgs(): Promise<void> {
 
 async function loadModels(): Promise<void> {
   try {
-    models.value = await listRobotModels()
+    const result = await listRobotModels({ page_number: 1, page_size: 100 })
+    models.value = result.items
   } catch {
     // Optional dependency; ignore failure
   }
@@ -353,11 +356,19 @@ onMounted(() => {
       @page-change="handlePageChange"
       @size-change="handleSizeChange"
     >
+      <template #cell-name="{ row }">
+        <button class="btn-link" @click="router.push(`/robots/${(row as unknown as Robot).id}`)">
+          {{ (row as unknown as Robot).name }}
+        </button>
+      </template>
       <template #cell-status="{ row }">
         <StatusTag :status="row.status as string" type="robot" />
       </template>
       <template #actions="{ row }">
         <div class="action-buttons">
+          <button class="btn-link" @click="router.push(`/robots/${(row as unknown as Robot).id}`)">
+            {{ t('common.view_detail') }}
+          </button>
           <button v-permission="'platform.robot.manage'" class="btn-link" @click="openEdit(row as unknown as Robot)">
             {{ t('common.edit') }}
           </button>

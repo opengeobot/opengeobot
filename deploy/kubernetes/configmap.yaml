@@ -1,0 +1,18 @@
+# Function: OpenGeoBot non-secret ConfigMap baseline
+# Time: 2026-07-10
+# Author: AxeXie
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opengeobot-config
+  namespace: opengeobot
+  labels:
+    app.kubernetes.io/part-of: opengeobot
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_NAME: "opengeobot"
+  DB_USER: "opengeobot"
+  NATS_URL: "nats://nats:4222"
+  MINIO_ENDPOINT: "http://minio:9000"

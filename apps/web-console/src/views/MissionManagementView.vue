@@ -4,6 +4,7 @@
 // Author: AxeXie
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import DataTable from '@/components/DataTable.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import StatusTag from '@/components/StatusTag.vue'
@@ -35,6 +36,7 @@ import type {
 } from '@/types/api'
 
 const { t, te } = useI18n()
+const router = useRouter()
 
 const missions = ref<Mission[]>([])
 const loading = ref(false)
@@ -564,12 +566,17 @@ onUnmounted(() => {
       @page-change="handlePageChange"
       @size-change="handleSizeChange"
     >
+      <template #cell-name="{ row }">
+        <button class="btn-link" @click="router.push(`/missions/${(row as unknown as Mission).id}`)">
+          {{ (row as unknown as Mission).name }}
+        </button>
+      </template>
       <template #cell-status="{ row }">
         <StatusTag :status="row.status as string" type="task" />
       </template>
       <template #actions="{ row }">
         <div class="action-buttons">
-          <button class="btn-link" @click="openDetail(row as unknown as Mission)">
+          <button class="btn-link" @click="router.push(`/missions/${(row as unknown as Mission).id}`)">
             {{ t('common.view_detail') }}
           </button>
           <button v-permission="'platform.mission.manage'" class="btn-link" @click="openEdit(row as unknown as Mission)">

@@ -188,7 +188,7 @@ class MemoryServiceTest {
         when(suggestionRepository.selectOne(any(LambdaQueryWrapper.class))).thenReturn(suggestion);
 
         ImprovementSuggestionDto result = service.submitFeedback(
-                new FeedbackRequest("imp_001", "Good suggestion, will apply"));
+                new FeedbackRequest("imp_001", "Good suggestion, will apply", "ACCEPT"));
 
         assertEquals("ACCEPTED", result.status());
         assertEquals("Good suggestion, will apply", result.feedback());
@@ -202,7 +202,7 @@ class MemoryServiceTest {
         when(suggestionRepository.selectOne(any(LambdaQueryWrapper.class))).thenReturn(suggestion);
 
         ImprovementSuggestionDto result = service.submitFeedback(
-                new FeedbackRequest("imp_001", "Already accepted"));
+                new FeedbackRequest("imp_001", "Already accepted", null));
 
         assertEquals("ACCEPTED", result.status());
         assertEquals("Already accepted", result.feedback());
@@ -213,7 +213,7 @@ class MemoryServiceTest {
         when(suggestionRepository.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
 
         assertThrows(ResourceNotFoundException.class,
-                () -> service.submitFeedback(new FeedbackRequest("imp_999", "feedback")));
+                () -> service.submitFeedback(new FeedbackRequest("imp_999", "feedback", "ACCEPT")));
     }
 
     @Test

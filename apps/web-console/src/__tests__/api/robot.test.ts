@@ -105,14 +105,15 @@ describe('robot API', () => {
     expect(mockClient.put).toHaveBeenCalledWith('/robots/r1/capabilities', { capabilities: ['move', 'rotate'] })
   })
 
-  it('listRobotModels gets /robot-models', async () => {
-    const models = [{ id: 'm1', model_code: 'R1', model_name: 'Robot1', vendor: 'V1', description: '' }]
-    mockClient.get.mockResolvedValue({ data: models })
+  it('listRobotModels gets /robot-models with params', async () => {
+    const page = { items: [{ model_id: 'm1', model_name: 'Robot1', manufacturer: 'V1', description: '' }], total: 1, page_number: 1, page_size: 20 }
+    mockClient.get.mockResolvedValue({ data: page })
+    const params = { page_number: 1, page_size: 20 }
 
-    const result = await listRobotModels()
+    const result = await listRobotModels(params)
 
-    expect(mockClient.get).toHaveBeenCalledWith('/robot-models')
-    expect(result).toEqual(models)
+    expect(mockClient.get).toHaveBeenCalledWith('/robot-models', { params })
+    expect(result).toEqual(page)
   })
 
   it('listRobotGroups gets /robot-groups with params', async () => {
@@ -124,5 +125,28 @@ describe('robot API', () => {
 
     expect(mockClient.get).toHaveBeenCalledWith('/robot-groups', { params })
     expect(result).toEqual(page)
+  })
+
+  it('createRobotModel posts to /robot-models', async () => {
+    const model = { model_id: 'm1', model_name: 'R1', manufacturer: 'V1', description: '' }
+    mockClient.post.mockResolvedValue({ data: model })
+    const data = { model_name: 'R1', manufacturer: 'V1' }
+
+    const { createRobotModel } = await import('@/api/robot')
+    const result = await createRobotModel(data)
+
+    expect(mockClient.post).toHaveBeenCalledWith('/robot-models', data)
+    expect(result).toEqual(model)
+  })
+
+  it('acquireControlLease posts to /robots/{id}/control-leases', async () => {
+    const lease = { lease_id: 'l1', robot_id: 'r1', holder_user_id: 'u1', status: 'ACTIVE', acquired_at: '', expires_at: '', released_at: null, fencing_token: null, created_at: '', updated_at: '' }
+    mockClient.post.mockResolvedValue({ data: lease })
+
+    const { acquireControlLease } = await import('@/api/robot')
+    const result = await acquireControlLease('r1', { ttl_seconds: 300 })
+
+    expect(mockClient.post).toHaveBeenCalledWith('/robots/r1/control-leases', { ttl_seconds: 300 })
+    expect(result).toEqual(lease)
   })
 })

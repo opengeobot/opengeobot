@@ -1,0 +1,259 @@
+# Function: Edge gateway schemas for F-EDGE-001
+# Time: 2026-07-10
+# Author: AxeXie
+
+EdgeGatewayStatus:
+  type: string
+  description: >-
+    Identity status of an edge gateway (SM-EDGE-001 simplified code contract).
+    REGISTERED is the initial post-registration state; ACTIVE may receive
+    commands; DEGRADED indicates degraded readiness; REVOKED is terminal.
+  enum:
+    - REGISTERED
+    - ACTIVE
+    - DEGRADED
+    - REVOKED
+  example: ACTIVE
+
+CertificateStatus:
+  type: string
+  description: >-
+    Lifecycle status of an edge gateway certificate. ACTIVE is the current
+    certificate; ROTATED marks a superseded certificate within the overlap
+    window; REVOKED is terminal.
+  enum:
+    - ACTIVE
+    - ROTATED
+    - REVOKED
+  example: ACTIVE
+
+EdgeGateway:
+  type: object
+  description: >-
+    Edge gateway identity, certificate summary, runtime version and optional
+    robot binding. All field names use snake_case.
+  required:
+    - gateway_id
+    - name
+    - org_id
+    - status
+    - created_at
+    - updated_at
+  additionalProperties: false
+  properties:
+    gateway_id:
+      type: string
+      description: Stable public identifier of the gateway (ULID-based).
+      example: gw_01J00000000000000000000001
+    name:
+      type: string
+      description: Human-friendly gateway name.
+      example: Edge-Gateway-Pioneer-01
+    org_id:
+      type: string
+      description: Owning organization public identifier.
+      example: org_01J00000000000000000000001
+    status:
+      $ref: '#/EdgeGatewayStatus'
+    certificate_fingerprint:
+      type: string
+      description: Fingerprint of the currently active certificate.
+      example: 'sha256:sample-fingerprint-pioneer-01'
+    certificate_expires_at:
+      type: string
+      format: date-time
+      description: UTC expiry of the currently active certificate.
+      example: '2027-07-10T08:00:00Z'
+    runtime_version:
+      type: string
+      description: Reported edge runtime version.
+      example: 0.1.0
+    bound_robot_id:
+      type: string
+      nullable: true
+      description: Public identifier of the bound robot, if any.
+      example: rbt_01J00000000000000000000001
+    last_heartbeat_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: UTC timestamp of the last accepted heartbeat.
+      example: '2026-07-10T08:00:00Z'
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the gateway was registered.
+      example: '2026-07-10T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the gateway record was last updated.
+      example: '2026-07-10T08:00:00Z'
+
+EdgeGatewayPage:
+  type: object
+  description: Paginated response wrapper for edge gateway entries.
+  required: [items, total, page, page_size]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/EdgeGateway'
+    total:
+      type: integer
+      format: int64
+      description: Total number of matching records.
+      example: 1
+    page:
+      type: integer
+      description: Current page number (1-based).
+      example: 1
+    page_size:
+      type: integer
+      description: Number of items per page.
+      example: 20
+
+EdgeGatewayCertificate:
+  type: object
+  description: >-
+    Certificate history entry for an edge gateway. All field names use
+    snake_case.
+  required:
+    - cert_id
+    - gateway_id
+    - fingerprint
+    - issued_at
+    - expires_at
+    - status
+    - created_at
+  additionalProperties: false
+  properties:
+    cert_id:
+      type: string
+      description: Stable public identifier of the certificate record.
+      example: cert_01J00000000000000000000001
+    gateway_id:
+      type: string
+      description: Owning gateway public identifier.
+      example: gw_01J00000000000000000000001
+    fingerprint:
+      type: string
+      description: Certificate fingerprint.
+      example: 'sha256:new-fingerprint-pioneer-01'
+    issued_at:
+      type: string
+      format: date-time
+      description: UTC issue timestamp.
+      example: '2026-07-10T08:00:00Z'
+    expires_at:
+      type: string
+      format: date-time
+      description: UTC expiry timestamp.
+      example: '2027-07-10T08:00:00Z'
+    status:
+      $ref: '#/CertificateStatus'
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the certificate record was created.
+      example: '2026-07-10T08:00:00Z'
+
+CreateEdgeGatewayRequest:
+  type: object
+  description: >-
+    Request body for registering a new edge gateway. The gateway is created
+    with status REGISTERED. All field names use snake_case.
+  required: [name, org_id]
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: Human-friendly gateway name.
+      example: Edge-Gateway-Pioneer-02
+    org_id:
+      type: string
+      description: Owning organization public identifier.
+      example: org_01J00000000000000000000001
+    bound_robot_id:
+      type: string
+      description: Optional robot to bind at registration time.
+      example: rbt_01J00000000000000000000001
+    runtime_version:
+      type: string
+      description: Initial runtime version reported by the edge node.
+      example: 0.1.0
+    certificate_fingerprint:
+      type: string
+      description: Optional initial certificate fingerprint.
+      example: 'sha256:initial-fingerprint'
+    certificate_expires_at:
+      type: string
+      format: date-time
+      description: Optional initial certificate expiry (UTC).
+      example: '2027-07-10T08:00:00Z'
+
+ActivateEdgeGatewayRequest:
+  type: object
+  description: >-
+    Request body for activating a registered edge gateway. The optional
+    reason is recorded in the audit log.
+  additionalProperties: false
+  properties:
+    reason:
+      type: string
+      description: Machine-readable reason for activation.
+      example: APPROVED_BY_ADMIN
+
+RevokeEdgeGatewayRequest:
+  type: object
+  description: >-
+    Request body for revoking an edge gateway. Revocation is terminal and
+    immediately rejects new command traffic.
+  additionalProperties: false
+  properties:
+    reason:
+      type: string
+      description: Machine-readable reason for revocation.
+      example: COMPROMISED_IDENTITY
+
+EdgeGatewayHeartbeatRequest:
+  type: object
+  description: >-
+    Heartbeat payload from an edge gateway. Updates last_heartbeat_at and
+    may refresh runtime_version. All field names use snake_case.
+  additionalProperties: false
+  properties:
+    runtime_version:
+      type: string
+      description: Current edge runtime version.
+      example: 0.1.1
+    sequence:
+      type: integer
+      format: int64
+      description: Monotonic heartbeat sequence for replay protection.
+      example: 42
+
+RotateCertificateRequest:
+  type: object
+  description: >-
+    Request body for rotating an edge gateway certificate. The previous
+    ACTIVE certificate is marked ROTATED and the new certificate becomes
+    ACTIVE. All field names use snake_case.
+  required: [fingerprint, expires_at]
+  additionalProperties: false
+  properties:
+    fingerprint:
+      type: string
+      description: Fingerprint of the new certificate.
+      example: 'sha256:rotated-fingerprint-pioneer-01'
+    issued_at:
+      type: string
+      format: date-time
+      description: Optional issue timestamp; defaults to now when omitted.
+      example: '2026-07-10T08:00:00Z'
+    expires_at:
+      type: string
+      format: date-time
+      description: UTC expiry of the new certificate.
+      example: '2027-07-10T08:00:00Z'

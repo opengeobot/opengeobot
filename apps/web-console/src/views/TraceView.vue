@@ -6,6 +6,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePlatformStore } from '@/stores/platform'
 import { listTraces, getTrace, getReplay } from '@/api/trace'
@@ -17,6 +18,7 @@ import type {
 } from '@/types/api'
 
 const { t, te } = useI18n()
+const router = useRouter()
 const authStore = useAuthStore()
 const platformStore = usePlatformStore()
 
@@ -226,7 +228,11 @@ onMounted(() => {
                 :class="{ 'trace-row-active': selectedTrace?.trace_id === item.trace_id }"
                 @click="selectTrace(item)"
               >
-                <td class="mono">{{ item.trace_id }}</td>
+                <td class="mono">
+                  <button class="btn-link" @click.stop="router.push(`/traces/${item.trace_id}`)">
+                    {{ item.trace_id }}
+                  </button>
+                </td>
                 <td>{{ item.robot_id ?? '-' }}</td>
                 <td>{{ item.mission_id ?? '-' }}</td>
                 <td>{{ item.started_at }}</td>
@@ -564,5 +570,15 @@ onMounted(() => {
   background-color: #fefce8;
   border: 1px solid #fef08a;
   color: #ca8a04;
+}
+.btn-link {
+  background: transparent;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+  padding: 0;
+  text-decoration: underline;
 }
 </style>

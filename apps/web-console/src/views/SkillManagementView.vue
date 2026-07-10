@@ -4,6 +4,7 @@
 // Author: AxeXie
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import DataTable from '@/components/DataTable.vue'
 import FormBuilder from '@/components/FormBuilder.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
@@ -28,6 +29,7 @@ import type {
 } from '@/types/api'
 
 const { t, te } = useI18n()
+const router = useRouter()
 
 const skills = ref<Skill[]>([])
 const loading = ref(false)
@@ -269,11 +271,19 @@ onMounted(() => {
           @page-change="handlePageChange"
           @size-change="handleSizeChange"
         >
+          <template #cell-skill_name="{ row }">
+            <button class="btn-link" @click="router.push(`/skills/${(row as unknown as Skill).id}`)">
+              {{ (row as unknown as Skill).skill_name }}
+            </button>
+          </template>
           <template #cell-status="{ row }">
             <StatusTag :status="row.status as string" type="publish" />
           </template>
           <template #actions="{ row }">
             <div class="action-buttons">
+              <button class="btn-link" @click="router.push(`/skills/${(row as unknown as Skill).id}`)">
+                {{ t('common.view_detail') }}
+              </button>
               <button v-permission="'platform.skill.manage'" class="btn-link" @click="openEdit(row as unknown as Skill)">
                 {{ t('common.edit') }}
               </button>

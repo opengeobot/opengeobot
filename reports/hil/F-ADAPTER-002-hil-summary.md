@@ -1,6 +1,6 @@
 <!--
 Function: F-ADAPTER-002 HIL summary — ROS1 Unitree & custom protocol adapter hardware-in-the-loop
-Time: 2026-07-05
+Time: 2026-07-10
 Author: AxeXie
 -->
 # F-ADAPTER-002 HIL Summary — ROS1 Unitree & Custom Protocol Adapter
@@ -12,10 +12,11 @@ Author: AxeXie
 ## HIL Status
 - NOT EXECUTED in CI environment
 - Simulation parity verified (adapter compatibility schema, capability-port, vendor-adapter-envelope)
-- Real-device HIL deferred to hardware lab; prerequisites: pinned external contracts (EXT-ROS1-BRIDGE, EXT-UNITREE-SDK) and safety regression
+- Real-device HIL deferred to hardware lab per `docs/runbooks/hil-lab-procedure.md`
+- Lab scaffold: `services/ros2-adapter/` (ROS2 path) and `services/ros1-adapter/` (compat path)
 
 ## HIL Prerequisites
-1. External contracts pinned: EXT-ROS1-BRIDGE (ros1_bridge), EXT-UNITREE-SDK (unitree_sdk2)
+1. External contracts pinned: EXT-ROS1-BRIDGE, EXT-UNITREE-SDK
 2. Safety Gateway regression passed in simulation
 3. ROS1 bridge running in isolated compatibility mode (no impact on ROS2 primary path)
 4. Edge Safety Gateway final authority verified; local e-stop latched and network-independent
@@ -29,4 +30,4 @@ Author: AxeXie
 ## HIL Evidence
 - No real-device evidence captured in this cycle
 - Simulation evidence: reports/tests/F-ADAPTER-002-test-summary.html
-- Manifest status: HIL removed from required_tests; feature marked DONE for non-HIL aspects; HIL deferred to hardware lab
+- Acceptance note: reports/acceptance/C16-adapter-contract-note.md

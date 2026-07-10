@@ -109,6 +109,10 @@ tags:
     description: >-
       Fleet scheduling, conflict detection and failover management
       (F-FLEET-001).
+  - name: edge-gateway
+    description: >-
+      Edge gateway identity, connection, heartbeat and certificate rotation
+      (F-EDGE-001).
 paths:
   /health/live:
     get:
@@ -269,6 +273,20 @@ paths:
     $ref: './paths/robot.yaml#/robotStatus'
   /robots/{robotId}/capabilities:
     $ref: './paths/robot.yaml#/robotCapabilities'
+  /robots/{robotId}/control-leases:
+    $ref: './paths/control-leases.yaml#/controlLeasesCollection'
+  /edge-gateways:
+    $ref: './paths/edge-gateways.yaml#/edgeGatewaysCollection'
+  /edge-gateways/{gatewayId}:
+    $ref: './paths/edge-gateways.yaml#/edgeGatewayItem'
+  /edge-gateways/{gatewayId}/activate:
+    $ref: './paths/edge-gateways.yaml#/edgeGatewayActivate'
+  /edge-gateways/{gatewayId}/revoke:
+    $ref: './paths/edge-gateways.yaml#/edgeGatewayRevoke'
+  /edge-gateways/{gatewayId}/heartbeat:
+    $ref: './paths/edge-gateways.yaml#/edgeGatewayHeartbeat'
+  /edge-gateways/{gatewayId}/certificate-rotations:
+    $ref: './paths/edge-gateways.yaml#/edgeGatewayCertificateRotation'
   /missions:
     $ref: './paths/mission.yaml#/missionsCollection'
   /missions/{missionId}:
@@ -606,6 +624,32 @@ components:
       $ref: './schemas/monitor.yaml#/MonitorOverview'
     TakeoverRequest:
       $ref: './schemas/monitor.yaml#/TakeoverRequest'
+    ControlLeaseStatus:
+      $ref: './schemas/control-lease.yaml#/ControlLeaseStatus'
+    ControlLease:
+      $ref: './schemas/control-lease.yaml#/ControlLease'
+    AcquireControlLeaseRequest:
+      $ref: './schemas/control-lease.yaml#/AcquireControlLeaseRequest'
+    EdgeGatewayStatus:
+      $ref: './schemas/edge-gateway.yaml#/EdgeGatewayStatus'
+    CertificateStatus:
+      $ref: './schemas/edge-gateway.yaml#/CertificateStatus'
+    EdgeGateway:
+      $ref: './schemas/edge-gateway.yaml#/EdgeGateway'
+    EdgeGatewayPage:
+      $ref: './schemas/edge-gateway.yaml#/EdgeGatewayPage'
+    EdgeGatewayCertificate:
+      $ref: './schemas/edge-gateway.yaml#/EdgeGatewayCertificate'
+    CreateEdgeGatewayRequest:
+      $ref: './schemas/edge-gateway.yaml#/CreateEdgeGatewayRequest'
+    ActivateEdgeGatewayRequest:
+      $ref: './schemas/edge-gateway.yaml#/ActivateEdgeGatewayRequest'
+    RevokeEdgeGatewayRequest:
+      $ref: './schemas/edge-gateway.yaml#/RevokeEdgeGatewayRequest'
+    EdgeGatewayHeartbeatRequest:
+      $ref: './schemas/edge-gateway.yaml#/EdgeGatewayHeartbeatRequest'
+    RotateCertificateRequest:
+      $ref: './schemas/edge-gateway.yaml#/RotateCertificateRequest'
     ProtocolType:
       $ref: './schemas/adapter.yaml#/ProtocolType'
     AdapterStatus:

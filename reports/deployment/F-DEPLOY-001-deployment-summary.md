@@ -46,9 +46,19 @@
 
 ## Kubernetes
 
-- 清单目录: `deploy/kubernetes/`（M0 阶段为占位，M5 阶段补充）
+- 清单目录: `deploy/kubernetes/`（基线清单已落地，2026-07-10）
+- 包含: `namespace.yaml`、`configmap.yaml`、`secret.yaml.example`、`postgres.yaml`、`nats.yaml`、`minio.yaml`、`cloud-control.yaml`、`web-console.yaml`、`README.md`
+- 镜像标签与 `deploy/compose/compose.yml` 对齐（无 `latest`）；应用镜像使用 `opengeobot/cloud-control:0.1.0` / `opengeobot/web-console:0.1.0`
+- 说明: 基线清单，非生产 HA；完整集群验收与安全扫描仍待补齐
+
+## CI
+
+- 工作流: `.github/workflows/ci.yml`（push/PR）
+- Jobs: `validate-manifest`（`python3 scripts/validate_platform_manifest.py`）、`frontend-test`（Node 22 + pnpm）
+- Java 21: 工作流注释预留 `actions/setup-java@v4`（Temurin 21），待 cloud-control 测试套件接入后启用
 
 ## 验收
 
 - C23: 统一开发命令可用 (`scripts/dev.sh` / `scripts/dev.ps1`)
-- C24: Compose 启动后健康检查通过
+- C24: Compose 启动后健康检查通过；结构检查另含 `deploy/kubernetes/` 与 `.github/workflows/ci.yml`（`scripts/acceptance/run_c23_c24_check.py`）
+- 功能清单状态仍以机器清单 `implementation_status` 为准；本证据更新不自动标记 DONE

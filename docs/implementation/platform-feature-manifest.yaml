@@ -241,6 +241,7 @@ features:
     - apps/cloud-control/bootstrap/
     - scripts/dev.sh
     - scripts/dev.ps1
+    - scripts/acceptance/run_c01_c02.py
     frontend:
     - apps/web-console/src/main.ts
     - apps/web-console/src/App.vue
@@ -330,6 +331,8 @@ features:
     - contracts/asyncapi/asyncapi.yaml
     deployment:
     - deploy/compose/compose.yml
+    - deploy/kubernetes/README.md
+    - deploy/kubernetes/cloud-control.yaml
     - reports/deployment/F-DEPLOY-001-deployment-summary.md
     observability:
     - deploy/observability/vmagent.yml
@@ -857,13 +860,17 @@ features:
     - RUNBOOK
   evidence:
     contracts:
-    - contracts/openapi/paths/robot.yaml
+    - contracts/openapi/paths/edge-gateways.yaml
+    - contracts/openapi/schemas/edge-gateway.yaml
     migrations:
-    - apps/cloud-control/bootstrap/src/main/resources/db/migration/V7__create_robot_registry_tables.sql
+    - apps/cloud-control/bootstrap/src/main/resources/db/migration/V25__create_edge_gateway_and_control_lease_tables.sql
     backend:
-    - apps/cloud-control/platform-robot/
+    - apps/cloud-control/platform-robot/src/main/java/io/opengeobot/platform/robot/controller/EdgeGatewayController.java
+    - apps/cloud-control/platform-robot/src/main/java/io/opengeobot/platform/robot/service/EdgeGatewayService.java
     frontend:
-    - apps/web-console/src/views/RobotManagementView.vue
+    - apps/web-console/src/views/EdgeGatewayListView.vue
+    - apps/web-console/src/views/EdgeGatewayDetailView.vue
+    - apps/web-console/src/api/edge.ts
     events:
     - contracts/asyncapi/schemas/robot-events.yaml
     deployment:
@@ -972,6 +979,7 @@ features:
     - apps/cloud-control/platform-robot/
     frontend:
     - apps/web-console/src/views/RobotManagementView.vue
+    - apps/web-console/src/views/RobotDetailView.vue
     events:
     - contracts/asyncapi/schemas/robot-events.yaml
     deployment:
@@ -1081,7 +1089,8 @@ features:
     backend:
     - apps/cloud-control/platform-robot/
     frontend:
-    - apps/web-console/src/views/RobotManagementView.vue
+    - apps/web-console/src/views/RobotModelManagementView.vue
+    - apps/web-console/src/views/RobotGroupManagementView.vue
     events:
     - contracts/asyncapi/schemas/robot-events.yaml
     deployment:
@@ -1197,6 +1206,8 @@ features:
     - apps/cloud-control/platform-robot/
     frontend:
     - apps/web-console/src/views/SkillManagementView.vue
+    - apps/web-console/src/views/CapabilityCatalogView.vue
+    - apps/web-console/src/views/SkillDetailView.vue
     events:
     - contracts/asyncapi/schemas/skill-events.yaml
     deployment:
@@ -1417,6 +1428,8 @@ features:
     - apps/cloud-control/platform-robot/
     frontend:
     - apps/web-console/src/views/MissionManagementView.vue
+    - apps/web-console/src/views/MissionCreateView.vue
+    - apps/web-console/src/views/MissionDetailView.vue
     events:
     - contracts/asyncapi/schemas/mission-events.yaml
     deployment:
@@ -1525,7 +1538,8 @@ features:
     backend:
     - apps/cloud-control/platform-robot/
     frontend:
-    - apps/web-console/src/views/MissionManagementView.vue
+    - apps/web-console/src/views/MissionTemplateManagementView.vue
+    - apps/web-console/src/views/MissionApprovalView.vue
     events:
     - contracts/asyncapi/schemas/mission-events.yaml
     deployment:
@@ -2417,6 +2431,8 @@ features:
     - apps/cloud-control/platform-robot/
     frontend:
     - apps/web-console/src/views/MapManagementView.vue
+    - apps/web-console/src/views/MapDetailView.vue
+    - apps/web-console/src/views/RestrictedAreaManagementView.vue
     events:
     - contracts/asyncapi/schemas/governance-events.yaml
     deployment:
@@ -2525,12 +2541,19 @@ features:
   evidence:
     contracts:
     - contracts/openapi/paths/monitor.yaml
+    - contracts/openapi/paths/control-leases.yaml
+    - contracts/openapi/schemas/control-lease.yaml
     migrations:
     - apps/cloud-control/bootstrap/src/main/resources/db/migration/V11__create_mission_tables.sql
+    - apps/cloud-control/bootstrap/src/main/resources/db/migration/V25__create_edge_gateway_and_control_lease_tables.sql
     backend:
-    - apps/cloud-control/platform-robot/
+    - apps/cloud-control/platform-robot/src/main/java/io/opengeobot/platform/robot/controller/ControlLeaseController.java
+    - apps/cloud-control/platform-robot/src/main/java/io/opengeobot/platform/robot/service/ControlLeaseService.java
     frontend:
     - apps/web-console/src/views/MonitorView.vue
+    - apps/web-console/src/views/FleetMonitorView.vue
+    - apps/web-console/src/views/RobotMonitorView.vue
+    - apps/web-console/src/views/ControlLeaseView.vue
     events:
     - contracts/asyncapi/schemas/mission-events.yaml
     deployment:
@@ -2735,6 +2758,8 @@ features:
     backend:
     - apps/cloud-control/platform-robot/
     frontend:
+    - apps/web-console/src/views/TraceView.vue
+    - apps/web-console/src/views/TraceDetailView.vue
     - apps/web-console/src/api/trace.ts
     events:
     - contracts/asyncapi/schemas/governance-events.yaml
@@ -2849,7 +2874,9 @@ features:
     backend:
     - apps/cloud-control/platform-robot/
     frontend:
-    - apps/web-console/src/views/DashboardView.vue
+    - apps/web-console/src/views/TaskMemoryView.vue
+    - apps/web-console/src/views/FailureCaseView.vue
+    - apps/web-console/src/views/ImprovementManagementView.vue
     events:
     - contracts/asyncapi/schemas/memory-events.yaml
     deployment:

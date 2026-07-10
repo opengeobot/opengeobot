@@ -420,6 +420,11 @@ cmd_sim_up() {
 }
 
 cmd_test() {
+    # Optional platform acceptance skeletons (do not replace unit/component tests):
+    #   python3 scripts/acceptance/run_c01_c02.py
+    #   python3 scripts/acceptance/run_c23_c24_check.py
+    # Plans: docs/test-plans/c01-c22-test-plan.md, docs/test-plans/c23-c24-test-plan.md
+    # Evidence: reports/acceptance/
     info "Running Java tests..."
     load_env
     "${ROOT_DIR}/mvnw" test -B

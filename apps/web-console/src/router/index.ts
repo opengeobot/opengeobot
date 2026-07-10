@@ -47,10 +47,52 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, permission: 'robot.robot.read', titleKey: 'nav.robots' }
       },
       {
+        path: 'robots/:robotId',
+        name: 'robot-detail',
+        component: () => import('@/views/RobotDetailView.vue'),
+        meta: { requiresAuth: true, permission: 'robot.robot.read', titleKey: 'robot.detail_title' }
+      },
+      {
+        path: 'robot-models',
+        name: 'robot-models',
+        component: () => import('@/views/RobotModelManagementView.vue'),
+        meta: { requiresAuth: true, permission: 'robot.model.read', titleKey: 'nav.robot_models' }
+      },
+      {
+        path: 'robot-groups',
+        name: 'robot-groups',
+        component: () => import('@/views/RobotGroupManagementView.vue'),
+        meta: { requiresAuth: true, permission: 'robot.group.read', titleKey: 'nav.robot_groups' }
+      },
+      {
+        path: 'edge-gateways',
+        name: 'edge-gateways',
+        component: () => import('@/views/EdgeGatewayListView.vue'),
+        meta: { requiresAuth: true, permission: 'edge.gateway.read', titleKey: 'nav.edge_gateways' }
+      },
+      {
+        path: 'edge-gateways/:gatewayId',
+        name: 'edge-gateway-detail',
+        component: () => import('@/views/EdgeGatewayDetailView.vue'),
+        meta: { requiresAuth: true, permission: 'edge.gateway.read', titleKey: 'edge.detail_title' }
+      },
+      {
         path: 'skills',
         name: 'skills',
         component: () => import('@/views/SkillManagementView.vue'),
         meta: { requiresAuth: true, permission: 'skill.skill.read', titleKey: 'nav.skills' }
+      },
+      {
+        path: 'skills/:skillId',
+        name: 'skill-detail',
+        component: () => import('@/views/SkillDetailView.vue'),
+        meta: { requiresAuth: true, permission: 'skill.skill.read', titleKey: 'skill.detail_title' }
+      },
+      {
+        path: 'capabilities',
+        name: 'capabilities',
+        component: () => import('@/views/CapabilityCatalogView.vue'),
+        meta: { requiresAuth: true, permission: 'skill.skill.read', titleKey: 'nav.capabilities' }
       },
       {
         path: 'mcp',
@@ -63,6 +105,30 @@ const routes: RouteRecordRaw[] = [
         name: 'missions',
         component: () => import('@/views/MissionManagementView.vue'),
         meta: { requiresAuth: true, permission: 'mission.mission.read', titleKey: 'nav.missions' }
+      },
+      {
+        path: 'missions/create',
+        name: 'mission-create',
+        component: () => import('@/views/MissionCreateView.vue'),
+        meta: { requiresAuth: true, permission: 'mission.mission.read', titleKey: 'mission.create_title' }
+      },
+      {
+        path: 'missions/:missionId',
+        name: 'mission-detail',
+        component: () => import('@/views/MissionDetailView.vue'),
+        meta: { requiresAuth: true, permission: 'mission.mission.read', titleKey: 'mission.detail_title' }
+      },
+      {
+        path: 'mission-templates',
+        name: 'mission-templates',
+        component: () => import('@/views/MissionTemplateManagementView.vue'),
+        meta: { requiresAuth: true, permission: 'mission.mission.read', titleKey: 'nav.mission_templates' }
+      },
+      {
+        path: 'mission-approvals',
+        name: 'mission-approvals',
+        component: () => import('@/views/MissionApprovalView.vue'),
+        meta: { requiresAuth: true, permission: 'mission.mission.approve', titleKey: 'nav.mission_approvals' }
       },
       {
         path: 'policies',
@@ -83,10 +149,40 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, permission: 'map.map.read', titleKey: 'nav.maps' }
       },
       {
+        path: 'maps/:mapId',
+        name: 'map-detail',
+        component: () => import('@/views/MapDetailView.vue'),
+        meta: { requiresAuth: true, permission: 'map.map.read', titleKey: 'map.detail_title' }
+      },
+      {
+        path: 'restricted-areas',
+        name: 'restricted-areas',
+        component: () => import('@/views/RestrictedAreaManagementView.vue'),
+        meta: { requiresAuth: true, permission: 'map.map.read', titleKey: 'nav.restricted_areas' }
+      },
+      {
         path: 'monitor',
         name: 'monitor',
         component: () => import('@/views/MonitorView.vue'),
         meta: { requiresAuth: true, permission: 'monitor.robot.view', titleKey: 'nav.monitor' }
+      },
+      {
+        path: 'monitor/fleet',
+        name: 'monitor-fleet',
+        component: () => import('@/views/FleetMonitorView.vue'),
+        meta: { requiresAuth: true, permission: 'monitor.robot.view', titleKey: 'monitor.fleet_title' }
+      },
+      {
+        path: 'monitor/robots/:robotId',
+        name: 'monitor-robot',
+        component: () => import('@/views/RobotMonitorView.vue'),
+        meta: { requiresAuth: true, permission: 'monitor.robot.view', titleKey: 'monitor.robot_detail' }
+      },
+      {
+        path: 'control/:robotId',
+        name: 'control-lease',
+        component: () => import('@/views/ControlLeaseView.vue'),
+        meta: { requiresAuth: true, permission: 'robot.robot.control', titleKey: 'control.title' }
       },
       {
         path: 'media',
@@ -131,10 +227,28 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, permission: 'memory.memory.read', titleKey: 'nav.memory' }
       },
       {
+        path: 'failure-cases',
+        name: 'failure-cases',
+        component: () => import('@/views/FailureCaseView.vue'),
+        meta: { requiresAuth: true, permission: 'memory.failure_case.read', titleKey: 'nav.failure_cases' }
+      },
+      {
+        path: 'improvements',
+        name: 'improvements',
+        component: () => import('@/views/ImprovementManagementView.vue'),
+        meta: { requiresAuth: true, permission: 'memory.failure_case.read', titleKey: 'nav.improvements' }
+      },
+      {
         path: 'trace',
         name: 'trace',
         component: () => import('@/views/TraceView.vue'),
         meta: { requiresAuth: true, permission: 'trace.trace.read', titleKey: 'nav.trace' }
+      },
+      {
+        path: 'traces/:traceId',
+        name: 'trace-detail',
+        component: () => import('@/views/TraceDetailView.vue'),
+        meta: { requiresAuth: true, permission: 'trace.trace.read', titleKey: 'trace.detail' }
       },
       {
         path: 'system/users',

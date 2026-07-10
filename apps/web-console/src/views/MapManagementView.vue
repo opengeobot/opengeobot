@@ -4,6 +4,7 @@
 // Author: AxeXie
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import DataTable from '@/components/DataTable.vue'
 import FormBuilder from '@/components/FormBuilder.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
@@ -30,6 +31,7 @@ import type {
 } from '@/types/api'
 
 const { t, te } = useI18n()
+const router = useRouter()
 
 const maps = ref<GameMap[]>([])
 const loading = ref(false)
@@ -323,11 +325,19 @@ onMounted(() => {
       @page-change="handlePageChange"
       @size-change="handleSizeChange"
     >
+      <template #cell-map_name="{ row }">
+        <button class="btn-link" @click="router.push(`/maps/${(row as unknown as GameMap).id}`)">
+          {{ (row as unknown as GameMap).map_name }}
+        </button>
+      </template>
       <template #cell-status="{ row }">
         <StatusTag :status="row.status as string" type="publish" />
       </template>
       <template #actions="{ row }">
         <div class="action-buttons">
+          <button class="btn-link" @click="router.push(`/maps/${(row as unknown as GameMap).id}`)">
+            {{ t('common.view_detail') }}
+          </button>
           <button v-permission="'platform.map.manage'" class="btn-link" @click="openEdit(row as unknown as GameMap)">
             {{ t('common.edit') }}
           </button>

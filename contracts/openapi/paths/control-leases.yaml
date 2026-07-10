@@ -1,0 +1,128 @@
+# Function: Control lease endpoint paths for F-MONITOR-001
+# Time: 2026-07-10
+# Author: AxeXie
+
+controlLeasesCollection:
+  parameters:
+    - name: robotId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the robot.
+      example: rbt_01J00000000000000000000001
+  get:
+    tags: [monitor]
+    summary: Get active control lease
+    description: >-
+      Returns the currently ACTIVE control lease for the robot, if any.
+      Expired ACTIVE leases are marked EXPIRED before the response.
+      Requires the `robot.robot.control` permission.
+    operationId: getActiveControlLease
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Active control lease, or null body when none is active.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/control-lease.yaml#/ControlLease'
+      '204':
+        description: No active control lease for the robot.
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.robot.control permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [monitor]
+    summary: Acquire control lease
+    description: >-
+      Acquires an ACTIVE control lease for the robot with a unique fencing
+      token. Fails with 409 when another ACTIVE (non-expired) lease exists.
+      Emits `control_lease.activated.v1`. Requires `robot.robot.control`.
+    operationId: acquireControlLease
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/control-lease.yaml#/AcquireControlLeaseRequest'
+          example:
+            ttl_seconds: 300
+            reason: MANUAL_INTERVENTION
+    responses:
+      '201':
+        description: Control lease acquired.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/control-lease.yaml#/ControlLease'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.robot.control permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: An active control lease already exists for the robot.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  delete:
+    tags: [monitor]
+    summary: Release active control lease
+    description: >-
+      Releases the currently ACTIVE control lease for the robot. Emits
+      `control_lease.released.v1`. Requires `robot.robot.control`.
+    operationId: releaseControlLease
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Released control lease.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/control-lease.yaml#/ControlLease'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the robot.robot.control permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: No active control lease for the robot.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

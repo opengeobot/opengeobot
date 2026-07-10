@@ -6,9 +6,18 @@ import type {
   Robot,
   RobotModel,
   RobotGroup,
+  RobotGroupMembers,
   CreateRobotRequest,
   UpdateRobotRequest,
+  CreateRobotModelRequest,
+  UpdateRobotModelRequest,
+  CreateRobotGroupRequest,
+  UpdateRobotGroupRequest,
   RobotListParams,
+  RobotModelListParams,
+  RobotGroupListParams,
+  ControlLease,
+  AcquireControlLeaseRequest,
   PageResult
 } from '@/types/api'
 
@@ -58,14 +67,113 @@ export async function updateRobotCapabilities(id: string, capabilities: string[]
   await client.put(`/robots/${id}/capabilities`, { capabilities })
 }
 
-/** GET /robot-models — list available robot models */
-export async function listRobotModels(): Promise<RobotModel[]> {
-  const response = await client.get<RobotModel[]>('/robot-models')
+/** GET /robot-models — paginated robot model list */
+export async function listRobotModels(
+  params?: RobotModelListParams
+): Promise<PageResult<RobotModel>> {
+  const response = await client.get<PageResult<RobotModel>>('/robot-models', { params })
   return response.data
 }
 
-/** GET /robot-groups — list robot groups */
-export async function listRobotGroups(params?: RobotListParams): Promise<PageResult<RobotGroup>> {
+/** GET /robot-models/{modelId} — fetch a single robot model */
+export async function getRobotModel(modelId: string): Promise<RobotModel> {
+  const response = await client.get<RobotModel>(`/robot-models/${modelId}`)
+  return response.data
+}
+
+/** POST /robot-models — create a robot model */
+export async function createRobotModel(data: CreateRobotModelRequest): Promise<RobotModel> {
+  const response = await client.post<RobotModel>('/robot-models', data)
+  return response.data
+}
+
+/** PUT /robot-models/{modelId} — update a robot model */
+export async function updateRobotModel(
+  modelId: string,
+  data: UpdateRobotModelRequest
+): Promise<RobotModel> {
+  const response = await client.put<RobotModel>(`/robot-models/${modelId}`, data)
+  return response.data
+}
+
+/** DELETE /robot-models/{modelId} — delete a robot model */
+export async function deleteRobotModel(modelId: string): Promise<void> {
+  await client.delete(`/robot-models/${modelId}`)
+}
+
+/** GET /robot-groups — paginated robot group list */
+export async function listRobotGroups(
+  params?: RobotGroupListParams
+): Promise<PageResult<RobotGroup>> {
   const response = await client.get<PageResult<RobotGroup>>('/robot-groups', { params })
+  return response.data
+}
+
+/** GET /robot-groups/{groupId} — fetch a single robot group */
+export async function getRobotGroup(groupId: string): Promise<RobotGroup> {
+  const response = await client.get<RobotGroup>(`/robot-groups/${groupId}`)
+  return response.data
+}
+
+/** POST /robot-groups — create a robot group */
+export async function createRobotGroup(data: CreateRobotGroupRequest): Promise<RobotGroup> {
+  const response = await client.post<RobotGroup>('/robot-groups', data)
+  return response.data
+}
+
+/** PUT /robot-groups/{groupId} — update a robot group */
+export async function updateRobotGroup(
+  groupId: string,
+  data: UpdateRobotGroupRequest
+): Promise<RobotGroup> {
+  const response = await client.put<RobotGroup>(`/robot-groups/${groupId}`, data)
+  return response.data
+}
+
+/** DELETE /robot-groups/{groupId} — delete a robot group */
+export async function deleteRobotGroup(groupId: string): Promise<void> {
+  await client.delete(`/robot-groups/${groupId}`)
+}
+
+/** GET /robot-groups/{groupId}/members — list group member robot IDs */
+export async function listRobotGroupMembers(groupId: string): Promise<RobotGroupMembers> {
+  const response = await client.get<RobotGroupMembers>(`/robot-groups/${groupId}/members`)
+  return response.data
+}
+
+/** POST /robot-groups/{groupId}/members/{robotId} — add a robot to a group */
+export async function addRobotGroupMember(groupId: string, robotId: string): Promise<void> {
+  await client.post(`/robot-groups/${groupId}/members/${robotId}`)
+}
+
+/** DELETE /robot-groups/{groupId}/members/{robotId} — remove a robot from a group */
+export async function removeRobotGroupMember(groupId: string, robotId: string): Promise<void> {
+  await client.delete(`/robot-groups/${groupId}/members/${robotId}`)
+}
+
+/** GET /robots/{robotId}/control-leases — get active control lease (null if none) */
+export async function getActiveControlLease(robotId: string): Promise<ControlLease | null> {
+  const response = await client.get<ControlLease | ''>(`/robots/${robotId}/control-leases`)
+  if (response.status === 204 || !response.data) {
+    return null
+  }
+  return response.data as ControlLease
+}
+
+/** POST /robots/{robotId}/control-leases — acquire a control lease */
+export async function acquireControlLease(
+  robotId: string,
+  data?: AcquireControlLeaseRequest
+): Promise<ControlLease> {
+  const response = await client.post<ControlLease>(
+    `/robots/${robotId}/control-leases`,
+    data ?? {}
+  )
+  return response.data
+}
+
+/** DELETE /robots/{robotId}/control-leases — release the active control lease */
+export async function releaseControlLease(robotId: string): Promise<ControlLease> {
+  const response = await client.delete<ControlLease>(`/robots/${robotId}/control-leases`)
   return response.data
 }

@@ -58,6 +58,7 @@ public class MemoryService {
     private static final String RESULT_FAILURE = "FAILURE";
     private static final String STATUS_PENDING = "PENDING";
     private static final String STATUS_ACCEPTED = "ACCEPTED";
+    private static final String STATUS_REJECTED = "REJECTED";
     private static final String FAILURE_TIMEOUT = "TIMEOUT";
     private static final String FAILURE_SKILL_ERROR = "SKILL_ERROR";
     private static final String FAILURE_SAFETY = "SAFETY_VIOLATION";
@@ -214,12 +215,18 @@ public class MemoryService {
         String payloadBefore = toJson(entity);
         entity.setFeedback(request.feedback());
         if (STATUS_PENDING.equals(entity.getStatus())) {
-            entity.setStatus(STATUS_ACCEPTED);
+            String decision = request.decision() == null ? "ACCEPT" : request.decision().trim().toUpperCase();
+            if ("REJECT".equals(decision) || "REJECTED".equals(decision)) {
+                entity.setStatus(STATUS_REJECTED);
+            } else {
+                // ACCEPT only marks approval — never auto-applies motion/skill changes.
+                entity.setStatus(STATUS_ACCEPTED);
+            }
         }
         suggestionRepository.updateById(entity);
         audit("memory.suggestion.feedback", SUGGESTION_RESOURCE_TYPE,
                 entity.getSuggestionId(), "SUCCESS", payloadBefore, toJson(entity));
-        log.info("Submitted feedback for suggestion {}", entity.getSuggestionId());
+        log.info("Submitted feedback for suggestion {} -> {}", entity.getSuggestionId(), entity.getStatus());
         return toSuggestionDto(entity);
     }
 

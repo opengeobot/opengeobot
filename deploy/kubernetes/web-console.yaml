@@ -1,0 +1,52 @@
+# Function: web-console Deployment/Service — pinned app image tag (not latest)
+# Time: 2026-07-10
+# Author: AxeXie
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-console
+  namespace: opengeobot
+  labels:
+    app: web-console
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  selector:
+    app: web-console
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-console
+  namespace: opengeobot
+  labels:
+    app: web-console
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-console
+  template:
+    metadata:
+      labels:
+        app: web-console
+    spec:
+      containers:
+        - name: web-console
+          # Build from apps/web-console/Dockerfile (nginx:1.27-alpine serve stage); never :latest
+          image: opengeobot/web-console:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              memory: 128Mi

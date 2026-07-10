@@ -1,0 +1,9 @@
+# Function: OpenGeoBot namespace baseline
+# Time: 2026-07-10
+# Author: AxeXie
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opengeobot
+  labels:
+    app.kubernetes.io/part-of: opengeobot

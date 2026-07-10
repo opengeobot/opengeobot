@@ -1,32 +1,25 @@
 <!--
-Function: F-OTA-001 HIL summary — OTA release, batch deploy & rollback hardware-in-the-loop
-Time: 2026-07-05
+Function: F-OTA-001 HIL summary — OTA campaign hardware-in-the-loop
+Time: 2026-07-10
 Author: AxeXie
 -->
-# F-OTA-001 HIL Summary — OTA Release, Batch Deploy & Rollback
+# F-OTA-001 HIL Summary — OTA Deployment
 
 ## HIL Scope
-- Feature: F-OTA-001 (OTA release, batch deployment & rollback)
-- Risk level: R3_HIGH_RISK, requires_edge_safety: true
+- Feature: F-OTA-001 (OTA packages and staged campaigns)
+- Requires edge delivery and rollback verification on real devices
 
 ## HIL Status
 - NOT EXECUTED in CI environment
-- Simulation and contract tests verified (ota artifact schema, deployment state machines, rollback recovery)
-- Real-device HIL deferred to hardware lab; prerequisites: safety regression and staged rollout
+- Simulation / API contract verification completed
+- Real-device HIL deferred to hardware lab per `docs/runbooks/hil-lab-procedure.md`
 
 ## HIL Prerequisites
-1. OTA artifact integrity validated against schema:ota-artifact
-2. Safety Gateway regression passed; OTA cannot bypass edge safety
-3. Canary/percentage rollout configuration validated in simulation
-4. Rollback path verified in simulation (automatic on failure)
-
-## HIL Test Plan (Deferred)
-- Edge agent OTA update with staged canary deployment
-- Rollback trigger on deployment failure detection
-- Edge Safety Gateway continuity during OTA update
-- Reconnection and reconciliation after OTA completion
+1. Safety regression PASS in simulation
+2. Staged rollout policy and approval path verified
+3. Automatic rollback path verified in sim
+4. Target device enrolled with active edge gateway certificate
 
 ## HIL Evidence
-- No real-device evidence captured in this cycle
-- Simulation evidence: reports/tests/F-OTA-001-test-summary.html
-- Manifest status: HIL removed from required_tests; feature marked DONE for non-HIL aspects; HIL deferred to hardware lab
+- No real-device evidence in this cycle
+- Lab procedure: docs/runbooks/hil-lab-procedure.md

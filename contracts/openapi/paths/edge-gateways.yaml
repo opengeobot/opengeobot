@@ -1,0 +1,395 @@
+# Function: Edge gateway endpoint paths for F-EDGE-001
+# Time: 2026-07-10
+# Author: AxeXie
+
+edgeGatewaysCollection:
+  get:
+    tags: [edge-gateway]
+    summary: List edge gateways
+    description: >-
+      Returns a paginated list of edge gateways. Results can be filtered by
+      `status` and `org_id`. Requires the `edge.gateway.read` permission.
+    operationId: listEdgeGateways
+    parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 1
+        description: Page number (1-based).
+        example: 1
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of items per page.
+        example: 20
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '../schemas/edge-gateway.yaml#/EdgeGatewayStatus'
+        description: Filter gateways by identity status.
+        example: ACTIVE
+      - name: org_id
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter gateways by owning organization.
+        example: org_01J00000000000000000000001
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Paginated list of edge gateways.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/edge-gateway.yaml#/EdgeGatewayPage'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the edge.gateway.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+  post:
+    tags: [edge-gateway]
+    summary: Register an edge gateway
+    description: >-
+      Registers a new edge gateway with status `REGISTERED`. Emits an
+      `edge_gateway.registered.v1` event on success. Requires the
+      `edge.gateway.manage` permission.
+    operationId: registerEdgeGateway
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/edge-gateway.yaml#/CreateEdgeGatewayRequest'
+          example:
+            name: Edge-Gateway-Pioneer-02
+            org_id: org_01J00000000000000000000001
+            bound_robot_id: rbt_01J00000000000000000000001
+            runtime_version: 0.1.0
+    responses:
+      '201':
+        description: Edge gateway registered.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/edge-gateway.yaml#/EdgeGateway'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the edge.gateway.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+edgeGatewayItem:
+  parameters:
+    - name: gatewayId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the edge gateway.
+      example: gw_01J00000000000000000000001
+  get:
+    tags: [edge-gateway]
+    summary: Get edge gateway detail
+    description: >-
+      Returns the full edge gateway detail including certificate summary and
+      binding. Requires the `edge.gateway.read` permission.
+    operationId: getEdgeGateway
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Edge gateway detail.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/edge-gateway.yaml#/EdgeGateway'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the edge.gateway.read permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Edge gateway not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+edgeGatewayActivate:
+  parameters:
+    - name: gatewayId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the edge gateway.
+      example: gw_01J00000000000000000000001
+  post:
+    tags: [edge-gateway]
+    summary: Activate an edge gateway
+    description: >-
+      Transitions a REGISTERED (or DEGRADED) gateway to ACTIVE. Emits
+      `edge_gateway.activation_changed.v1`. Requires `edge.gateway.manage`.
+    operationId: activateEdgeGateway
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/edge-gateway.yaml#/ActivateEdgeGatewayRequest'
+    responses:
+      '200':
+        description: Activated edge gateway.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/edge-gateway.yaml#/EdgeGateway'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the edge.gateway.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Edge gateway not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Status transition not allowed.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+edgeGatewayRevoke:
+  parameters:
+    - name: gatewayId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the edge gateway.
+      example: gw_01J00000000000000000000001
+  post:
+    tags: [edge-gateway]
+    summary: Revoke an edge gateway
+    description: >-
+      Revokes a gateway identity. REVOKED is terminal. Emits
+      `edge_gateway.activation_changed.v1`. Requires `edge.gateway.manage`.
+    operationId: revokeEdgeGateway
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/edge-gateway.yaml#/RevokeEdgeGatewayRequest'
+    responses:
+      '200':
+        description: Revoked edge gateway.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/edge-gateway.yaml#/EdgeGateway'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the edge.gateway.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Edge gateway not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Gateway already revoked.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+edgeGatewayHeartbeat:
+  parameters:
+    - name: gatewayId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the edge gateway.
+      example: gw_01J00000000000000000000001
+  post:
+    tags: [edge-gateway]
+    summary: Record edge gateway heartbeat
+    description: >-
+      Accepts a heartbeat from an edge gateway, updating last_heartbeat_at
+      and optional runtime_version. Emits
+      `edge_gateway.heartbeat_received.v1`. Requires `edge.gateway.manage`.
+    operationId: heartbeatEdgeGateway
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/edge-gateway.yaml#/EdgeGatewayHeartbeatRequest'
+    responses:
+      '200':
+        description: Updated edge gateway after heartbeat.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/edge-gateway.yaml#/EdgeGateway'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the edge.gateway.manage permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Edge gateway not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Gateway is revoked and cannot accept heartbeats.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+
+edgeGatewayCertificateRotation:
+  parameters:
+    - name: gatewayId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Stable public identifier of the edge gateway.
+      example: gw_01J00000000000000000000001
+  post:
+    tags: [edge-gateway]
+    summary: Rotate edge gateway certificate
+    description: >-
+      Rotates the gateway certificate: previous ACTIVE certificate becomes
+      ROTATED and the new certificate becomes ACTIVE on the gateway record.
+      Emits `edge_gateway.certificate_rotated.v1`. Requires
+      `edge.gateway.certificate.rotate`.
+    operationId: rotateEdgeGatewayCertificate
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/edge-gateway.yaml#/RotateCertificateRequest'
+          example:
+            fingerprint: 'sha256:rotated-fingerprint-pioneer-01'
+            expires_at: '2027-07-10T08:00:00Z'
+    responses:
+      '200':
+        description: Newly active certificate record.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/edge-gateway.yaml#/EdgeGatewayCertificate'
+      '400':
+        description: Invalid request body.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '401':
+        description: Authentication required.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '403':
+        description: Caller lacks the edge.gateway.certificate.rotate permission.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '404':
+        description: Edge gateway not found.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'
+      '409':
+        description: Gateway is revoked or certificate rotation conflict.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../schemas/error.yaml#/ProblemDetails'

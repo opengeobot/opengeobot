@@ -379,18 +379,139 @@ export interface Robot {
 }
 
 export interface RobotModel {
-  id: string
-  model_code: string
+  model_id: string
   model_name: string
-  vendor: string
+  manufacturer: string
   description: string
+  capabilities?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CreateRobotModelRequest {
+  model_name: string
+  manufacturer?: string
+  description?: string
+  capabilities?: string
+}
+
+export interface UpdateRobotModelRequest {
+  manufacturer?: string
+  description?: string
+  capabilities?: string
 }
 
 export interface RobotGroup {
-  id: string
-  group_code: string
+  group_id: string
+  parent_id: string | null
   group_name: string
   description: string
+  path?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CreateRobotGroupRequest {
+  parent_id?: string | null
+  group_name: string
+  description?: string
+}
+
+export interface UpdateRobotGroupRequest {
+  group_name?: string
+  description?: string
+}
+
+export interface RobotGroupMembers {
+  group_id: string
+  robot_ids: string[]
+}
+
+export interface RobotModelListParams extends FilterParams {}
+
+export interface RobotGroupListParams extends FilterParams {
+  parent_id?: string
+}
+
+// ---- Edge gateway ----
+
+export type EdgeGatewayStatus = 'PENDING' | 'ACTIVE' | 'REVOKED' | 'EXPIRED'
+
+export interface EdgeGateway {
+  gateway_id: string
+  name: string
+  org_id: string
+  status: string
+  certificate_fingerprint: string | null
+  certificate_expires_at: string | null
+  runtime_version: string | null
+  bound_robot_id: string | null
+  last_heartbeat_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface EdgeGatewayCertificate {
+  cert_id: string
+  gateway_id: string
+  fingerprint: string
+  issued_at: string | null
+  expires_at: string
+  status: string
+  created_at: string
+}
+
+export interface CreateEdgeGatewayRequest {
+  name: string
+  org_id: string
+  bound_robot_id?: string
+  runtime_version?: string
+  certificate_fingerprint?: string
+  certificate_expires_at?: string
+}
+
+export interface ActivateEdgeGatewayRequest {
+  reason?: string
+}
+
+export interface RevokeEdgeGatewayRequest {
+  reason?: string
+}
+
+export interface EdgeGatewayHeartbeatRequest {
+  runtime_version?: string
+  sequence?: number
+}
+
+export interface RotateCertificateRequest {
+  fingerprint: string
+  issued_at?: string
+  expires_at: string
+}
+
+export interface EdgeGatewayListParams extends FilterParams {
+  status?: string
+  org_id?: string
+}
+
+// ---- Control lease ----
+
+export interface ControlLease {
+  lease_id: string
+  robot_id: string
+  holder_user_id: string
+  status: string
+  acquired_at: string
+  expires_at: string
+  released_at: string | null
+  fencing_token: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AcquireControlLeaseRequest {
+  ttl_seconds?: number
+  reason?: string
 }
 
 export interface CreateRobotRequest {
@@ -1239,6 +1360,7 @@ export interface ImprovementSuggestion {
 export interface FeedbackRequest {
   suggestion_id: string
   feedback: string
+  decision?: 'ACCEPT' | 'REJECT'
 }
 
 export interface TaskCaseListParams extends FilterParams {

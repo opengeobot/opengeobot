@@ -1,0 +1,93 @@
+# Function: cloud-control Deployment/Service — pinned app image tag (not latest)
+# Time: 2026-07-10
+# Author: AxeXie
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-control
+  namespace: opengeobot
+  labels:
+    app: cloud-control
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: cloud-control
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-control
+  namespace: opengeobot
+  labels:
+    app: cloud-control
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud-control
+  template:
+    metadata:
+      labels:
+        app: cloud-control
+    spec:
+      containers:
+        - name: cloud-control
+          # Build from apps/cloud-control/Dockerfile; pin a release tag — never :latest
+          image: opengeobot/cloud-control:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: opengeobot-config
+                  key: SPRING_PROFILES_ACTIVE
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: opengeobot-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: opengeobot-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: opengeobot-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: opengeobot-config
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opengeobot-secrets
+                  key: DB_PASSWORD
+            - name: NATS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: opengeobot-config
+                  key: NATS_URL
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: opengeobot-config
+                  key: MINIO_ENDPOINT
+          readinessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            limits:
+              memory: 1Gi

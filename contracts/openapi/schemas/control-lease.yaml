@@ -1,0 +1,98 @@
+# Function: Control lease schemas for F-MONITOR-001
+# Time: 2026-07-10
+# Author: AxeXie
+
+ControlLeaseStatus:
+  type: string
+  description: >-
+    Control lease lifecycle status (SM-CONTROL-001). ACTIVE holds a unique
+    fencing token. RELEASED, EXPIRED and REVOKED are terminal.
+  enum:
+    - ACTIVE
+    - RELEASED
+    - EXPIRED
+    - REVOKED
+  example: ACTIVE
+
+ControlLease:
+  type: object
+  description: >-
+    Manual takeover control lease for a robot. ACTIVE leases carry a unique
+    fencing token used by the edge Safety Gateway. All field names use
+    snake_case.
+  required:
+    - lease_id
+    - robot_id
+    - holder_user_id
+    - status
+    - acquired_at
+    - expires_at
+    - fencing_token
+    - created_at
+    - updated_at
+  additionalProperties: false
+  properties:
+    lease_id:
+      type: string
+      description: Stable public identifier of the lease (ULID-based).
+      example: lease_01J00000000000000000000001
+    robot_id:
+      type: string
+      description: Public identifier of the controlled robot.
+      example: rbt_01J00000000000000000000001
+    holder_user_id:
+      type: string
+      description: Public identifier of the user holding the lease.
+      example: usr_01J00000000000000000000001
+    status:
+      $ref: '#/ControlLeaseStatus'
+    acquired_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the lease became ACTIVE.
+      example: '2026-07-10T08:00:00Z'
+    expires_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the lease expires if not released.
+      example: '2026-07-10T08:05:00Z'
+    released_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: UTC timestamp when the lease was released or revoked.
+      example: null
+    fencing_token:
+      type: string
+      description: Unique fencing token for the ACTIVE lease generation.
+      example: ftk_01J00000000000000000000001
+    created_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the lease record was created.
+      example: '2026-07-10T08:00:00Z'
+    updated_at:
+      type: string
+      format: date-time
+      description: UTC timestamp when the lease record was last updated.
+      example: '2026-07-10T08:00:00Z'
+
+AcquireControlLeaseRequest:
+  type: object
+  description: >-
+    Request body for acquiring a control lease on a robot. When
+    `ttl_seconds` is omitted the platform default TTL applies. All field
+    names use snake_case.
+  additionalProperties: false
+  properties:
+    ttl_seconds:
+      type: integer
+      format: int32
+      minimum: 30
+      maximum: 3600
+      description: Lease time-to-live in seconds (default 300).
+      example: 300
+    reason:
+      type: string
+      description: Optional machine-readable reason for takeover.
+      example: MANUAL_INTERVENTION
