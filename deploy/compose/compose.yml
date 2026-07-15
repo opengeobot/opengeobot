@@ -258,7 +258,8 @@ services:
 
   edge-gateway:
     build:
-      context: ../../edge/gateway
+      context: ../../edge
+      dockerfile: gateway/Dockerfile
     profiles: [sim, full]
     environment:
       - NATS_URL=nats://nats:4222
