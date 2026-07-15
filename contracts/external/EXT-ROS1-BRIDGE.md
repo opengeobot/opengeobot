@@ -17,5 +17,17 @@ Author: AxeXie
 - 所有运动指令通过已注册 Skill/Capability 经 IAM、Mission、Policy、Fleet、Edge Safety
 - 边缘安全判定最终有效；ROS1 适配不得绕过 Safety Gateway
 
+## Verified Environment
+
+- Docker image: `ros:noetic-ros-core`
+- ROS Master: roscore in isolated container (`ros1-roscore`)
+- Simulated robot node: turtlesim (`ros-noetic-turtlesim`)
+- Adapter: `Ros1NativeAdapter` in `services/ros1-adapter/` (rospy-based)
+- Protocol type: `ROS1_NATIVE`
+- Compose profile: `ros1-sim`
+- Tests: 123 tests (120 pass + 3 integration skipped)
+- ROS1 isolated from ROS2 in separate containers
+- Agent/LLM never directly publishes `/cmd_vel`
+
 ## Required By
 - F-ADAPTER-002 (ROS1 Unitree & custom protocol compatibility adapter)

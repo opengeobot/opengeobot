@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 from .adapter import ProtocolAdapter, TranslationError
 from .config import Ros1Config
 from .custom_adapter import CustomAdapter
+from .ros1_native_adapter import Ros1NativeAdapter
 from .unitree_adapter import UnitreeAdapter
 
 
@@ -66,13 +67,20 @@ class TranslateResponse(BaseModel):
     translated_at: str
 
 
-def _select_protocol_handler(protocol_type: str) -> ProtocolAdapter:
+def _select_protocol_handler(
+    protocol_type: str,
+    *,
+    ros_master_uri: str = "",
+    node_name: str = "",
+) -> ProtocolAdapter:
     """Select the protocol handler based on the configured protocol type."""
     upper = protocol_type.upper()
     if upper == "UNITREE":
         return UnitreeAdapter()
     if upper == "CUSTOM":
         return CustomAdapter()
+    if upper == "ROS1_NATIVE":
+        return Ros1NativeAdapter(ros_master_uri, node_name)
     if upper == "ROS1":
         # ROS1 native uses the same translation shape as custom (JSON command)
         # until the ROS1 Jazzy contract is pinned. This keeps the adapter
@@ -88,7 +96,11 @@ class Ros1Adapter:
         self._config = config
         self._nc: NatsClient | None = None
         self._js: Any = None
-        self._handler: ProtocolAdapter = _select_protocol_handler(config.protocol_type)
+        self._handler: ProtocolAdapter = _select_protocol_handler(
+            config.protocol_type,
+            ros_master_uri=config.ros_master_uri,
+            node_name=config.node_name,
+        )
         self._stop_event = asyncio.Event()
 
     @property

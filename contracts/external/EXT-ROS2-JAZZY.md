@@ -9,7 +9,18 @@ Author: AxeXie
 ## Pinned Reference
 - Official source: https://docs.ros.org/en/jazzy/
 - Pin status: PINNED
-- Version: Jazzy (M2 simulation adapter, sim-adapter Python service)
+- Version: Jazzy (verified: real ROS2 environment + sim-adapter)
+
+## Verified Environment
+
+- Docker image: `ros:jazzy-ros-core`
+- DDS domain: `ROS_DOMAIN_ID=42`
+- Simulated robot node: turtlesim (`ros-jazzy-turtlesim`)
+- Adapter: `services/ros2-adapter/` (rclpy-based, 5 registered skills)
+- Compose profile: `ros2`
+- Tests: 101 tests (98 pass + 3 integration skipped)
+- Same Skill/Capability contract as `sim-adapter`
+- Agent/LLM never directly publishes `/cmd_vel`; all motion is a registered, versioned Skill executed through the Safety Gateway
 
 ## Contract
 - ROS2 为运动控制主路径

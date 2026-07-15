@@ -56,6 +56,11 @@ class Ros1Config:
         """Durable consumer name for the translation request subject."""
         return f"ros1-adapter-{self.adapter_id}"
 
+    @property
+    def ros1_native_enabled(self) -> bool:
+        """Whether the ROS1 native rospy adapter is active."""
+        return self.protocol_type.upper() == "ROS1_NATIVE"
+
     @classmethod
     def from_env(cls) -> Ros1Config:
         return cls(

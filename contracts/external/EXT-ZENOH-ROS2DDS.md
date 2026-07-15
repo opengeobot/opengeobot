@@ -9,7 +9,16 @@ Author: AxeXie
 ## Pinned Reference
 - Official source: https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds
 - Pin status: PINNED
-- Version: M2 simulation (weak network bridge simulated)
+- Version: 1.1.1 (verified: real Zenoh bridge deployment)
+
+## Verified Environment
+
+- Docker image: `eclipse/zenoh-bridge-ros2dds:1.1.1`
+- Config: `deploy/compose/zenoh/zenoh-bridge-ros2dds.json5`
+- DDS domain: `ROS_DOMAIN_ID=42`
+- Compose profile: `zenoh`
+- Weak network simulation via `tc netem` (延迟/丢包注入)
+- See `deploy/compose/zenoh/README.md` for deployment and impairment details
 
 ## Contract
 - 弱网/ROS2DDS 桥接使用 Zenoh

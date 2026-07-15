@@ -1,0 +1,66 @@
+// =============================================================================
+// OpenGeoBot - Zenoh ROS2DDS Bridge Configuration
+// Function: C15 weak-network ROS2 DDS domain bridging for turtlesim use case
+// Time: 2026-07-15
+// Author: AxeXie
+//
+// Pinned contract: contracts/external/EXT-ZENOH-ROS2DDS.md (PINNED)
+// Upstream: https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds
+// Image: eclipse/zenoh-bridge-ros2dds:1.1.1
+//
+// Usage:
+//   docker compose -f deploy/compose/compose.yml --profile zenoh up
+//
+// Safety: This bridge does NOT bypass the Safety Gateway. All motion commands
+// still flow through registered Skills, IAM, Mission, Policy, Fleet, and Edge
+// Safety before reaching /cmd_vel. Zenoh only transports DDS traffic.
+// =============================================================================
+
+{
+  // Zenoh node mode: "router" acts as a broker for inter-network bridging.
+  // Use "peer" for mesh deployments, "client" for edge nodes behind a router.
+  mode: "router",
+
+  // Zenoh inter-node endpoints.
+  // In single-bridge deployments the listen endpoint is sufficient.
+  // For multi-node topologies, add peer/router endpoints to connect.
+  connect: {
+    endpoints: [
+      // Connect to other Zenoh routers/peers across networks, e.g.:
+      // "tcp/zenoh-remote:7447",
+      // "tls/zenoh-remote:7447",
+    ],
+  },
+
+  listen: {
+    endpoints: [
+      "tcp/0.0.0.0:7447",
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  // ROS2 DDS bridge configuration
+  // ---------------------------------------------------------------------------
+  ros2dds: {
+    // DDS domain ID - MUST match ROS2 adapter and turtlesim (ROS_DOMAIN_ID=42).
+    domain: 42,
+
+    // Zenoh node name registered in the ROS2 graph.
+    nodename: "zenoh_bridge_ros2dds",
+
+    // Topic allow-list (regex patterns).
+    // Only turtlesim topics are bridged to keep the configuration minimal.
+    allow: {
+      publishers: [
+        ".*/cmd_vel",
+        ".*/pose",
+        ".*/color_sensor",
+      ],
+      subscribers: [
+        ".*/cmd_vel",
+        ".*/pose",
+        ".*/color_sensor",
+      ],
+    },
+  },
+}

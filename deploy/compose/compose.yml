@@ -5,15 +5,21 @@
 # Author: AxeXie
 #
 # Profiles:
-#   infra          → postgres, nats, minio
-#   observability  → victoriametrics, vmagent, loki, vector, grafana
-#   cloud          → cloud-control, web-console
-#   sim            → sim-adapter, edge-gateway, safety-gateway, local-skill-executor
-#   full           → all of the above together
+#   infra          -> postgres, nats, minio
+#   observability  -> victoriametrics, vmagent, loki, vector, grafana
+#   cloud          -> cloud-control, web-console
+#   sim            -> sim-adapter, edge-gateway, safety-gateway, local-skill-executor
+#   ros2           -> ros2-turtlesim, ros2-adapter (real ROS2 Jazzy environment)
+#   ros1-sim       -> ros1-roscore, ros1-turtlesim, ros1-adapter (real ROS1 Noetic environment)
+#   zenoh          -> zenoh-bridge-ros2dds (weak network DDS bridge, optional)
+#   full           -> all of the above together
 #
 # Usage:
 #   docker compose -f deploy/compose/compose.yml --profile infra up -d
 #   docker compose -f deploy/compose/compose.yml --profile sim up -d --build
+#   docker compose -f deploy/compose/compose.yml --profile ros2 up -d --build
+#   docker compose -f deploy/compose/compose.yml --profile ros1-sim up -d --build
+#   docker compose -f deploy/compose/compose.yml --profile zenoh up -d
 #   docker compose -f deploy/compose/compose.yml --profile full up -d --build
 #   docker compose -f deploy/compose/compose.yml down
 # =============================================================================
@@ -344,7 +350,7 @@ services:
   ros1-adapter:
     build:
       context: ../../services/ros1-adapter
-    profiles: [ros1, full]
+    profiles: [ros1, ros1-sim, full]
     environment:
       - NATS_URL=nats://nats:4222
       - ADAPTER_ID=adp_01J00000000000000000000001
@@ -354,6 +360,149 @@ services:
     networks: [opengeobot-net]
     depends_on:
       - nats
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ---------------------------------------------------------------------------
+  # ROS2 real environment profile (ros2 + full)
+  # ---------------------------------------------------------------------------
+  # F-ADAPTER-001: Real ROS2 Jazzy environment with turtlesim as the simulated
+  # robot node. The ros2-adapter uses rclpy to publish to standard ROS2 topics
+  # (/turtle1/cmd_vel) via registered Skills only. Agent/LLM never publishes
+  # /cmd_vel directly. DDS domain is isolated via ROS_DOMAIN_ID.
+  ros2-turtlesim:
+    image: ros:jazzy-ros-core
+    profiles: [ros2, full]
+    environment:
+      - ROS_DOMAIN_ID=42
+      - DISPLAY=${DISPLAY:-}
+    command: ros2 run turtlesim turtlesim_node
+    networks: [opengeobot-net]
+    depends_on:
+      nats:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  ros2-adapter:
+    build:
+      context: ../../services/ros2-adapter
+    profiles: [ros2, full]
+    environment:
+      - NATS_URL=nats://nats:4222
+      - ROBOT_ID=rbt_01J00000000000000000000001
+      - ROS_DOMAIN_ID=42
+      - LOG_LEVEL=INFO
+    networks: [opengeobot-net]
+    depends_on:
+      nats:
+        condition: service_healthy
+      ros2-turtlesim:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import opengeobot_ros2.main' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # ROS1 real environment profile (ros1-sim + full)
+  # ---------------------------------------------------------------------------
+  # F-ADAPTER-002: Real ROS1 Noetic environment with roscore and turtlesim.
+  # The ros1-adapter connects to the real ROS Master via ROS_MASTER_URI and
+  # publishes to ROS1 topics through rospy. ROS1 is isolated from ROS2.
+  ros1-roscore:
+    image: ros:noetic-ros-core
+    profiles: [ros1-sim, full]
+    command: roscore
+    networks: [opengeobot-net]
+    healthcheck:
+      test: ["CMD-SHELL", "rostopic list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  ros1-turtlesim:
+    image: ros:noetic-ros-core
+    profiles: [ros1-sim, full]
+    environment:
+      - ROS_MASTER_URI=http://ros1-roscore:11311
+      - ROS_DOMAIN_ID=0
+      - DISPLAY=${DISPLAY:-}
+    command: rosrun turtlesim turtlesim_node
+    networks: [opengeobot-net]
+    depends_on:
+      ros1-roscore:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  ros1-adapter-native:
+    build:
+      context: ../../services/ros1-adapter
+    profiles: [ros1-sim, full]
+    environment:
+      - NATS_URL=nats://nats:4222
+      - ADAPTER_ID=adp_01J00000000000000000000001
+      - ROBOT_ID=rbt_01J00000000000000000000001
+      - PROTOCOL_TYPE=ROS1_NATIVE
+      - ROS_MASTER_URI=http://ros1-roscore:11311
+      - ROS1_NODE_NAME=opengeobot_ros1_native
+      - LOG_LEVEL=INFO
+    networks: [opengeobot-net]
+    depends_on:
+      nats:
+        condition: service_healthy
+      ros1-roscore:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import opengeobot_ros1.main' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # Zenoh weak-network bridge profile (zenoh + full)
+  # ---------------------------------------------------------------------------
+  # C15: Zenoh ROS2DDS bridge for weak network testing. Bridges ROS2 DDS domain
+  # traffic across networks. Optional component - does not affect main path.
+  # Weak network impairment can be injected via `tc netem` on the bridge container.
+  # See deploy/compose/zenoh/README.md for configuration details.
+  zenoh-bridge-ros2dds:
+    image: eclipse/zenoh-bridge-ros2dds:1.1.1
+    profiles: [zenoh, full]
+    volumes:
+      - ./zenoh/zenoh-bridge-ros2dds.json5:/zenoh-bridge-ros2dds.json5:ro
+    command: -c /zenoh-bridge-ros2dds.json5
+    environment:
+      - ROS_DOMAIN_ID=42
+    ports:
+      - "7447:7447"
+    networks: [opengeobot-net]
+    depends_on:
+      nats:
+        condition: service_healthy
     deploy:
       resources:
         limits:
