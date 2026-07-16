@@ -557,6 +557,39 @@ QwenPaw 实现放在 `services/agent-runtime`，并遵守：
 - 超时、模型不可用或输出非法时返回可解释错误，不能降级为直接执行自然语言。
 - Agent 对话记忆与平台的物理任务 Memory 分离；只有经筛选的任务事实可写入 Memory Center。
 
+### 7.3.x QwenPaw 智能体初始化
+
+平台初始化时，agent-runtime 服务通过 QwenPaw 管理 API 在 QwenPaw 中创建一个持久化
+智能体（ID: `opengeobot-controller`，名称: "一脑多控"），该智能体绑定平台已注册技能
+作为工具，实现任务规划的连续性和上下文感知。
+
+**初始化流程：**
+
+1. agent-runtime 启动时调用 `GET /api/agents/opengeobot-controller` 检查智能体是否存在。
+2. 若不存在，调用 `POST /api/agents` 创建智能体：
+   - `name`: "一脑多控"
+   - `description`: "OpenGeoBot 平台统一任务规划与控制智能体"
+   - `skill_names`: 平台已注册技能列表（stand_up, move_forward, stop 等）
+   - `workspace_dir`: 专用工作目录
+   - `language`: "zh"
+3. 若已存在，调用 `PUT /api/agents/opengeobot-controller` 更新 skill_names。
+4. QwenPaw 管理 API 不可用时，降级为无状态 `/v1/chat/completions` 模式。
+
+**云端到 agent-runtime 传输协议：**
+
+- 云端 Java `MissionOrchestrator` 通过 NATS request-reply 调用 agent-runtime
+- 请求主题：`opengeobot.agent.mission.plan_request`
+- 请求体：`MissionContext`（mission_id, trace_id, robot_id, objective, constraints）
+- 响应体：`PlanProposal`（steps, confidence, is_trusted=false）
+- 超时：30 秒
+- 智能体输出始终为不可信提案，必须经 Schema、权限、状态机和 Safety 校验
+
+**智能体初始化不违反 "no direct SDK call" 约束：**
+
+智能体初始化通过 QwenPaw 的 RESTful 管理 API（`/api/agents`）进行，这是标准的 HTTP
+REST 接口，不是 SDK 调用。管理 API 与 LLM 推理 API（`/v1/chat/completions`）分离，
+规划调用仍通过 `AgentRuntimeProvider` 适配接口。
+
 ### 7.4 Mission Planner 与状态机
 
 Mission Planner 负责自然语言解析后的确定性规划：
@@ -797,6 +830,40 @@ Memory Center 记忆类型：
 - Watchdog
 
 边缘进程崩溃、云断连或消息堆积时，机器人必须进入对应安全配置定义的可预测状态。
+
+### ROSClaw NATS Bridge（独立终端执行器）
+
+ROSClaw 通过独立服务 `services/rosclaw-bridge/` 接入平台边缘管道，而非作为 Edge Gateway
+的内置组件。这实现了关注点分离：Edge Gateway 负责命令接收和状态管理，Safety Gateway
+负责动作级安全校验，Local Skill Executor 负责执行编排，ROSClaw Bridge 负责硬件控制。
+
+**端侧执行链路：**
+
+```
+云端 MissionOrchestrator
+  -> NATS JetStream -> opengeobot.dev.edge.command.{robot_id}
+  -> Edge Gateway 接收命令
+  -> NATS request-reply -> edge.{gateway_id}.skill.execute
+  -> Safety Gateway 拦截并校验（受限区域、速度限制、碰撞风险）
+  -> NATS request-reply -> edge.{gateway_id}.skill.execute.approved
+  -> Local Skill Executor 消费 approved 主题
+  -> NATS request-reply -> opengeobot.dev.edge.skill.execute.{robot_id}
+  -> ROSClaw Bridge 翻译请求
+  -> ROSClaw SkillExecutor.execute(skill_name, parameters)
+  -> rosbridge WebSocket -> 机器人硬件
+  -> 执行结果沿原路回传到云端
+```
+
+**ROSClaw 自身安全管线：**
+
+- FirewallValidator：e-URDF 软限位 + MuJoCo 碰撞检测 + 语义安全
+- 作为端侧第二道防线（OpenGeoBot Safety Gateway 为权威动作级安全门禁）
+- 急停通过 EventBus 广播，本地锁存，不依赖网络
+
+**降级模式：**
+
+当 ROSClaw 包不可导入时，bridge 仍订阅 NATS 主题并响应所有请求（防止管道阻塞），
+运动类技能返回失败，emergency_stop 在降级模式下仍可执行。
 
 ### 8.2 Safety Gateway
 

@@ -15,6 +15,9 @@ from dataclasses import dataclass
 
 DEFAULT_NATS_URL = "nats://localhost:4222"
 DEFAULT_QWENPAW_ENDPOINT = "http://localhost:8000/v1/chat/completions"
+DEFAULT_QWENPAW_ADMIN_BASE_URL = "http://qwenpaw:8088"
+DEFAULT_QWENPAW_AGENT_ID = "opengeobot-controller"
+DEFAULT_QWENPAW_AGENT_NAME = "一脑多控"
 
 
 def _env_str(key: str, default: str) -> str:
@@ -34,6 +37,13 @@ def _env_float(key: str, default: float) -> float:
     if raw is None or raw.strip() == "":
         return default
     return float(raw)
+
+
+def _env_bool(key: str, default: bool) -> bool:
+    raw = os.getenv(key)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
@@ -58,6 +68,11 @@ class AgentConfig:
     # Skill registry query configuration.
     skill_list_subject: str = "opengeobot.skill.list"
     skill_request_timeout: float = 5.0
+    # QwenPaw management API for agent creation/verification on startup.
+    qwenpaw_admin_base_url: str = DEFAULT_QWENPAW_ADMIN_BASE_URL
+    qwenpaw_agent_id: str = DEFAULT_QWENPAW_AGENT_ID
+    qwenpaw_agent_name: str = DEFAULT_QWENPAW_AGENT_NAME
+    qwenpaw_agent_create_on_start: bool = True
 
     @classmethod
     def from_env(cls) -> AgentConfig:
@@ -85,4 +100,14 @@ class AgentConfig:
                 "AGENT_SKILL_LIST_SUBJECT", "opengeobot.skill.list"
             ),
             skill_request_timeout=_env_float("AGENT_SKILL_REQUEST_TIMEOUT", 5.0),
+            qwenpaw_admin_base_url=_env_str(
+                "QWENPAW_ADMIN_BASE_URL", DEFAULT_QWENPAW_ADMIN_BASE_URL
+            ),
+            qwenpaw_agent_id=_env_str("QWENPAW_AGENT_ID", DEFAULT_QWENPAW_AGENT_ID),
+            qwenpaw_agent_name=_env_str(
+                "QWENPAW_AGENT_NAME", DEFAULT_QWENPAW_AGENT_NAME
+            ),
+            qwenpaw_agent_create_on_start=_env_bool(
+                "QWENPAW_AGENT_CREATE_ON_START", True
+            ),
         )

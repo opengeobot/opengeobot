@@ -2034,6 +2034,7 @@ features:
     - edge-gateway
     - safety-gateway
     - local-skill-executor
+    - rosclaw-bridge
     use_case_ids:
     - UC-EXEC-001
     - UC-EXEC-002
@@ -2147,6 +2148,7 @@ features:
     modules:
     - adapter-ros2
     - adapter-simulation
+    - rosclaw-bridge
     use_case_ids:
     - UC-EXEC-001
     - UC-EXEC-002

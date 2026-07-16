@@ -227,9 +227,23 @@ class QwenPawProvider(AgentRuntimeProvider):
         self,
         config: AgentConfig,
         skill_registry: SkillRegistry | None = None,
+        agent_id: str | None = None,
     ) -> None:
         self._config = config
         self._skill_registry = skill_registry
+        self._agent_id: str | None = agent_id
+        self._agent_skill_names: list[str] = []
+
+    def set_agent_context(
+        self, agent_id: str | None, skill_names: list[str] | None = None
+    ) -> None:
+        """Set the QwenPaw agent context so it can be included in the prompt.
+
+        When ``agent_id`` is None the provider runs in stateless mode (no
+        agent context appended to the system prompt).
+        """
+        self._agent_id = agent_id
+        self._agent_skill_names = list(skill_names) if skill_names else []
 
     async def generate_plan(self, mission: MissionContext) -> PlanProposal:
         """Call the QwenPaw API and return an UNTRUSTED plan proposal."""
@@ -333,6 +347,14 @@ class QwenPawProvider(AgentRuntimeProvider):
             '"description": string}) and "confidence" (0.0-1.0). '
             "Only use registered skill IDs. Do not include direct motor commands."
         )
+        if self._agent_id:
+            skills_str = (
+                ", ".join(self._agent_skill_names) if self._agent_skill_names else ""
+            )
+            system_prompt += (
+                f"\n\nYou are operating as agent '{self._agent_id}'"
+                + (f" with skills: {skills_str}." if skills_str else ".")
+            )
         user_content = json.dumps({
             "mission_id": mission.mission_id,
             "robot_id": mission.robot_id,
