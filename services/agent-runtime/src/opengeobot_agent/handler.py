@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from loguru import logger
 from nats.aio.msg import Msg
 
-from .provider import AgentRuntimeProvider, MissionContext, PlanProposal
+from .provider import AgentRuntimeProvider, MissionContext, PlanProposal, ReplanRequest
 
 if TYPE_CHECKING:
     from .config import AgentConfig
@@ -82,6 +82,49 @@ class PlanningRequestHandler:
             is_trusted=proposal.is_trusted,
             steps_count=len(proposal.steps),
         ).info("Plan proposal generated (UNTRUSTED)")
+
+        await self._respond(msg, proposal)
+        await self._ack_message(msg)
+
+    async def handle_replan_request(self, msg: Msg) -> None:
+        """NATS subscription callback: generate a revised plan after failure."""
+        raw = getattr(msg, "data", b"")
+        try:
+            payload = json.loads(raw)
+            replan_request = ReplanRequest.model_validate(payload)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.bind(error=str(exc)).warning(
+                "Rejected malformed replan request payload"
+            )
+            await self._respond(msg, _error_proposal("", str(exc)))
+            await self._ack_message(msg)
+            return
+
+        logger.bind(
+            mission_id=replan_request.mission_id,
+            trace_id=replan_request.trace_id,
+            robot_id=replan_request.robot_id,
+        ).info("Received mission replan request")
+
+        try:
+            proposal = await self._provider.continue_plan(replan_request)
+        except Exception as exc:  # noqa: BLE001 - provider failure must not crash handler
+            logger.bind(
+                mission_id=replan_request.mission_id,
+                trace_id=replan_request.trace_id,
+                error=str(exc),
+            ).exception("Provider raised unexpected error during replan")
+            proposal = _error_proposal(
+                replan_request.mission_id, str(exc), replan_request.trace_id
+            )
+
+        logger.bind(
+            mission_id=proposal.mission_id,
+            trace_id=proposal.trace_id,
+            plan_id=proposal.plan_id,
+            is_trusted=proposal.is_trusted,
+            steps_count=len(proposal.steps),
+        ).info("Replan proposal generated (UNTRUSTED)")
 
         await self._respond(msg, proposal)
         await self._ack_message(msg)

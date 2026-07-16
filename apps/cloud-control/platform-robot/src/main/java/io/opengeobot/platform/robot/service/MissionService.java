@@ -20,6 +20,7 @@ import io.opengeobot.platform.robot.domain.Mission;
 import io.opengeobot.platform.robot.domain.MissionApproval;
 import io.opengeobot.platform.robot.domain.MissionStep;
 import io.opengeobot.platform.robot.domain.MissionTemplate;
+import io.opengeobot.platform.robot.monitor.MonitorEventPublisher;
 import io.opengeobot.platform.robot.dto.ApprovalRequest;
 import io.opengeobot.platform.robot.dto.CreateMissionRequest;
 import io.opengeobot.platform.robot.dto.CreateMissionTemplateRequest;
@@ -27,6 +28,7 @@ import io.opengeobot.platform.robot.dto.MissionApprovalDto;
 import io.opengeobot.platform.robot.dto.MissionDto;
 import io.opengeobot.platform.robot.dto.MissionStepDto;
 import io.opengeobot.platform.robot.dto.MissionTemplateDto;
+import io.opengeobot.platform.robot.dto.PlanProposalDto;
 import io.opengeobot.platform.robot.dto.RevisePlanRequest;
 import io.opengeobot.platform.robot.dto.UpdateMissionRequest;
 import io.opengeobot.platform.robot.repository.MissionApprovalRepository;
@@ -79,6 +81,9 @@ public class MissionService {
     private final ActorResolver actorResolver;
     private final ObjectMapper objectMapper;
     private final MissionOrchestrator missionOrchestrator;
+    private final MonitorEventPublisher monitorEventPublisher;
+    private final TraceRecorder traceRecorder;
+    private final int maxReplanCount;
 
     public MissionService(MissionRepository missionRepository,
                           MissionStepRepository missionStepRepository,
@@ -90,7 +95,10 @@ public class MissionService {
                           ClockProvider clockProvider,
                           ActorResolver actorResolver,
                           ObjectMapper objectMapper,
-                          @Lazy MissionOrchestrator missionOrchestrator) {
+                          @Lazy MissionOrchestrator missionOrchestrator,
+                          MonitorEventPublisher monitorEventPublisher,
+                          TraceRecorder traceRecorder,
+                          @org.springframework.beans.factory.annotation.Value("${opengeobot.mission.max-replan-count:3}") int maxReplanCount) {
         this.missionRepository = missionRepository;
         this.missionStepRepository = missionStepRepository;
         this.missionTemplateRepository = missionTemplateRepository;
@@ -102,6 +110,9 @@ public class MissionService {
         this.actorResolver = actorResolver;
         this.objectMapper = objectMapper;
         this.missionOrchestrator = missionOrchestrator;
+        this.monitorEventPublisher = monitorEventPublisher;
+        this.traceRecorder = traceRecorder;
+        this.maxReplanCount = maxReplanCount;
     }
 
     // ----- F-MISSION-001: create, list, get, update, plan -----
@@ -132,6 +143,13 @@ public class MissionService {
 
         audit(actor, "mission.create", missionId, now, traceId, null);
         publishEvent("mission.created.v1", missionId, buildCreatedPayload(mission, now, traceId), now, traceId);
+
+        monitorEventPublisher.publishMissionUpdate(missionId, mission.getRobotId(), mission.getStatus(), traceId);
+        Map<String, Object> createAttrs = new LinkedHashMap<>();
+        createAttrs.put("name", mission.getName());
+        createAttrs.put("priority", mission.getPriority());
+        traceRecorder.recordFact(traceId, "mission.created", missionId, "mission",
+                mission.getRobotId(), missionId, actor, createAttrs);
 
         log.info("Created mission {} for robot {}", missionId, request.robotId());
         return toDto(mission, null);
@@ -243,6 +261,11 @@ public class MissionService {
         payload.put("trace_id", traceId);
         publishEvent("mission.started.v1", missionId, payload, now, traceId);
 
+        monitorEventPublisher.publishMissionUpdate(missionId, mission.getRobotId(),
+                MissionState.EXECUTING.name(), traceId);
+        traceRecorder.recordFact(traceId, "mission.started", missionId, "mission",
+                mission.getRobotId(), missionId, actor, Map.of("started_by", actor));
+
         // Dispatch to edge Safety Gateway via orchestrator: acquire control lease
         // and publish start_mission command. If this fails the transaction rolls
         // back, leaving the mission in its pre-start state.
@@ -266,6 +289,8 @@ public class MissionService {
         missionRepository.updateById(mission);
 
         audit(actor, "mission.pause", missionId, now, traceId, null);
+        monitorEventPublisher.publishMissionUpdate(missionId, mission.getRobotId(),
+                MissionState.PAUSED.name(), traceId);
         log.info("Paused mission {}", missionId);
         return toDto(mission, null);
     }
@@ -284,6 +309,8 @@ public class MissionService {
         missionRepository.updateById(mission);
 
         audit(actor, "mission.resume", missionId, now, traceId, null);
+        monitorEventPublisher.publishMissionUpdate(missionId, mission.getRobotId(),
+                MissionState.EXECUTING.name(), traceId);
         log.info("Resumed mission {}", missionId);
         return toDto(mission, null);
     }
@@ -318,6 +345,14 @@ public class MissionService {
         payload.put("trace_id", traceId);
         publishEvent("mission.cancelled.v1", missionId, payload, now, traceId);
 
+        monitorEventPublisher.publishMissionUpdate(missionId, mission.getRobotId(),
+                MissionState.CANCELLED.name(), traceId);
+        Map<String, Object> cancelAttrs = new LinkedHashMap<>();
+        cancelAttrs.put("cancelled_by", actor);
+        cancelAttrs.put("previous_status", current.name());
+        traceRecorder.recordFact(traceId, "mission.cancelled", missionId, "mission",
+                mission.getRobotId(), missionId, actor, cancelAttrs);
+
         log.info("Cancelled mission {} from state {}", missionId, current);
         return toDto(mission, null);
     }
@@ -350,6 +385,11 @@ public class MissionService {
         payload.put("occurred_at", now.toString());
         payload.put("trace_id", traceId);
         publishEvent("mission.completed.v1", missionId, payload, now, traceId);
+
+        monitorEventPublisher.publishMissionUpdate(missionId, mission.getRobotId(),
+                MissionState.COMPLETED.name(), traceId);
+        traceRecorder.recordFact(traceId, "mission.completed", missionId, "mission",
+                mission.getRobotId(), missionId, actor, Map.of("completed_by", actor));
 
         log.info("Completed mission {}", missionId);
         return toDto(mission, null);
@@ -386,8 +426,134 @@ public class MissionService {
         payload.put("trace_id", traceId);
         publishEvent("mission.failed.v1", missionId, payload, now, traceId);
 
+        monitorEventPublisher.publishMissionUpdate(missionId, mission.getRobotId(),
+                MissionState.FAILED.name(), traceId);
+        Map<String, Object> failAttrs = new LinkedHashMap<>();
+        failAttrs.put("failed_reason", reason);
+        failAttrs.put("failed_by", actor);
+        traceRecorder.recordFact(traceId, "mission.failed", missionId, "mission",
+                mission.getRobotId(), missionId, actor, failAttrs);
+
         log.info("Failed mission {}: {}", missionId, reason);
+
+        // Attempt auto-replan if under the maximum replan count
+        int currentReplanCount = mission.getReplanCount() != null ? mission.getReplanCount() : 0;
+        if (currentReplanCount < maxReplanCount) {
+            MissionDto result = attemptAutoReplan(missionId, reason, currentReplanCount);
+            if (result != null) {
+                return result;
+            }
+        } else {
+            log.info("Mission {} has reached max replan count ({}); keeping FAILED", missionId, maxReplanCount);
+        }
+
         return toDto(mission, null);
+    }
+
+    /**
+     * Attempts to replan a failed mission by calling the agent-runtime.
+     * Returns the updated MissionDto if replan succeeds, or null to keep FAILED.
+     */
+    private MissionDto attemptAutoReplan(String missionId, String reason, int currentReplanCount) {
+        List<MissionStep> steps = missionStepRepository.selectByMissionId(missionId);
+        if (steps == null || steps.isEmpty()) {
+            log.debug("No steps found for mission {}; skipping auto-replan", missionId);
+            return null;
+        }
+        int failedStepIndex = -1;
+        for (int i = 0; i < steps.size(); i++) {
+            if ("FAILED".equals(steps.get(i).getStatus())) {
+                failedStepIndex = i;
+                break;
+            }
+        }
+        if (failedStepIndex < 0) {
+            log.debug("No failed step found for mission {}; skipping auto-replan", missionId);
+            return null;
+        }
+
+        try {
+            log.info("Attempting auto-replan for mission {} (attempt {}/{})",
+                    missionId, currentReplanCount + 1, maxReplanCount);
+            PlanProposalDto proposal = missionOrchestrator.replanMission(missionId, reason, failedStepIndex);
+            if (proposal.error() != null && !proposal.error().isBlank()) {
+                log.warn("Auto-replan returned error for mission {}: {}", missionId, proposal.error());
+                return null;
+            }
+            if (proposal.steps() == null || proposal.steps().isEmpty()) {
+                log.warn("Auto-replan returned no steps for mission {}", missionId);
+                return null;
+            }
+            // Orchestrator already persisted new steps and set status to READY.
+            // Reload the mission to reflect the updated state.
+            Mission updated = requireMission(missionId);
+            log.info("Auto-replan succeeded for mission {} (replan count: {})", missionId, currentReplanCount + 1);
+            return toDto(updated, missionStepRepository.selectByMissionId(missionId)
+                    .stream()
+                    .map(this::toStepDto)
+                    .toList());
+        } catch (Exception e) {
+            log.warn("Auto-replan failed for mission {}: {}", missionId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Resets a FAILED mission to PLANNING state for replanning.
+     * This is a controlled exception to the state machine, allowing the
+     * orchestrator to persist a revised plan via {@link #revisePlan}.
+     *
+     * @param missionId the mission to reset
+     */
+    @Transactional
+    public void resetForReplan(String missionId) {
+        Mission mission = requireMission(missionId);
+        int currentCount = mission.getReplanCount() != null ? mission.getReplanCount() : 0;
+        mission.setStatus(MissionState.PLANNING.name());
+        mission.setReplanCount(currentCount + 1);
+        mission.setFailedReason(null);
+        mission.setCompletedAt(null);
+        Instant now = Instant.now(clockProvider.getClock());
+        mission.setUpdatedAt(now.atOffset(ZoneOffset.UTC));
+        missionRepository.updateById(mission);
+        String actor = actorResolver.currentActor();
+        String traceId = actorResolver.currentTraceId();
+        audit(actor, "mission.replan_reset", missionId, now, traceId,
+                "reset to PLANNING for auto-replan (count=" + (currentCount + 1) + ")");
+        log.info("Reset mission {} to PLANNING for replan (count={})", missionId, currentCount + 1);
+    }
+
+    /**
+     * Updates the status of a mission step by step order (1-based).
+     * Called by the edge state listener when step-level updates are received
+     * from the edge Safety Gateway.
+     *
+     * @param missionId the mission ID
+     * @param stepOrder the 1-based step order
+     * @param status    the new step status (RUNNING, COMPLETED, FAILED)
+     * @param error     optional error message when status is FAILED
+     */
+    @Transactional
+    public void updateStepStatus(String missionId, int stepOrder, String status, String error) {
+        List<MissionStep> steps = missionStepRepository.selectByMissionId(missionId);
+        Instant now = Instant.now(clockProvider.getClock());
+        for (MissionStep step : steps) {
+            if (step.getStepOrder() != null && step.getStepOrder() == stepOrder) {
+                step.setStatus(status);
+                if ("RUNNING".equals(status)) {
+                    step.setStartedAt(now.atOffset(ZoneOffset.UTC));
+                } else if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
+                    step.setCompletedAt(now.atOffset(ZoneOffset.UTC));
+                    if (error != null) {
+                        step.setErrorMessage(error);
+                    }
+                }
+                missionStepRepository.updateById(step);
+                log.info("Updated step {} of mission {} to status {}", step.getStepId(), missionId, status);
+                return;
+            }
+        }
+        log.warn("Step with order {} not found for mission {}", stepOrder, missionId);
     }
 
     // ----- F-MISSION-002: approval -----

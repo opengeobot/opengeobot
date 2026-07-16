@@ -9,6 +9,8 @@
 #   observability  -> victoriametrics, vmagent, loki, vector, grafana
 #   cloud          -> cloud-control, web-console
 #   sim            -> qwenpaw, agent-runtime, sim-adapter, edge-gateway, safety-gateway, local-skill-executor
+#   rosclaw-sim    -> infra + cloud + qwenpaw + agent-runtime + edge stack +
+#                     rosclaw-bridge + ros2-turtlesim + ros2-rosbridge (no sim-adapter)
 #   ros2           -> ros2-turtlesim, ros2-adapter (real ROS2 Jazzy environment)
 #   ros1-sim       -> ros1-roscore, ros1-turtlesim, ros1-adapter (real ROS1 Noetic environment)
 #   zenoh          -> zenoh-bridge-ros2dds (weak network DDS bridge, optional)
@@ -17,6 +19,7 @@
 # Usage:
 #   docker compose -f deploy/compose/compose.yml --profile infra up -d
 #   docker compose -f deploy/compose/compose.yml --profile sim up -d --build
+#   docker compose -f deploy/compose/compose.yml --profile rosclaw-sim up -d --build
 #   docker compose -f deploy/compose/compose.yml --profile ros2 up -d --build
 #   docker compose -f deploy/compose/compose.yml --profile ros1-sim up -d --build
 #   docker compose -f deploy/compose/compose.yml --profile zenoh up -d
@@ -44,7 +47,7 @@ volumes:
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    profiles: [infra, full]
+    profiles: [infra, rosclaw-sim, full]
     ports:
       - "5432:5432"
     environment:
@@ -66,7 +69,7 @@ services:
 
   nats:
     image: nats:2.10.22-alpine
-    profiles: [infra, full]
+    profiles: [infra, rosclaw-sim, full]
     ports:
       - "4222:4222"
       - "8222:8222"
@@ -88,7 +91,7 @@ services:
 
   minio:
     image: minio/minio:RELEASE.2024-10-13T13-34-11Z
-    profiles: [infra, full]
+    profiles: [infra, rosclaw-sim, full]
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -193,7 +196,7 @@ services:
     build:
       context: ../..
       dockerfile: apps/cloud-control/Dockerfile
-    profiles: [cloud, full]
+    profiles: [cloud, rosclaw-sim, full]
     ports:
       - "8080:8080"
     environment:
@@ -223,7 +226,7 @@ services:
     build:
       context: ../..
       dockerfile: apps/web-console/Dockerfile
-    profiles: [cloud, full]
+    profiles: [cloud, rosclaw-sim, full]
     ports:
       - "5173:80"
     networks: [opengeobot-net]
@@ -263,7 +266,7 @@ services:
           memory: 256M
 
   # ---------------------------------------------------------------------------
-  # ROSClaw NATS Bridge (sim + full)
+  # ROSClaw NATS Bridge (rosclaw-sim + full)
   # ---------------------------------------------------------------------------
   # Replaces sim-adapter for real hardware control via ROSClaw Edge Runtime.
   # Subscribes to the same NATS subject as sim-adapter; the two are mutually
@@ -272,12 +275,12 @@ services:
   rosclaw-bridge:
     build:
       context: ../../services/rosclaw-bridge
-    profiles: [sim, full]
+    profiles: [rosclaw-sim, full]
     environment:
       - NATS_URL=nats://nats:4222
       - ROBOT_ID=rbt_01J00000000000000000000001
       - GATEWAY_ID=edge_01
-      - ROBOT_ROS_ENDPOINT=ws://ros2-turtlesim:9090
+      - ROBOT_ROS_ENDPOINT=ws://ros2-rosbridge:9090
       - ROSCLAW_PROFILE=offline
       - ROSCLAW_SANDBOX=true
       - LOG_LEVEL=INFO
@@ -302,7 +305,7 @@ services:
     build:
       context: ../../edge
       dockerfile: gateway/Dockerfile
-    profiles: [sim, full]
+    profiles: [sim, rosclaw-sim, full]
     environment:
       - NATS_URL=nats://nats:4222
       - ROBOT_ID=rbt_01J00000000000000000000001
@@ -327,7 +330,7 @@ services:
   safety-gateway:
     build:
       context: ../../edge/safety-gateway
-    profiles: [sim, full]
+    profiles: [sim, rosclaw-sim, full]
     ports:
       - "8081:8081"
     environment:
@@ -353,7 +356,7 @@ services:
   local-skill-executor:
     build:
       context: ../../edge/local-skill-executor
-    profiles: [sim, full]
+    profiles: [sim, rosclaw-sim, full]
     environment:
       - NATS_URL=nats://nats:4222
       - GATEWAY_ID=edge_01
@@ -386,12 +389,12 @@ services:
   # prohibit `latest` in production - pin to a specific version before deployment.
   qwenpaw:
     image: agentscope-registry.ap-southeast-1.cr.aliyuncs.com/agentscope/qwenpaw:latest
-    profiles: [sim, full]
+    profiles: [sim, rosclaw-sim, full]
     ports:
       - "8000:8088"
     networks: [opengeobot-net]
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8088/healthz > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8088/api/healthz > /dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -411,11 +414,15 @@ services:
   agent-runtime:
     build:
       context: ../../services/agent-runtime
-    profiles: [sim, full]
+    profiles: [sim, rosclaw-sim, full]
     environment:
       - NATS_URL=nats://nats:4222
       - QWENPAW_ENDPOINT=http://qwenpaw:8088/v1/chat/completions
       - QWENPAW_ADMIN_BASE_URL=http://qwenpaw:8088
+      - QWENPAW_MODEL=opengeobot-controller
+      - QWENPAW_MODEL_PROVIDER=opencode
+      - QWENPAW_MODEL_NAME=mimo-v2.5-free
+      - QWENPAW_TIMEOUT=45
       - LOG_LEVEL=INFO
     networks: [opengeobot-net]
     depends_on:
@@ -463,7 +470,7 @@ services:
   # /cmd_vel directly. DDS domain is isolated via ROS_DOMAIN_ID.
   ros2-turtlesim:
     image: ros:jazzy-ros-core
-    profiles: [ros2, full]
+    profiles: [ros2, rosclaw-sim, full]
     environment:
       - ROS_DOMAIN_ID=42
       - DISPLAY=${DISPLAY:-}
@@ -472,6 +479,41 @@ services:
     depends_on:
       nats:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # ROS2 rosbridge server (rosclaw-sim + full)
+  # ---------------------------------------------------------------------------
+  # WebSocket bridge (rosbridge_server) that exposes the ROS2 DDS domain to
+  # the rosclaw-bridge service. The rosclaw-bridge connects via
+  # ws://ros2-rosbridge:9090 to publish skill commands. Shares the same
+  # ROS_DOMAIN_ID=42 as ros2-turtlesim so DDS messages are visible.
+  ros2-rosbridge:
+    image: ros:jazzy-ros-base
+    profiles: [rosclaw-sim, full]
+    environment:
+      - ROS_DOMAIN_ID=42
+    command: >
+      bash -c "
+        apt-get update &&
+        apt-get install -y --no-install-recommends ros-jazzy-rosbridge-server &&
+        ros2 launch rosbridge_server rosbridge_websocket.launch.xml
+      "
+    ports:
+      - "9090:9090"
+    networks: [opengeobot-net]
+    depends_on:
+      ros2-turtlesim:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:9090\", timeout=2)' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     deploy:
       resources:
         limits:

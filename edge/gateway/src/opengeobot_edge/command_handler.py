@@ -242,6 +242,32 @@ class CommandHandler:
         if command.mission_id is None:
             return self._missing_mission(command)
         self._active_mission_id = command.mission_id
+
+        # If plan steps are included in command params, launch async step execution.
+        steps = command.params.get("steps") if command.params else None
+        if steps and isinstance(steps, list) and len(steps) > 0:
+            asyncio.create_task(
+                self._execute_mission_steps(
+                    mission_id=command.mission_id,
+                    trace_id=command.trace_id,
+                    steps=steps,
+                    robot_id=self._config.robot_id,
+                )
+            )
+            logger.bind(
+                mission_id=command.mission_id,
+                step_count=len(steps),
+            ).info("Mission started with async step execution")
+            return CommandResult(
+                command_id=command.command_id,
+                trace_id=command.trace_id,
+                command_type=command.command_type,
+                accepted=True,
+                success=True,
+                detail=f"Mission {command.mission_id} executing with {len(steps)} steps",
+            )
+
+        # Backward compatible: no steps in command, just mark as executing.
         logger.bind(mission_id=command.mission_id).info("Mission started")
         return CommandResult(
             command_id=command.command_id,
@@ -431,6 +457,121 @@ class CommandHandler:
             timeout=self._config.skill_request_timeout,
         )
         return SkillExecutionResponse.model_validate_json(reply.data)
+
+    # ------------------------------------------------------------------
+    # Mission step execution (async, non-blocking).
+    # ------------------------------------------------------------------
+    async def _execute_mission_steps(
+        self,
+        mission_id: str,
+        trace_id: str,
+        steps: list,
+        robot_id: str,
+    ) -> None:
+        """Execute mission steps sequentially, publishing state updates.
+
+        Each step is routed through the Safety Gateway via ``_call_executor``.
+        State updates (step RUNNING/COMPLETED/FAILED, mission COMPLETED/FAILED)
+        are published to the cloud on the state subject so the
+        ``EdgeStateListener`` can drive mission lifecycle transitions.
+        """
+        try:
+            for i, step in enumerate(steps):
+                skill_id = step.get("skill_id") if isinstance(step, dict) else None
+                step_params = step.get("params", {}) if isinstance(step, dict) else {}
+
+                # Publish step RUNNING.
+                await self._publish_mission_state(
+                    mission_id, trace_id, "EXECUTING", i, "RUNNING", robot_id
+                )
+
+                request = SkillExecutionRequest(
+                    request_id=f"{mission_id}-step-{i}",
+                    trace_id=trace_id,
+                    robot_id=robot_id,
+                    skill_id=skill_id,
+                    params=step_params,
+                    requested_at=_now_iso(),
+                )
+
+                try:
+                    response = await self._call_executor(request)
+                    if not response.success:
+                        await self._publish_mission_state(
+                            mission_id, trace_id, "FAILED", i, "FAILED", robot_id,
+                            error=response.error or "Skill execution failed",
+                        )
+                        self._active_mission_id = None
+                        return
+                except asyncio.TimeoutError:
+                    await self._publish_mission_state(
+                        mission_id, trace_id, "FAILED", i, "FAILED", robot_id,
+                        error=f"Skill {skill_id} timed out at the local executor",
+                    )
+                    self._active_mission_id = None
+                    return
+                except Exception as exc:  # noqa: BLE001 - executor failure must not crash the gateway
+                    await self._publish_mission_state(
+                        mission_id, trace_id, "FAILED", i, "FAILED", robot_id,
+                        error=str(exc),
+                    )
+                    self._active_mission_id = None
+                    return
+
+                # Publish step COMPLETED.
+                await self._publish_mission_state(
+                    mission_id, trace_id, "EXECUTING", i, "COMPLETED", robot_id
+                )
+
+            # All steps done.
+            final_step_index = max(len(steps) - 1, 0)
+            await self._publish_mission_state(
+                mission_id, trace_id, "COMPLETED", final_step_index, "COMPLETED", robot_id
+            )
+            self._active_mission_id = None
+        except Exception as exc:  # noqa: BLE001 - top-level guard for the async task
+            logger.bind(mission_id=mission_id, error=str(exc)).exception(
+                "Mission step execution crashed"
+            )
+            self._active_mission_id = None
+
+    async def _publish_mission_state(
+        self,
+        mission_id: str,
+        trace_id: str,
+        mission_status: str,
+        step_index: int,
+        step_status: str,
+        robot_id: str,
+        error: str | None = None,
+    ) -> None:
+        """Publish mission execution state to the cloud via NATS.
+
+        The ``status`` field drives mission lifecycle transitions on the cloud
+        side (EXECUTING / COMPLETED / FAILED). Step-level fields
+        (``step_index``, ``step_status``) provide progress visibility.
+        """
+        state = {
+            "robot_id": robot_id,
+            "status": mission_status,
+            "mission_id": mission_id,
+            "trace_id": trace_id,
+            "step_index": step_index,
+            "step_status": step_status,
+            "error": error,
+            "timestamp": _now_iso(),
+        }
+        await self._nats.publish(
+            self._config.state_subject,
+            json.dumps(state).encode("utf-8"),
+        )
+        logger.bind(
+            mission_id=mission_id,
+            trace_id=trace_id,
+            mission_status=mission_status,
+            step_index=step_index,
+            step_status=step_status,
+        ).debug("Published mission execution state")
 
     # ------------------------------------------------------------------
     # Shared failure helpers.

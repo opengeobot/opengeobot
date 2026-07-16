@@ -18,6 +18,9 @@ DEFAULT_QWENPAW_ENDPOINT = "http://localhost:8000/v1/chat/completions"
 DEFAULT_QWENPAW_ADMIN_BASE_URL = "http://qwenpaw:8088"
 DEFAULT_QWENPAW_AGENT_ID = "opengeobot-controller"
 DEFAULT_QWENPAW_AGENT_NAME = "一脑多控"
+DEFAULT_QWENPAW_MODEL = "opengeobot-controller"
+DEFAULT_QWENPAW_MODEL_PROVIDER = "opencode"
+DEFAULT_QWENPAW_MODEL_NAME = "mimo-v2.5-free"
 
 
 def _env_str(key: str, default: str) -> str:
@@ -61,6 +64,8 @@ class AgentConfig:
     # NATS subject for receiving mission planning requests.
     plan_request_subject: str
     log_level: str
+    # NATS subject for receiving mission replan requests (after step failure).
+    replan_request_subject: str = "opengeobot.agent.mission.replan"
     # JetStream durable consumer configuration.
     js_stream_name: str = "AGENT_STREAM"
     js_durable_consumer: str = "agent-runtime-consumer"
@@ -73,6 +78,11 @@ class AgentConfig:
     qwenpaw_agent_id: str = DEFAULT_QWENPAW_AGENT_ID
     qwenpaw_agent_name: str = DEFAULT_QWENPAW_AGENT_NAME
     qwenpaw_agent_create_on_start: bool = True
+    # Model identifier sent in the chat-completions "model" field.
+    qwenpaw_model: str = DEFAULT_QWENPAW_MODEL
+    # Provider and model name for the QwenPaw agent's active_model binding.
+    qwenpaw_model_provider: str = DEFAULT_QWENPAW_MODEL_PROVIDER
+    qwenpaw_model_name: str = DEFAULT_QWENPAW_MODEL_NAME
 
     @classmethod
     def from_env(cls) -> AgentConfig:
@@ -87,6 +97,10 @@ class AgentConfig:
             plan_request_subject=_env_str(
                 "AGENT_PLAN_REQUEST_SUBJECT",
                 "opengeobot.agent.mission.plan_request",
+            ),
+            replan_request_subject=_env_str(
+                "AGENT_REPLAN_REQUEST_SUBJECT",
+                "opengeobot.agent.mission.replan",
             ),
             log_level=_env_str("LOG_LEVEL", "INFO"),
             js_stream_name=_env_str("AGENT_JS_STREAM_NAME", "AGENT_STREAM"),
@@ -109,5 +123,12 @@ class AgentConfig:
             ),
             qwenpaw_agent_create_on_start=_env_bool(
                 "QWENPAW_AGENT_CREATE_ON_START", True
+            ),
+            qwenpaw_model=_env_str("QWENPAW_MODEL", DEFAULT_QWENPAW_MODEL),
+            qwenpaw_model_provider=_env_str(
+                "QWENPAW_MODEL_PROVIDER", DEFAULT_QWENPAW_MODEL_PROVIDER
+            ),
+            qwenpaw_model_name=_env_str(
+                "QWENPAW_MODEL_NAME", DEFAULT_QWENPAW_MODEL_NAME
             ),
         )

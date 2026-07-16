@@ -15,6 +15,7 @@ import io.opengeobot.platform.robot.dto.MissionDto;
 import io.opengeobot.platform.robot.dto.MissionStepDto;
 import io.opengeobot.platform.robot.dto.PlanProposalDto;
 import io.opengeobot.platform.robot.dto.PlanStepDto;
+import io.opengeobot.platform.robot.dto.ReplanRequestDto;
 import io.opengeobot.platform.robot.dto.RevisePlanRequest;
 import io.opengeobot.platform.robot.nats.AgentRuntimeNatsClient;
 import io.opengeobot.platform.robot.web.ActorResolver;
@@ -49,7 +50,7 @@ import java.util.Map;
 public class MissionOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(MissionOrchestrator.class);
-    private static final Duration DEFAULT_AGENT_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_AGENT_TIMEOUT = Duration.ofSeconds(60);
     private static final String COMMAND_START_MISSION = "start_mission";
 
     private final MissionService missionService;
@@ -156,6 +157,118 @@ public class MissionOrchestrator {
             }
 
             // 6. Return the UNTRUSTED plan proposal
+            return proposal;
+        } finally {
+            MDC.remove("trace_id");
+        }
+    }
+
+    /**
+     * Requests a revised plan from the QwenPaw agent-runtime after a mission
+     * step failure, persists the new plan steps, and returns the proposal.
+     * <p>
+     * The orchestrator builds a {@link ReplanRequestDto} from the current
+     * mission state (completed steps, failed step, remaining steps) and sends
+     * it to the agent-runtime. If the agent returns a valid revised plan, the
+     * old steps are replaced with the new ones via
+     * {@link MissionService#revisePlan(String, RevisePlanRequest)}.
+     * <p>
+     * Safety: the revised plan is UNTRUSTED. It must pass policy validation
+     * before being executed.
+     *
+     * @param missionId       the mission to replan
+     * @param failureReason    human-readable reason for the step failure
+     * @param failedStepIndex  0-based index of the failed step
+     * @return the UNTRUSTED revised plan proposal, or an error proposal
+     */
+    public PlanProposalDto replanMission(String missionId, String failureReason, int failedStepIndex) {
+        String traceId = actorResolver.currentTraceId();
+        if (traceId != null) {
+            MDC.put("trace_id", traceId);
+        }
+        try {
+            // 1. Load mission and steps from DB
+            MissionDto mission = missionService.getDetail(missionId);
+            List<MissionStepDto> allSteps = mission.steps();
+            if (allSteps == null || allSteps.isEmpty() || failedStepIndex < 0 || failedStepIndex >= allSteps.size()) {
+                log.warn("Cannot replan mission {}: invalid step index {} (steps={})",
+                        missionId, failedStepIndex, allSteps != null ? allSteps.size() : 0);
+                return new PlanProposalDto("", missionId, traceId, mission.robotId(),
+                        List.of(), 0.0, "", false, "Invalid failed step index", null);
+            }
+
+            // 2. Build ReplanRequestDto with completed/failed/remaining steps
+            List<Map<String, Object>> completedSteps = new ArrayList<>();
+            for (int i = 0; i < failedStepIndex; i++) {
+                MissionStepDto step = allSteps.get(i);
+                Map<String, Object> stepMap = new LinkedHashMap<>();
+                stepMap.put("skill_id", step.skillId());
+                stepMap.put("params", step.inputParams() != null ? step.inputParams() : Map.of());
+                stepMap.put("result", step.status());
+                completedSteps.add(stepMap);
+            }
+
+            MissionStepDto failedStepDto = allSteps.get(failedStepIndex);
+            Map<String, Object> failedStep = new LinkedHashMap<>();
+            failedStep.put("skill_id", failedStepDto.skillId());
+            failedStep.put("params", failedStepDto.inputParams() != null ? failedStepDto.inputParams() : Map.of());
+            failedStep.put("error", failedStepDto.errorMessage() != null ? failedStepDto.errorMessage() : failureReason);
+
+            List<Map<String, Object>> remainingSteps = new ArrayList<>();
+            for (int i = failedStepIndex + 1; i < allSteps.size(); i++) {
+                MissionStepDto step = allSteps.get(i);
+                Map<String, Object> stepMap = new LinkedHashMap<>();
+                stepMap.put("skill_id", step.skillId());
+                stepMap.put("params", step.inputParams() != null ? step.inputParams() : Map.of());
+                remainingSteps.add(stepMap);
+            }
+
+            String objective = mission.description() != null && !mission.description().isBlank()
+                    ? mission.description() : mission.name();
+
+            ReplanRequestDto replanRequest = new ReplanRequestDto(
+                    missionId, traceId, mission.robotId(), objective,
+                    completedSteps, failedStep, failureReason, remainingSteps);
+
+            // 3. Call agent-runtime via NATS request-reply
+            PlanProposalDto proposal = agentRuntimeClient.replanMission(replanRequest, DEFAULT_AGENT_TIMEOUT);
+
+            // 4. If the agent returned an error, return early
+            if (proposal.error() != null && !proposal.error().isBlank()) {
+                log.warn("Agent-runtime replan returned error for mission {}: {}", missionId, proposal.error());
+                return proposal;
+            }
+
+            List<PlanStepDto> planSteps = proposal.steps();
+            if (planSteps == null || planSteps.isEmpty()) {
+                log.warn("Agent-runtime returned empty replan for mission {}", missionId);
+                return proposal;
+            }
+
+            // 5. Reset mission state to PLANNING so revisePlan can accept it
+            missionService.resetForReplan(missionId);
+
+            // 6. Write new plan steps to mission_step table via MissionService.revisePlan
+            List<MissionStepDto> stepDtos = new ArrayList<>(planSteps.size());
+            for (int i = 0; i < planSteps.size(); i++) {
+                PlanStepDto step = planSteps.get(i);
+                stepDtos.add(new MissionStepDto(
+                        null, null, step.skillId(),
+                        step.stepOrder() > 0 ? step.stepOrder() : i + 1,
+                        step.params(), null, "PENDING", null, null, null
+                ));
+            }
+            missionService.revisePlan(missionId, new RevisePlanRequest(stepDtos));
+            log.info("Persisted {} replanned steps for mission {}", stepDtos.size(), missionId);
+
+            // 7. Evaluate policies on the revised plan
+            List<String> violations = policyService.evaluate(stepDtos, mission.robotId());
+            if (!violations.isEmpty()) {
+                log.warn("Policy evaluation found {} violation(s) for replanned mission {}: {}",
+                        violations.size(), missionId, violations);
+            }
+
+            // 8. Return the UNTRUSTED plan proposal
             return proposal;
         } finally {
             MDC.remove("trace_id");

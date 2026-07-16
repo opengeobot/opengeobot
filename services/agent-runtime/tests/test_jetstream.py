@@ -23,6 +23,7 @@ from opengeobot_agent.provider import (
     AgentRuntimeProvider,
     MissionContext,
     PlanProposal,
+    ReplanRequest,
 )
 
 # ------------------------------------------------------------------
@@ -426,6 +427,16 @@ class StubProvider(AgentRuntimeProvider):
             mission_id=mission.mission_id,
             trace_id=mission.trace_id,
             robot_id=mission.robot_id,
+            is_trusted=False,
+            generated_at="2026-01-01T00:00:00Z",
+        )
+
+    async def continue_plan(self, request: ReplanRequest) -> PlanProposal:
+        return PlanProposal(
+            plan_id="plan_replan_test",
+            mission_id=request.mission_id,
+            trace_id=request.trace_id,
+            robot_id=request.robot_id,
             is_trusted=False,
             generated_at="2026-01-01T00:00:00Z",
         )

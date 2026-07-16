@@ -17,6 +17,7 @@ from opengeobot_agent.provider import (
     PlanStep,
     QwenPawProvider,
     QwenPawProviderError,
+    ReplanRequest,
     SkillDefinition,
     SkillRegistry,
     StaticSkillRegistry,
@@ -48,6 +49,25 @@ def _make_mission(**overrides: Any) -> MissionContext:
     }
     base.update(overrides)
     return MissionContext.model_validate(base)
+
+
+def _make_replan_request(**overrides: Any) -> ReplanRequest:
+    base = {
+        "mission_id": "msn_001",
+        "trace_id": "trace_001",
+        "robot_id": "rbt_01",
+        "original_objective": "Move to location B and capture an image",
+        "completed_steps": [
+            {"skill_id": "move_forward", "params": {"distance": 3.0}, "result": "ok"},
+        ],
+        "failed_step": {"skill_id": "capture_image", "params": {}, "error": "camera offline"},
+        "failure_reason": "Camera device not responding",
+        "remaining_steps": [
+            {"skill_id": "move_forward", "params": {"distance": 2.0}},
+        ],
+    }
+    base.update(overrides)
+    return ReplanRequest.model_validate(base)
 
 
 def _make_qwenpaw_response(steps: list[dict], confidence: float = 0.9) -> dict[str, Any]:
@@ -547,3 +567,203 @@ class TestPlanStepValidationFields:
         )
         assert step.valid is False
         assert step.validation_error == "bad params"
+
+
+# ------------------------------------------------------------------
+# continue_plan (replan) tests.
+# ------------------------------------------------------------------
+
+
+class TestContinuePlanSuccess:
+    async def test_replan_generates_untrusted_proposal(self):
+        """The replanned proposal must be UNTRUSTED."""
+        config = _make_config()
+        provider = QwenPawProvider(config)
+        mock_response = _make_qwenpaw_response(
+            steps=[
+                {"skill_id": "move_forward", "params": {"distance": 2.0, "speed": 0.3}},
+                {"skill_id": "capture_image", "params": {}},
+            ],
+            confidence=0.7,
+        )
+
+        async def _mock_replan_call(request: ReplanRequest) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_replan_api = _mock_replan_call  # type: ignore[method-assign]
+
+        proposal = await provider.continue_plan(_make_replan_request())
+
+        assert proposal.is_trusted is False
+        assert proposal.mission_id == "msn_001"
+        assert proposal.trace_id == "trace_001"
+        assert proposal.robot_id == "rbt_01"
+        assert proposal.error is None
+        assert len(proposal.steps) == 2
+        assert proposal.steps[0].skill_id == "move_forward"
+        assert proposal.steps[1].skill_id == "capture_image"
+        assert proposal.confidence == pytest.approx(0.7)
+
+    async def test_replan_has_unique_plan_id(self):
+        """Each replan should have a unique plan_id."""
+        config = _make_config()
+        provider = QwenPawProvider(config)
+        mock_response = _make_qwenpaw_response(steps=[], confidence=0.5)
+
+        async def _mock_replan_call(request: ReplanRequest) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_replan_api = _mock_replan_call  # type: ignore[method-assign]
+
+        proposal1 = await provider.continue_plan(_make_replan_request())
+        proposal2 = await provider.continue_plan(_make_replan_request())
+
+        assert proposal1.plan_id != proposal2.plan_id
+        assert proposal1.plan_id.startswith("plan_")
+
+
+class TestContinuePlanErrors:
+    async def test_replan_api_failure_returns_error_proposal(self):
+        """When the replan API fails, an error proposal is returned."""
+        config = _make_config()
+        provider = QwenPawProvider(config)
+
+        async def _mock_replan_call(request: ReplanRequest) -> dict[str, Any]:
+            raise QwenPawProviderError("QwenPaw replan API timed out")
+
+        provider._call_qwenpaw_replan_api = _mock_replan_call  # type: ignore[method-assign]
+
+        proposal = await provider.continue_plan(_make_replan_request())
+
+        assert proposal.is_trusted is False
+        assert proposal.error is not None
+        assert "timed out" in proposal.error
+        assert len(proposal.steps) == 0
+
+    async def test_replan_no_choices_returns_error(self):
+        config = _make_config()
+        provider = QwenPawProvider(config)
+
+        async def _mock_replan_call(request: ReplanRequest) -> dict[str, Any]:
+            return {"choices": []}
+
+        provider._call_qwenpaw_replan_api = _mock_replan_call  # type: ignore[method-assign]
+
+        proposal = await provider.continue_plan(_make_replan_request())
+        assert proposal.error is not None
+        assert "no choices" in (proposal.error or "")
+
+    async def test_replan_malformed_content_returns_error(self):
+        config = _make_config()
+        provider = QwenPawProvider(config)
+
+        async def _mock_replan_call(request: ReplanRequest) -> dict[str, Any]:
+            return {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "not json"}}
+                ]
+            }
+
+        provider._call_qwenpaw_replan_api = _mock_replan_call  # type: ignore[method-assign]
+
+        proposal = await provider.continue_plan(_make_replan_request())
+        assert proposal.error is not None
+        assert "parse" in (proposal.error or "").lower()
+
+
+class TestContinuePlanSchemaValidation:
+    async def test_replan_unregistered_skill_marked_invalid(self):
+        config = _make_config()
+        registry = StaticSkillRegistry({})
+        provider = QwenPawProvider(config, skill_registry=registry)
+        mock_response = _make_qwenpaw_response(
+            steps=[{"skill_id": "phantom_skill", "params": {}}],
+        )
+
+        async def _mock_replan_call(request: ReplanRequest) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_replan_api = _mock_replan_call  # type: ignore[method-assign]
+
+        proposal = await provider.continue_plan(_make_replan_request())
+
+        assert len(proposal.steps) == 1
+        assert proposal.steps[0].valid is False
+        assert "not registered" in (proposal.steps[0].validation_error or "")
+
+
+class TestContinuePlanNoDirectHardwareAccess:
+    async def test_replan_does_not_access_motors(self):
+        config = _make_config()
+        provider = QwenPawProvider(config)
+        mock_response = _make_qwenpaw_response(
+            steps=[{"skill_id": "move_forward", "params": {"distance": 1.0}}],
+        )
+
+        async def _mock_replan_call(request: ReplanRequest) -> dict[str, Any]:
+            return mock_response
+
+        provider._call_qwenpaw_replan_api = _mock_replan_call  # type: ignore[method-assign]
+
+        proposal = await provider.continue_plan(_make_replan_request())
+
+        for step in proposal.steps:
+            assert "cmd_vel" not in step.skill_id
+            assert "motor" not in step.skill_id.lower()
+            assert "joint" not in step.skill_id.lower()
+
+
+# ------------------------------------------------------------------
+# cancel and health tests.
+# ------------------------------------------------------------------
+
+
+class TestCancel:
+    async def test_cancel_is_noop(self):
+        """cancel should be a no-op for the stateless provider."""
+        config = _make_config()
+        provider = QwenPawProvider(config)
+
+        # Should not raise and should return None.
+        result = await provider.cancel("invocation_001")
+        assert result is None
+
+    async def test_cancel_default_in_abstract(self):
+        """The abstract class provides a default cancel no-op."""
+        # AgentRuntimeProvider.cancel is concrete, so a subclass that does
+        # not override it still works.
+        class MinimalProvider(AgentRuntimeProvider):
+            async def generate_plan(self, mission):
+                ...
+
+            async def continue_plan(self, request):
+                ...
+
+        provider = MinimalProvider()
+        result = await provider.cancel("any_id")
+        assert result is None
+
+
+class TestHealth:
+    def test_health_returns_healthy_status(self):
+        config = _make_config()
+        provider = QwenPawProvider(config)
+
+        result = provider.health()
+
+        assert result["status"] == "healthy"
+        assert result["provider"] == "qwenpaw"
+        assert result["endpoint"] == "http://localhost:8000/v1/chat/completions"
+
+    def test_health_default_in_abstract(self):
+        """The abstract class provides a default health status."""
+        class MinimalProvider(AgentRuntimeProvider):
+            async def generate_plan(self, mission):
+                ...
+
+            async def continue_plan(self, request):
+                ...
+
+        provider = MinimalProvider()
+        result = provider.health()
+        assert result["status"] == "unknown"

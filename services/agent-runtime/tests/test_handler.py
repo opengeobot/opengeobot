@@ -17,6 +17,7 @@ from opengeobot_agent.provider import (
     AgentRuntimeProvider,
     MissionContext,
     PlanProposal,
+    ReplanRequest,
 )
 
 
@@ -52,6 +53,7 @@ class StubProvider(AgentRuntimeProvider):
         self._proposal = proposal
         self._error = error
         self.received_missions: list[MissionContext] = []
+        self.received_replan_requests: list[ReplanRequest] = []
 
     async def generate_plan(self, mission: MissionContext) -> PlanProposal:
         self.received_missions.append(mission)
@@ -64,6 +66,21 @@ class StubProvider(AgentRuntimeProvider):
             mission_id=mission.mission_id,
             trace_id=mission.trace_id,
             robot_id=mission.robot_id,
+            is_trusted=False,
+            generated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        )
+
+    async def continue_plan(self, request: ReplanRequest) -> PlanProposal:
+        self.received_replan_requests.append(request)
+        if self._error is not None:
+            raise self._error
+        if self._proposal is not None:
+            return self._proposal
+        return PlanProposal(
+            plan_id="plan_replan_test",
+            mission_id=request.mission_id,
+            trace_id=request.trace_id,
+            robot_id=request.robot_id,
             is_trusted=False,
             generated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         )
@@ -91,6 +108,25 @@ def _make_request_data(**overrides: Any) -> dict[str, Any]:
         "objective": "Move to location B",
         "constraints": {"max_speed": 1.0},
         "requested_at": "2026-01-01T00:00:00Z",
+    }
+    base.update(overrides)
+    return base
+
+
+def _make_replan_request_data(**overrides: Any) -> dict[str, Any]:
+    base = {
+        "mission_id": "msn_001",
+        "trace_id": "trace_001",
+        "robot_id": "rbt_01",
+        "original_objective": "Move to location B and capture an image",
+        "completed_steps": [
+            {"skill_id": "move_forward", "params": {"distance": 3.0}, "result": "ok"},
+        ],
+        "failed_step": {"skill_id": "capture_image", "params": {}, "error": "camera offline"},
+        "failure_reason": "Camera device not responding",
+        "remaining_steps": [
+            {"skill_id": "move_forward", "params": {"distance": 2.0}},
+        ],
     }
     base.update(overrides)
     return base
@@ -216,3 +252,90 @@ class TestPlanRequestHandling:
         assert len(replies) == 1
         response = json.loads(replies[0][1])
         assert response["trace_id"] == "my_trace_123"
+
+
+class TestReplanRequestHandling:
+    async def test_success_returns_untrusted_replan_proposal(self):
+        """A valid replan request should produce an UNTRUSTED proposal."""
+        config = _make_config()
+        nats = MockNats()
+        provider = StubProvider()
+        handler = PlanningRequestHandler(config, nats, provider)  # type: ignore[arg-type]
+
+        msg = _make_msg(_make_replan_request_data())
+        await handler.handle_replan_request(msg)
+
+        assert len(provider.received_replan_requests) == 1
+        assert provider.received_replan_requests[0].mission_id == "msn_001"
+        assert provider.received_replan_requests[0].failure_reason == "Camera device not responding"
+
+        replies = _published_on(nats, "reply.subject")
+        assert len(replies) == 1
+        response = json.loads(replies[0][1])
+        assert response["is_trusted"] is False
+        assert response["mission_id"] == "msn_001"
+        assert response["plan_id"] == "plan_replan_test"
+
+    async def test_replan_trace_id_propagated(self):
+        """The trace_id from the replan request should be propagated."""
+        config = _make_config()
+        nats = MockNats()
+        provider = StubProvider()
+        handler = PlanningRequestHandler(config, nats, provider)  # type: ignore[arg-type]
+
+        msg = _make_msg(_make_replan_request_data(trace_id="replan_trace_456"))
+        await handler.handle_replan_request(msg)
+
+        replies = _published_on(nats, "reply.subject")
+        assert len(replies) == 1
+        response = json.loads(replies[0][1])
+        assert response["trace_id"] == "replan_trace_456"
+
+    async def test_replan_malformed_payload_returns_error_proposal(self):
+        """Malformed JSON should produce an error proposal."""
+        config = _make_config()
+        nats = MockNats()
+        provider = StubProvider()
+        handler = PlanningRequestHandler(config, nats, provider)  # type: ignore[arg-type]
+
+        msg = MockMsg(data=b"not-json", reply="reply.subject")
+        await handler.handle_replan_request(msg)
+
+        replies = _published_on(nats, "reply.subject")
+        assert len(replies) == 1
+        response = json.loads(replies[0][1])
+        assert response["is_trusted"] is False
+        assert response["error"] is not None
+        assert len(provider.received_replan_requests) == 0
+
+    async def test_replan_provider_error_returns_error_proposal(self):
+        """When the provider raises, an error proposal should be returned."""
+        config = _make_config()
+        nats = MockNats()
+        provider = StubProvider(error=RuntimeError("Replan provider crash"))
+        handler = PlanningRequestHandler(config, nats, provider)  # type: ignore[arg-type]
+
+        msg = _make_msg(_make_replan_request_data())
+        await handler.handle_replan_request(msg)
+
+        replies = _published_on(nats, "reply.subject")
+        assert len(replies) == 1
+        response = json.loads(replies[0][1])
+        assert response["is_trusted"] is False
+        assert "Replan provider crash" in (response["error"] or "")
+
+    async def test_replan_no_reply_subject_does_not_crash(self):
+        """When no reply subject is available, handler should not crash."""
+        config = _make_config()
+        nats = MockNats()
+        provider = StubProvider()
+        handler = PlanningRequestHandler(config, nats, provider)  # type: ignore[arg-type]
+
+        msg = MockMsg(
+            data=json.dumps(_make_replan_request_data()).encode("utf-8"),
+            reply="",
+        )
+        await handler.handle_replan_request(msg)
+
+        replies = _published_on(nats, "reply.subject")
+        assert len(replies) == 0

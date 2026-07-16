@@ -96,11 +96,17 @@ class AgentRuntime:
             self._handler.handle_plan_request,
             durable=self._config.js_durable_consumer,
         )
+        await self._nats.subscribe_js(
+            self._config.replan_request_subject,
+            self._handler.handle_replan_request,
+            durable=self._config.js_durable_consumer + "-replan",
+        )
         logger.info(
             "Agent runtime started - JetStream durable consumer '{}' "
-            "subscribed to {}",
+            "subscribed to {} and {}",
             self._config.js_durable_consumer,
             self._config.plan_request_subject,
+            self._config.replan_request_subject,
         )
 
     async def _resolve_skill_names(self) -> list[str]:

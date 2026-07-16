@@ -10,6 +10,7 @@ import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
 import io.opengeobot.platform.common.event.NatsConnectionManager;
+import io.opengeobot.platform.robot.monitor.MonitorEventPublisher;
 import io.opengeobot.platform.common.mission.MissionState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -42,24 +44,33 @@ public class EdgeStateListener {
     private static final String STATE_SUBJECT_PATTERN = "opengeobot.dev.edge.state.>";
     private static final String FIELD_ROBOT_ID = "robot_id";
     private static final String FIELD_MISSION_ID = "mission_id";
-    private static final String FIELD_STATE = "state";
+    private static final String FIELD_STATUS = "status";
     private static final String FIELD_ERROR = "error";
     private static final String FIELD_TRACE_ID = "trace_id";
+    private static final String FIELD_STEP_INDEX = "step_index";
+    private static final String FIELD_STEP_STATUS = "step_status";
+    private static final String STATE_EXECUTING = "EXECUTING";
     private static final String STATE_COMPLETED = "COMPLETED";
     private static final String STATE_FAILED = "FAILED";
 
     private final NatsConnectionManager connectionManager;
     private final ObjectMapper objectMapper;
     private final MissionService missionService;
+    private final MonitorEventPublisher monitorEventPublisher;
+    private final TraceRecorder traceRecorder;
 
     private volatile Dispatcher dispatcher;
 
     public EdgeStateListener(NatsConnectionManager connectionManager,
                              ObjectMapper objectMapper,
-                             MissionService missionService) {
+                             MissionService missionService,
+                             MonitorEventPublisher monitorEventPublisher,
+                             TraceRecorder traceRecorder) {
         this.connectionManager = connectionManager;
         this.objectMapper = objectMapper;
         this.missionService = missionService;
+        this.monitorEventPublisher = monitorEventPublisher;
+        this.traceRecorder = traceRecorder;
     }
 
     @PostConstruct
@@ -90,7 +101,8 @@ public class EdgeStateListener {
 
     /**
      * NATS message handler. Parses the edge state message and transitions the
-     * mission if the state is COMPLETED or FAILED.
+     * mission if the status is COMPLETED or FAILED. Step-level fields
+     * (step_index, step_status) are used for progress visibility.
      */
     @SuppressWarnings("unchecked")
     void onMessage(Message msg) {
@@ -100,28 +112,66 @@ public class EdgeStateListener {
 
             String missionId = asString(state.get(FIELD_MISSION_ID));
             String robotId = asString(state.get(FIELD_ROBOT_ID));
-            String edgeState = asString(state.get(FIELD_STATE));
+            String status = asString(state.get(FIELD_STATUS));
             String traceId = asString(state.get(FIELD_TRACE_ID));
 
             if (traceId != null) {
                 MDC.put("trace_id", traceId);
             }
 
-            log.info("Received edge state update: robot={} mission={} state={}",
-                    robotId, missionId, edgeState);
+            log.info("Received edge state update: robot={} mission={} status={}",
+                    robotId, missionId, status);
+
+            // Push robot state update to WebSocket subscribers
+            if (robotId != null && !robotId.isBlank()) {
+                Map<String, Object> robotExtra = new HashMap<>();
+                robotExtra.put("mission_id", missionId);
+                if (traceId != null) {
+                    robotExtra.put("trace_id", traceId);
+                }
+                monitorEventPublisher.publishRobotUpdate(robotId, status, robotExtra);
+            }
 
             if (missionId == null || missionId.isBlank()) {
                 log.debug("Edge state update has no mission_id; ignoring");
                 return;
             }
 
-            if (STATE_COMPLETED.equals(edgeState)) {
+            // Parse step-level fields for progress tracking.
+            Integer stepIndex = asInteger(state.get(FIELD_STEP_INDEX));
+            String stepStatus = asString(state.get(FIELD_STEP_STATUS));
+            String error = asString(state.get(FIELD_ERROR));
+
+            // Step-level state handling: update step status for visibility.
+            if (stepIndex != null && stepStatus != null) {
+                // step_index from edge is 0-based, step_order in DB is 1-based.
+                int stepOrder = stepIndex + 1;
+                try {
+                    missionService.updateStepStatus(missionId, stepOrder, stepStatus, error);
+                } catch (Exception e) {
+                    log.warn("Failed to update step status for mission {} step {}: {}",
+                            missionId, stepOrder, e.getMessage());
+                }
+
+                // Record step execution fact for trace replay
+                if (traceId != null) {
+                    traceRecorder.recordFact(traceId, "mission.step_updated", missionId, "mission_step",
+                            robotId, missionId, "edge",
+                            Map.of("step_index", stepIndex, "step_status", stepStatus));
+                }
+
+                log.info("Mission {} step {} {}", missionId, stepIndex, stepStatus);
+            }
+
+            // Mission-level state transitions.
+            if (STATE_COMPLETED.equals(status)) {
                 missionService.completeMission(missionId);
                 log.info("Mission {} completed by edge state update", missionId);
-            } else if (STATE_FAILED.equals(edgeState)) {
-                String error = asString(state.get(FIELD_ERROR));
+            } else if (STATE_FAILED.equals(status)) {
                 missionService.failMission(missionId, error);
                 log.info("Mission {} failed by edge state update: {}", missionId, error);
+            } else if (STATE_EXECUTING.equals(status)) {
+                log.debug("Mission {} is executing (step {} {})", missionId, stepIndex, stepStatus);
             }
         } catch (Exception e) {
             log.error("Failed to process edge state message: {}", e.getMessage(), e);
@@ -147,5 +197,22 @@ public class EdgeStateListener {
 
     private static String asString(Object value) {
         return value != null ? value.toString() : null;
+    }
+
+    private static Integer asInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Integer) {
+            return (Integer) value;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

@@ -20,8 +20,11 @@ import io.opengeobot.platform.robot.dto.CreateMissionRequest;
 import io.opengeobot.platform.robot.dto.MissionApprovalDto;
 import io.opengeobot.platform.robot.dto.MissionDto;
 import io.opengeobot.platform.robot.dto.MissionStepDto;
+import io.opengeobot.platform.robot.dto.PlanProposalDto;
+import io.opengeobot.platform.robot.dto.PlanStepDto;
 import io.opengeobot.platform.robot.dto.RevisePlanRequest;
 import io.opengeobot.platform.robot.dto.UpdateMissionRequest;
+import io.opengeobot.platform.robot.monitor.MonitorEventPublisher;
 import io.opengeobot.platform.robot.repository.MissionApprovalRepository;
 import io.opengeobot.platform.robot.repository.MissionRepository;
 import io.opengeobot.platform.robot.repository.MissionStepRepository;
@@ -46,6 +49,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
@@ -68,6 +72,8 @@ class MissionServiceTest {
     @Mock private ClockProvider clockProvider;
     @Mock private ActorResolver actorResolver;
     @Mock private MissionOrchestrator missionOrchestrator;
+    @Mock private MonitorEventPublisher monitorEventPublisher;
+    @Mock private TraceRecorder traceRecorder;
 
     private MissionService service;
 
@@ -81,7 +87,7 @@ class MissionServiceTest {
         service = new MissionService(missionRepository, missionStepRepository,
                 missionTemplateRepository, missionApprovalRepository, auditService,
                 outboxRepository, publicIdGenerator, clockProvider, actorResolver,
-                objectMapper, missionOrchestrator);
+                objectMapper, missionOrchestrator, monitorEventPublisher, traceRecorder, 3);
     }
 
     private Mission createMission(String missionId, MissionState state) {
@@ -234,6 +240,7 @@ class MissionServiceTest {
     void failMission_fromExecutingTransitionsToFailed() {
         Mission mission = createMission("msn_001", MissionState.EXECUTING);
         when(missionRepository.selectOne(any())).thenReturn(mission);
+        when(missionStepRepository.selectByMissionId("msn_001")).thenReturn(List.of());
 
         MissionDto result = service.failMission("msn_001", "sensor_timeout");
 
@@ -243,6 +250,88 @@ class MissionServiceTest {
         verify(missionRepository).updateById((Mission) any());
         verify(outboxRepository).save(any());
         verify(auditService).record(any());
+    }
+
+    @Test
+    void failMission_skipsReplanWhenNoFailedStepFound() {
+        Mission mission = createMission("msn_001", MissionState.EXECUTING);
+        when(missionRepository.selectOne(any())).thenReturn(mission);
+        when(missionStepRepository.selectByMissionId("msn_001"))
+                .thenReturn(List.of());
+
+        service.failMission("msn_001", "sensor_timeout");
+
+        verify(missionOrchestrator, never()).replanMission(any(), any(), anyInt());
+    }
+
+    @Test
+    void failMission_attemptsAutoReplanWhenUnderMaxCount() {
+        Mission mission = createMission("msn_001", MissionState.EXECUTING);
+        mission.setReplanCount(0);
+        when(missionRepository.selectOne(any())).thenReturn(mission);
+
+        MissionStep failedStep = new MissionStep();
+        failedStep.setSkillId("skl_pickup");
+        failedStep.setStatus("FAILED");
+        failedStep.setErrorMessage("Gripper jammed");
+        failedStep.setStepOrder(2);
+        when(missionStepRepository.selectByMissionId("msn_001"))
+                .thenReturn(List.of(failedStep));
+
+        PlanProposalDto successProposal = new PlanProposalDto(
+                "plan_replan", "msn_001", "trace_001", "rbt_001",
+                List.of(new PlanStepDto("step_0", 1, "skl_navigate",
+                        Map.of("target", "room_b"), "Navigate", true, null)),
+                0.7, "Revised after failure", false, null,
+                "2026-07-16T10:00:00Z");
+        when(missionOrchestrator.replanMission("msn_001", "Gripper jammed", 0))
+                .thenReturn(successProposal);
+
+        MissionDto result = service.failMission("msn_001", "Gripper jammed");
+
+        verify(missionOrchestrator).replanMission("msn_001", "Gripper jammed", 0);
+        // The mission status should reflect the replan (orchestrator handled the transition)
+        assertNotNull(result);
+    }
+
+    @Test
+    void failMission_skipsReplanWhenMaxCountReached() {
+        Mission mission = createMission("msn_001", MissionState.EXECUTING);
+        mission.setReplanCount(3);
+        when(missionRepository.selectOne(any())).thenReturn(mission);
+        when(missionStepRepository.selectByMissionId("msn_001"))
+                .thenReturn(List.of());
+
+        MissionDto result = service.failMission("msn_001", "sensor_timeout");
+
+        assertEquals("FAILED", result.status());
+        verify(missionOrchestrator, never()).replanMission(any(), any(), anyInt());
+    }
+
+    @Test
+    void failMission_keepsFailedWhenReplanReturnsError() {
+        Mission mission = createMission("msn_001", MissionState.EXECUTING);
+        mission.setReplanCount(0);
+        when(missionRepository.selectOne(any())).thenReturn(mission);
+
+        MissionStep failedStep = new MissionStep();
+        failedStep.setSkillId("skl_pickup");
+        failedStep.setStatus("FAILED");
+        failedStep.setErrorMessage("Gripper jammed");
+        when(missionStepRepository.selectByMissionId("msn_001"))
+                .thenReturn(List.of(failedStep));
+
+        PlanProposalDto errorProposal = new PlanProposalDto(
+                "", "msn_001", "trace_001", "rbt_001",
+                List.of(), 0.0, "", false, "QwenPaw replan timed out",
+                "2026-07-16T10:00:00Z");
+        when(missionOrchestrator.replanMission("msn_001", "Gripper jammed", 0))
+                .thenReturn(errorProposal);
+
+        MissionDto result = service.failMission("msn_001", "Gripper jammed");
+
+        assertEquals("FAILED", result.status());
+        verify(missionOrchestrator).replanMission("msn_001", "Gripper jammed", 0);
     }
 
     @Test

@@ -81,6 +81,11 @@ opengeobot:
       batch-size: 100
       max-retry-count: 50
       retry-backoff-ms: 10000
+  edge:
+    safety:
+      gateway-id: ${EDGE_GATEWAY_ID:edge_01}
+  mission:
+    max-replan-count: 3
 
 logging:
   level:

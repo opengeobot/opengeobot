@@ -13,6 +13,12 @@ dependencies = [
     "loguru>=0.7.2",
 ]
 
+# ROSClaw is installed at runtime from the mounted source directory
+# (/opt/rosclaw-source) by the container entrypoint. Declared here as an
+# optional dependency so `uv pip install .[rosclaw]` also works for local dev.
+[project.optional-dependencies]
+rosclaw = ["rosclaw>=1.0.1"]
+
 [dependency-groups]
 dev = [
     "ruff>=0.6.9",

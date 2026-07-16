@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -98,6 +99,22 @@ public class SkillService {
                 pageRequest.pageNumber(),
                 pageRequest.pageSize()
         );
+    }
+
+    /**
+     * Returns all PUBLISHED skills without pagination. Used by the NATS
+     * skill-list responder to serve registered skill definitions to the
+     * agent-runtime for plan-step validation.
+     *
+     * @return unmodifiable list of published skill DTOs
+     */
+    public List<SkillDto> listPublishedSkills() {
+        LambdaQueryWrapper<Skill> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Skill::getStatus, STATUS_PUBLISHED)
+                .orderByAsc(Skill::getName);
+        return skillRepository.selectList(wrapper).stream()
+                .map(SkillService::toDto)
+                .toList();
     }
 
     public SkillDto getSkill(String skillId) {

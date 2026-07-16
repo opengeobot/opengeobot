@@ -135,6 +135,10 @@ class AgentInitializer:
             "workspace_dir": f"/app/working/workspaces/{self._config.qwenpaw_agent_id}",
             "language": "zh",
             "skill_names": skill_names,
+            "active_model": {
+                "provider_id": self._config.qwenpaw_model_provider,
+                "model": self._config.qwenpaw_model_name,
+            },
         }
         async with httpx.AsyncClient(timeout=_WRITE_TIMEOUT) as client:
             resp = await client.post(

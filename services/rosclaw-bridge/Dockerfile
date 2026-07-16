@@ -16,12 +16,22 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Install build tools (for any C-extension deps) and gosu (for privilege
+# dropping in the entrypoint). The entrypoint installs ROSClaw from the
+# mounted source as root, then drops to the non-root bridge user.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        gosu \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install uv for fast dependency resolution.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy project metadata and source.
 COPY pyproject.toml ./
 COPY src ./src
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Install the project as a package so `python -m opengeobot_rosclaw_bridge.main` resolves.
 RUN uv pip install --system .
@@ -35,8 +45,10 @@ ENV ROBOT_ID=rbt_01J00000000000000000000001 \
     LOG_LEVEL=INFO \
     SKILL_REQUEST_TIMEOUT=30.0
 
-# Non-root user for the runtime.
+# Non-root user for the runtime. The entrypoint runs as root to install
+# ROSClaw from the mounted source, then drops to this user via gosu.
 RUN useradd --create-home --uid 1001 bridge
-USER bridge
 
+# The entrypoint installs ROSClaw (if source is mounted) and drops to bridge.
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python", "-m", "opengeobot_rosclaw_bridge.main"]

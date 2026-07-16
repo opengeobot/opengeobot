@@ -54,6 +54,8 @@ public class Mission {
 
     private String traceId;
 
+    private Integer replanCount;
+
     public Long getId() {
         return id;
     }
@@ -180,5 +182,13 @@ public class Mission {
 
     public void setTraceId(String traceId) {
         this.traceId = traceId;
+    }
+
+    public Integer getReplanCount() {
+        return replanCount;
+    }
+
+    public void setReplanCount(Integer replanCount) {
+        this.replanCount = replanCount;
     }
 }

@@ -11,8 +11,10 @@ import io.opengeobot.platform.robot.dto.AcquireControlLeaseRequest;
 import io.opengeobot.platform.robot.dto.ControlLeaseDto;
 import io.opengeobot.platform.robot.dto.EdgeCommandDto;
 import io.opengeobot.platform.robot.dto.MissionDto;
+import io.opengeobot.platform.robot.dto.MissionStepDto;
 import io.opengeobot.platform.robot.dto.PlanProposalDto;
 import io.opengeobot.platform.robot.dto.PlanStepDto;
+import io.opengeobot.platform.robot.dto.ReplanRequestDto;
 import io.opengeobot.platform.robot.dto.RevisePlanRequest;
 import io.opengeobot.platform.robot.nats.AgentRuntimeNatsClient;
 import io.opengeobot.platform.robot.web.ActorResolver;
@@ -200,5 +202,109 @@ class MissionOrchestratorTest {
                 () -> orchestrator.executeMission(missionId));
 
         verify(edgeDispatcher, never()).dispatch(any(), any());
+    }
+
+    // ------------------------------------------------------------------
+    // replanMission tests
+    // ------------------------------------------------------------------
+
+    private MissionDto createMissionDtoWithSteps(String missionId, String robotId) {
+        List<MissionStepDto> steps = List.of(
+                new MissionStepDto("stp_1", missionId, "skl_navigate", 1,
+                        Map.of("target", "room_a"), null, "COMPLETED", null, null, null),
+                new MissionStepDto("stp_2", missionId, "skl_pickup", 2,
+                        Map.of("object", "cup"), null, "FAILED", null, null, "Gripper jammed"),
+                new MissionStepDto("stp_3", missionId, "skl_navigate", 3,
+                        Map.of("target", "room_b"), null, "PENDING", null, null, null));
+        return new MissionDto(
+                missionId, "Test Mission", "Navigate to room A and pick up cup",
+                robotId, "FAILED", "NORMAL", null, null, null, "Gripper jammed",
+                "user_001", OffsetDateTime.now(ZoneOffset.UTC),
+                OffsetDateTime.now(ZoneOffset.UTC), "trace_001", steps);
+    }
+
+    @Test
+    void replanMission_callsAgentRuntimeAndPersistsSteps() {
+        String missionId = "msn_replan_001";
+        when(missionService.getDetail(missionId))
+                .thenReturn(createMissionDtoWithSteps(missionId, "rbt_001"));
+        when(agentRuntimeClient.replanMission(any(ReplanRequestDto.class), any()))
+                .thenReturn(createPlanProposal(missionId));
+        when(policyService.evaluate(any(), eq("rbt_001"))).thenReturn(List.of());
+
+        PlanProposalDto result = orchestrator.replanMission(missionId, "Gripper jammed", 1);
+
+        assertNotNull(result);
+        assertEquals("plan_001", result.planId());
+        assertEquals(2, result.steps().size());
+        assertFalse(result.isTrusted());
+
+        // Verify the agent-runtime was called with correct replan context
+        ArgumentCaptor<ReplanRequestDto> captor = ArgumentCaptor.forClass(ReplanRequestDto.class);
+        verify(agentRuntimeClient).replanMission(captor.capture(), any());
+        ReplanRequestDto sent = captor.getValue();
+        assertEquals(missionId, sent.missionId());
+        assertEquals("rbt_001", sent.robotId());
+        assertEquals("Gripper jammed", sent.failureReason());
+        assertEquals(1, sent.completedSteps().size());
+        assertEquals("skl_navigate", sent.completedSteps().get(0).get("skill_id"));
+        assertEquals("skl_pickup", sent.failedStep().get("skill_id"));
+        assertEquals("Gripper jammed", sent.failedStep().get("error"));
+        assertEquals(1, sent.remainingSteps().size());
+        assertEquals("skl_navigate", sent.remainingSteps().get(0).get("skill_id"));
+
+        // Verify the mission was reset and new steps persisted
+        verify(missionService).resetForReplan(missionId);
+        verify(missionService).revisePlan(eq(missionId), any(RevisePlanRequest.class));
+    }
+
+    @Test
+    void replanMission_returnsEarlyOnError() {
+        String missionId = "msn_replan_002";
+        when(missionService.getDetail(missionId))
+                .thenReturn(createMissionDtoWithSteps(missionId, "rbt_002"));
+        PlanProposalDto errorProposal = new PlanProposalDto(
+                "", missionId, "trace_001", "rbt_002",
+                List.of(), 0.0, "", false, "QwenPaw replan timed out",
+                "2026-07-16T10:01:00Z");
+        when(agentRuntimeClient.replanMission(any(ReplanRequestDto.class), any()))
+                .thenReturn(errorProposal);
+
+        PlanProposalDto result = orchestrator.replanMission(missionId, "Gripper jammed", 1);
+
+        assertEquals("QwenPaw replan timed out", result.error());
+        verify(missionService, never()).resetForReplan(any());
+        verify(missionService, never()).revisePlan(any(), any());
+    }
+
+    @Test
+    void replanMission_returnsEarlyOnEmptySteps() {
+        String missionId = "msn_replan_003";
+        when(missionService.getDetail(missionId))
+                .thenReturn(createMissionDtoWithSteps(missionId, "rbt_003"));
+        PlanProposalDto emptyProposal = new PlanProposalDto(
+                "plan_empty", missionId, "trace_001", "rbt_003",
+                List.of(), 0.5, "", false, null,
+                "2026-07-16T10:02:00Z");
+        when(agentRuntimeClient.replanMission(any(ReplanRequestDto.class), any()))
+                .thenReturn(emptyProposal);
+
+        PlanProposalDto result = orchestrator.replanMission(missionId, "Gripper jammed", 1);
+
+        assertEquals("plan_empty", result.planId());
+        verify(missionService, never()).resetForReplan(any());
+        verify(missionService, never()).revisePlan(any(), any());
+    }
+
+    @Test
+    void replanMission_returnsErrorForInvalidStepIndex() {
+        String missionId = "msn_replan_004";
+        when(missionService.getDetail(missionId))
+                .thenReturn(createMissionDtoWithSteps(missionId, "rbt_004"));
+
+        PlanProposalDto result = orchestrator.replanMission(missionId, "reason", 99);
+
+        assertNotNull(result.error());
+        verify(agentRuntimeClient, never()).replanMission(any(), any());
     }
 }
