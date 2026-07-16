@@ -388,14 +388,14 @@ services:
     image: agentscope-registry.ap-southeast-1.cr.aliyuncs.com/agentscope/qwenpaw:latest
     profiles: [sim, full]
     ports:
-      - "8000:8000"
+      - "8000:8088"
     networks: [opengeobot-net]
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8000/v1/models > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8088/healthz > /dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 60s
     restart: unless-stopped
     deploy:
       resources:
@@ -414,7 +414,7 @@ services:
     profiles: [sim, full]
     environment:
       - NATS_URL=nats://nats:4222
-      - QWENPAW_ENDPOINT=http://qwenpaw:8000/v1/chat/completions
+      - QWENPAW_ENDPOINT=http://qwenpaw:8088/v1/chat/completions
       - LOG_LEVEL=INFO
     networks: [opengeobot-net]
     depends_on:
