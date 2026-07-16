@@ -14,6 +14,7 @@ import os
 from dataclasses import dataclass
 
 DEFAULT_ROBOT_ID = "rbt_01J00000000000000000000001"
+DEFAULT_GATEWAY_ID = "edge_01"
 DEFAULT_NATS_URL = "nats://localhost:4222"
 DEFAULT_CLOUD_API = "http://localhost:8080"
 DEFAULT_JETSTREAM_STREAM_NAME = "EDGE_STREAM"
@@ -45,6 +46,7 @@ class EdgeConfig:
     """Immutable edge gateway configuration."""
 
     robot_id: str
+    gateway_id: str
     nats_url: str
     nats_max_reconnect: int
     nats_reconnect_wait: float
@@ -70,8 +72,22 @@ class EdgeConfig:
 
     @property
     def skill_execute_subject(self) -> str:
-        """Edge → local skill executor (sim-adapter) request subject."""
+        """Edge -> terminal executor (sim-adapter / ROSClaw bridge) request subject."""
         return f"opengeobot.dev.edge.skill.execute.{self.robot_id}"
+
+    @property
+    def safety_gateway_skill_subject(self) -> str:
+        """Edge -> Safety Gateway skill interception subject.
+
+        Skill execution requests are routed through the Safety Gateway for
+        action-level validation before reaching the terminal executor.
+        """
+        return f"edge.{self.gateway_id}.skill.execute"
+
+    @property
+    def safety_state_changed_subject(self) -> str:
+        """Safety Gateway -> edge state change broadcast subject."""
+        return f"edge.{self.gateway_id}.safety.state_changed"
 
     @property
     def reconciliation_subject(self) -> str:
@@ -87,6 +103,7 @@ class EdgeConfig:
     def from_env(cls) -> EdgeConfig:
         return cls(
             robot_id=_env_str("ROBOT_ID", DEFAULT_ROBOT_ID),
+            gateway_id=_env_str("GATEWAY_ID", DEFAULT_GATEWAY_ID),
             nats_url=_env_str("NATS_URL", DEFAULT_NATS_URL),
             nats_max_reconnect=_env_int("NATS_MAX_RECONNECT", -1),
             nats_reconnect_wait=_env_float("EDGE_NATS_RECONNECT_WAIT", 2.0),

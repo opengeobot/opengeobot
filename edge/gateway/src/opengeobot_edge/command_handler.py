@@ -416,10 +416,17 @@ class CommandHandler:
         )
 
     async def _call_executor(self, request: SkillExecutionRequest) -> SkillExecutionResponse:
-        """Forward the skill request to the local executor over NATS request/reply."""
+        """Forward the skill request through the Safety Gateway via NATS request/reply.
+
+        The request is sent to the Safety Gateway's interception subject
+        ``edge.{gateway_id}.skill.execute``. The Safety Gateway validates the
+        request (action-level safety checks) and, if allowed, forwards it to
+        the skill executor which dispatches to the terminal adapter (sim-adapter
+        or ROSClaw bridge). The response is a ``SkillExecutionResponse``.
+        """
         payload = request.model_dump_json().encode("utf-8")
         reply = await self._nats.request(
-            self._config.skill_execute_subject,
+            self._config.safety_gateway_skill_subject,
             payload,
             timeout=self._config.skill_request_timeout,
         )

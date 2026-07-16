@@ -97,6 +97,21 @@ class SafetyDecisionResponse(BaseModel):
     model_config = {"extra": "ignore"}
 
 
+class SkillExecutionResponse(BaseModel):
+    """Execution result returned to the edge gateway after safety interception."""
+
+    request_id: str
+    trace_id: str = ""
+    skill_id: str = ""
+    success: bool
+    output: dict[str, object] = Field(default_factory=dict)
+    error: str | None = None
+    started_at: str = ""
+    completed_at: str = ""
+
+    model_config = {"extra": "ignore"}
+
+
 class SafetyStateChangedEvent(BaseModel):
     """Outbound: safety state change broadcast."""
 
@@ -181,14 +196,20 @@ class SafetyHandler:
         await self._publish_state_change(trace_id=trace_id, previous_state=previous)
 
     async def handle_skill_execute(self, msg: object) -> None:
-        """Intercept a skill execution request, validate, and forward if safe."""
+        """Intercept a skill execution request, validate, and forward if safe.
+
+        Uses NATS request-reply to forward approved requests to the skill
+        executor and returns the execution result as a ``SkillExecutionResponse``
+        to the original caller. If the safety check blocks the request, a
+        failure ``SkillExecutionResponse`` is returned directly.
+        """
         raw = getattr(msg, "data", b"")
         try:
             payload = json.loads(raw)
             request = SkillExecutionRequest.model_validate(payload)
         except (json.JSONDecodeError, ValueError) as exc:
             logger.bind(error=str(exc)).warning("Rejected malformed skill.execute payload")
-            await self._ack(msg)
+            await self._respond_error(msg, request_id="", trace_id="", skill_id="", error=str(exc))
             return
 
         logger.bind(
@@ -199,35 +220,42 @@ class SafetyHandler:
         ).info("Intercepted skill execution request")
 
         decision = self._evaluate(request)
-        forwarded = False
 
-        if decision.allowed:
-            forwarded = await self._forward_skill_request(request)
-            if not forwarded:
-                decision = SafetyDecision(
-                    allowed=False,
-                    reason="Safety check passed but forward to executor failed",
-                    robot_id=request.robot_id,
-                    skill_name=request.skill_id,
-                    trace_id=request.trace_id,
-                    checks_run=decision.checks_run,
-                    denied_checks=["forward_failed"],
-                    timestamp=_now_iso(),
-                )
+        if not decision.allowed:
+            # Safety check blocked the request - return a failure response.
+            response = SkillExecutionResponse(
+                request_id=request.request_id,
+                trace_id=request.trace_id,
+                skill_id=request.skill_id,
+                success=False,
+                error=f"Safety blocked: {decision.reason}",
+                started_at=_now_iso(),
+                completed_at=_now_iso(),
+            )
+            await self._respond(msg, response.model_dump_json().encode("utf-8"))
+            return
 
-        response = SafetyDecisionResponse(
-            request_id=request.request_id,
-            trace_id=request.trace_id,
-            allowed=decision.allowed,
-            reason=decision.reason,
-            state=self._sm.get_state().value,
-            denied_checks=decision.denied_checks,
-            forwarded=forwarded and decision.allowed,
-            timestamp=_now_iso(),
-        )
+        # Safety check passed - forward to skill executor via request-reply.
+        try:
+            reply = await self._nats.request(
+                self._config.skill_forward_subject,
+                request.model_dump_json().encode("utf-8"),
+                timeout=30.0,
+            )
+            response = SkillExecutionResponse.model_validate_json(reply.data)
+        except Exception as exc:  # noqa: BLE001 - executor failure must not crash gateway
+            logger.bind(error=str(exc)).warning("Skill executor request failed")
+            response = SkillExecutionResponse(
+                request_id=request.request_id,
+                trace_id=request.trace_id,
+                skill_id=request.skill_id,
+                success=False,
+                error=f"Skill executor unavailable: {exc}",
+                started_at=_now_iso(),
+                completed_at=_now_iso(),
+            )
 
         await self._respond(msg, response.model_dump_json().encode("utf-8"))
-        await self._ack(msg)
 
     # ------------------------------------------------------------------
     # Internal helpers.
@@ -256,20 +284,6 @@ class SafetyHandler:
             robot_positions=self._robot_positions,
             trace_id=request.trace_id,
         )
-
-    async def _forward_skill_request(self, request: SkillExecutionRequest) -> bool:
-        """Forward an approved skill request to the local skill executor."""
-        try:
-            payload = request.model_dump_json().encode("utf-8")
-            await self._nats.publish(self._config.skill_forward_subject, payload)
-            logger.bind(
-                request_id=request.request_id,
-                forward_subject=self._config.skill_forward_subject,
-            ).info("Skill execution forwarded to local executor")
-            return True
-        except Exception as exc:  # noqa: BLE001 — executor unreachable must not crash gateway
-            logger.bind(error=str(exc)).warning("Failed to forward skill request to executor")
-            return False
 
     async def _publish_state_change(
         self, trace_id: str = "", previous_state: SafetyState = SafetyState.NORMAL
@@ -308,6 +322,21 @@ class SafetyHandler:
                 await self._nats.publish(reply, data)
             except Exception as exc:  # noqa: BLE001
                 logger.bind(error=str(exc)).warning("Failed to respond to skill.execute request")
+
+    async def _respond_error(
+        self, msg: object, *, request_id: str, trace_id: str, skill_id: str, error: str
+    ) -> None:
+        """Respond with a failure SkillExecutionResponse for malformed requests."""
+        response = SkillExecutionResponse(
+            request_id=request_id,
+            trace_id=trace_id,
+            skill_id=skill_id,
+            success=False,
+            error=error,
+            started_at=_now_iso(),
+            completed_at=_now_iso(),
+        )
+        await self._respond(msg, response.model_dump_json().encode("utf-8"))
 
     async def _ack(self, msg: object) -> None:
         """Acknowledge a JetStream message if it supports ack.

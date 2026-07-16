@@ -38,6 +38,7 @@ import io.opengeobot.platform.robot.web.ConflictException;
 import io.opengeobot.platform.robot.web.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -77,6 +78,7 @@ public class MissionService {
     private final ClockProvider clockProvider;
     private final ActorResolver actorResolver;
     private final ObjectMapper objectMapper;
+    private final MissionOrchestrator missionOrchestrator;
 
     public MissionService(MissionRepository missionRepository,
                           MissionStepRepository missionStepRepository,
@@ -87,7 +89,8 @@ public class MissionService {
                           PublicIdGenerator publicIdGenerator,
                           ClockProvider clockProvider,
                           ActorResolver actorResolver,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          @Lazy MissionOrchestrator missionOrchestrator) {
         this.missionRepository = missionRepository;
         this.missionStepRepository = missionStepRepository;
         this.missionTemplateRepository = missionTemplateRepository;
@@ -98,6 +101,7 @@ public class MissionService {
         this.clockProvider = clockProvider;
         this.actorResolver = actorResolver;
         this.objectMapper = objectMapper;
+        this.missionOrchestrator = missionOrchestrator;
     }
 
     // ----- F-MISSION-001: create, list, get, update, plan -----
@@ -239,6 +243,11 @@ public class MissionService {
         payload.put("trace_id", traceId);
         publishEvent("mission.started.v1", missionId, payload, now, traceId);
 
+        // Dispatch to edge Safety Gateway via orchestrator: acquire control lease
+        // and publish start_mission command. If this fails the transaction rolls
+        // back, leaving the mission in its pre-start state.
+        missionOrchestrator.executeMission(missionId);
+
         log.info("Started mission {}", missionId);
         return toDto(mission, null);
     }
@@ -310,6 +319,74 @@ public class MissionService {
         publishEvent("mission.cancelled.v1", missionId, payload, now, traceId);
 
         log.info("Cancelled mission {} from state {}", missionId, current);
+        return toDto(mission, null);
+    }
+
+    /**
+     * Transitions a mission to COMPLETED. Called by the edge state listener
+     * when the edge Safety Gateway reports mission completion.
+     */
+    @Transactional
+    public MissionDto completeMission(String missionId) {
+        Mission mission = requireMission(missionId);
+        transition(mission, MissionState.COMPLETED);
+        Instant now = Instant.now(clockProvider.getClock());
+        String actor = actorResolver.currentActor();
+        String traceId = actorResolver.currentTraceId();
+
+        mission.setCompletedAt(now.atOffset(ZoneOffset.UTC));
+        mission.setUpdatedAt(now.atOffset(ZoneOffset.UTC));
+        mission.setUpdatedBy(actor);
+        mission.setTraceId(traceId);
+        missionRepository.updateById(mission);
+
+        audit(actor, "mission.complete", missionId, now, traceId, null);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("event_id", publicIdGenerator.generate("evt"));
+        payload.put("mission_id", missionId);
+        payload.put("robot_id", mission.getRobotId());
+        payload.put("completed_by", actor);
+        payload.put("completed_at", now.toString());
+        payload.put("occurred_at", now.toString());
+        payload.put("trace_id", traceId);
+        publishEvent("mission.completed.v1", missionId, payload, now, traceId);
+
+        log.info("Completed mission {}", missionId);
+        return toDto(mission, null);
+    }
+
+    /**
+     * Transitions a mission to FAILED. Called by the edge state listener
+     * when the edge Safety Gateway reports a mission failure.
+     */
+    @Transactional
+    public MissionDto failMission(String missionId, String reason) {
+        Mission mission = requireMission(missionId);
+        transition(mission, MissionState.FAILED);
+        Instant now = Instant.now(clockProvider.getClock());
+        String actor = actorResolver.currentActor();
+        String traceId = actorResolver.currentTraceId();
+
+        mission.setFailedReason(reason);
+        mission.setCompletedAt(now.atOffset(ZoneOffset.UTC));
+        mission.setUpdatedAt(now.atOffset(ZoneOffset.UTC));
+        mission.setUpdatedBy(actor);
+        mission.setTraceId(traceId);
+        missionRepository.updateById(mission);
+
+        audit(actor, "mission.fail", missionId, now, traceId, reason);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("event_id", publicIdGenerator.generate("evt"));
+        payload.put("mission_id", missionId);
+        payload.put("robot_id", mission.getRobotId());
+        payload.put("failed_reason", reason);
+        payload.put("failed_by", actor);
+        payload.put("failed_at", now.toString());
+        payload.put("occurred_at", now.toString());
+        payload.put("trace_id", traceId);
+        publishEvent("mission.failed.v1", missionId, payload, now, traceId);
+
+        log.info("Failed mission {}: {}", missionId, reason);
         return toDto(mission, null);
     }
 

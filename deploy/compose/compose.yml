@@ -8,7 +8,7 @@
 #   infra          -> postgres, nats, minio
 #   observability  -> victoriametrics, vmagent, loki, vector, grafana
 #   cloud          -> cloud-control, web-console
-#   sim            -> sim-adapter, edge-gateway, safety-gateway, local-skill-executor
+#   sim            -> qwenpaw, agent-runtime, sim-adapter, edge-gateway, safety-gateway, local-skill-executor
 #   ros2           -> ros2-turtlesim, ros2-adapter (real ROS2 Jazzy environment)
 #   ros1-sim       -> ros1-roscore, ros1-turtlesim, ros1-adapter (real ROS1 Noetic environment)
 #   zenoh          -> zenoh-bridge-ros2dds (weak network DDS bridge, optional)
@@ -262,6 +262,42 @@ services:
         limits:
           memory: 256M
 
+  # ---------------------------------------------------------------------------
+  # ROSClaw NATS Bridge (sim + full)
+  # ---------------------------------------------------------------------------
+  # Replaces sim-adapter for real hardware control via ROSClaw Edge Runtime.
+  # Subscribes to the same NATS subject as sim-adapter; the two are mutually
+  # exclusive - do not run both simultaneously.
+  # Mounts the ROSClaw source from the host for pip install -e.
+  rosclaw-bridge:
+    build:
+      context: ../../services/rosclaw-bridge
+    profiles: [sim, full]
+    environment:
+      - NATS_URL=nats://nats:4222
+      - ROBOT_ID=rbt_01J00000000000000000000001
+      - GATEWAY_ID=edge_01
+      - ROBOT_ROS_ENDPOINT=ws://ros2-turtlesim:9090
+      - ROSCLAW_PROFILE=offline
+      - ROSCLAW_SANDBOX=true
+      - LOG_LEVEL=INFO
+    volumes:
+      - /storage/xy/source/rosclaw:/opt/rosclaw-source:ro
+    networks: [opengeobot-net]
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import opengeobot_rosclaw_bridge.main' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
   edge-gateway:
     build:
       context: ../../edge
@@ -335,6 +371,58 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ---------------------------------------------------------------------------
+  # QwenPaw LLM service (sim + full)
+  # ---------------------------------------------------------------------------
+  # Real QwenPaw Docker image for the agent-runtime to call via HTTP.
+  # The agent-runtime generates UNTRUSTED mission plan proposals via the
+  # QwenPaw chat-completions API (EXT-QWENPAW contract, PINNED).
+  # NOTE: `latest` tag is for local E2E verification only. Project rules
+  # prohibit `latest` in production - pin to a specific version before deployment.
+  qwenpaw:
+    image: agentscope-registry.ap-southeast-1.cr.aliyuncs.com/agentscope/qwenpaw:latest
+    profiles: [sim, full]
+    ports:
+      - "8000:8000"
+    networks: [opengeobot-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8000/v1/models > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  # ---------------------------------------------------------------------------
+  # Agent runtime / QwenPaw adapter (sim + full)
+  # ---------------------------------------------------------------------------
+  # QwenPaw AgentRuntimeProvider adapter. Subscribes to mission planning
+  # requests via NATS and generates UNTRUSTED plan proposals via the QwenPaw
+  # API. All proposals must be validated upstream before execution.
+  agent-runtime:
+    build:
+      context: ../../services/agent-runtime
+    profiles: [sim, full]
+    environment:
+      - NATS_URL=nats://nats:4222
+      - QWENPAW_ENDPOINT=http://qwenpaw:8000/v1/chat/completions
+      - LOG_LEVEL=INFO
+    networks: [opengeobot-net]
+    depends_on:
+      nats:
+        condition: service_healthy
+      qwenpaw:
+        condition: service_healthy
+    restart: unless-stopped
     deploy:
       resources:
         limits:

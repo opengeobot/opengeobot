@@ -404,7 +404,10 @@ cmd_sim_up() {
 
     info "Waiting for healthchecks..."
     wait_for_health nats 30 || true
+    wait_for_health qwenpaw 90 || true
+    wait_for_health agent-runtime 60 || true
     wait_for_health sim-adapter 60 || true
+    wait_for_health rosclaw-bridge 60 || true
     wait_for_health edge-gateway 60 || true
     wait_for_health safety-gateway 60 || true
     wait_for_health local-skill-executor 60 || true
@@ -412,7 +415,8 @@ cmd_sim_up() {
 
     echo
     printf "${CYAN}  Simulation Stack Services:${NC}\n"
-    printf "${CYAN}  Safety Gateway   : http://localhost:8081/health${NC}\n"
+    printf "${CYAN}  QwenPaw LLM       : http://localhost:8000/v1/models${NC}\n"
+    printf "${CYAN}  Safety Gateway    : http://localhost:8081/health${NC}\n"
     printf "${CYAN}  NATS Monitoring   : http://localhost:8222${NC}\n"
     printf "${CYAN}  MinIO Console     : http://localhost:9001${NC}\n"
     printf "${YELLOW}  Use 'down' to stop (data preserved)${NC}\n"
@@ -449,6 +453,7 @@ cmd_test() {
         "edge/safety-gateway"
         "edge/local-skill-executor"
         "services/sim-adapter"
+        "services/rosclaw-bridge"
         "services/ros1-adapter"
         "services/agent-runtime"
         "services/mcp-tool-gateway"
@@ -526,9 +531,22 @@ cmd_e2e() {
     wait_for_health postgres 60 || true
     wait_for_health nats 30 || true
     wait_for_health minio 60 || true
+    wait_for_health qwenpaw 90 || true
+    wait_for_health agent-runtime 60 || true
     wait_for_health cloud-control 120 || true
     wait_for_health web-console 60 || true
+    wait_for_health edge-gateway 60 || true
+    wait_for_health safety-gateway 60 || true
+    wait_for_health local-skill-executor 60 || true
     ok "Full stack is ready"
+
+    info "Running E2E business loop test..."
+    if python3 "${ROOT_DIR}/tests/e2e/test_business_loop.py"; then
+        ok "E2E business loop test PASSED"
+    else
+        warn "E2E business loop test FAILED (see output above)"
+        warn "Check that cloud-control is running and migrated: ./scripts/dev.sh migrate"
+    fi
 }
 
 cmd_down() {
@@ -560,9 +578,9 @@ Commands:
   infra-up    Start infrastructure containers (Postgres, NATS, MinIO)
   migrate     Run Flyway migrations against local PostgreSQL
   dev         Start backend + frontend dev servers (Ctrl+C to stop)
-  sim-up      Start simulation stack (infra + sim-adapter + edge + safety + skill executor)
+  sim-up      Start simulation stack (infra + qwenpaw + agent-runtime + edge + safety + executor)
   test        Run Java, frontend (if configured), and Python tests
-  e2e         Build and start the full stack (infra + observability + cloud)
+  e2e         Build, start full stack, and run E2E business loop test
   down        Stop Docker Compose stack and dev servers (keeps volumes)
 EOF
 }

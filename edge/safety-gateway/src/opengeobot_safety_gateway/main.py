@@ -90,10 +90,13 @@ class SafetyGateway:
             self._config.reset_subject,
             self._handler.handle_reset,
         )
-        await self._nats.subscribe_jetstream(
+        # Use plain NATS (not JetStream) for skill.execute so that the reply
+        # subject is preserved for request-reply from the edge gateway.
+        # JetStream strips reply subjects on stored messages, breaking the
+        # synchronous request-reply pattern needed for the safety interception.
+        await self._nats.subscribe(
             self._config.skill_execute_subject,
             self._handler.handle_skill_execute,
-            durable=self._config.jetstream_durable_name,
         )
 
         await self._start_health_check()

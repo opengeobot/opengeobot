@@ -67,6 +67,7 @@ class MissionServiceTest {
     @Mock private PublicIdGenerator publicIdGenerator;
     @Mock private ClockProvider clockProvider;
     @Mock private ActorResolver actorResolver;
+    @Mock private MissionOrchestrator missionOrchestrator;
 
     private MissionService service;
 
@@ -80,7 +81,7 @@ class MissionServiceTest {
         service = new MissionService(missionRepository, missionStepRepository,
                 missionTemplateRepository, missionApprovalRepository, auditService,
                 outboxRepository, publicIdGenerator, clockProvider, actorResolver,
-                objectMapper);
+                objectMapper, missionOrchestrator);
     }
 
     private Mission createMission(String missionId, MissionState state) {
@@ -145,6 +146,7 @@ class MissionServiceTest {
         verify(missionRepository).updateById((Mission) any());
         verify(outboxRepository).save(any());
         verify(auditService).record(any());
+        verify(missionOrchestrator).executeMission("msn_001");
     }
 
     @Test
@@ -204,6 +206,51 @@ class MissionServiceTest {
         when(missionRepository.selectOne(any())).thenReturn(mission);
 
         assertThrows(ConflictException.class, () -> service.cancel("msn_001"));
+    }
+
+    @Test
+    void completeMission_fromExecutingTransitionsToCompleted() {
+        Mission mission = createMission("msn_001", MissionState.EXECUTING);
+        when(missionRepository.selectOne(any())).thenReturn(mission);
+
+        MissionDto result = service.completeMission("msn_001");
+
+        assertEquals("COMPLETED", result.status());
+        assertNotNull(result.completedAt());
+        verify(missionRepository).updateById((Mission) any());
+        verify(outboxRepository).save(any());
+        verify(auditService).record(any());
+    }
+
+    @Test
+    void completeMission_fromPendingThrowsConflict() {
+        Mission mission = createMission("msn_001", MissionState.PENDING);
+        when(missionRepository.selectOne(any())).thenReturn(mission);
+
+        assertThrows(ConflictException.class, () -> service.completeMission("msn_001"));
+    }
+
+    @Test
+    void failMission_fromExecutingTransitionsToFailed() {
+        Mission mission = createMission("msn_001", MissionState.EXECUTING);
+        when(missionRepository.selectOne(any())).thenReturn(mission);
+
+        MissionDto result = service.failMission("msn_001", "sensor_timeout");
+
+        assertEquals("FAILED", result.status());
+        assertEquals("sensor_timeout", result.failedReason());
+        assertNotNull(result.completedAt());
+        verify(missionRepository).updateById((Mission) any());
+        verify(outboxRepository).save(any());
+        verify(auditService).record(any());
+    }
+
+    @Test
+    void failMission_fromCompletedThrowsConflict() {
+        Mission mission = createMission("msn_001", MissionState.COMPLETED);
+        when(missionRepository.selectOne(any())).thenReturn(mission);
+
+        assertThrows(ConflictException.class, () -> service.failMission("msn_001", "error"));
     }
 
     @Test

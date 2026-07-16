@@ -90,6 +90,9 @@ class EdgeGateway:
         # message on reconnect, preventing command loss.
         await self._subscribe_command_channel()
 
+        # Subscribe to safety state changes from the standalone Safety Gateway.
+        await self._subscribe_safety_state_changes()
+
         await self._state_publisher.start_heartbeat()
 
         # Announce the edge is online.
@@ -127,6 +130,52 @@ class EdgeGateway:
             self._config.command_subject, self._command_handler.handle_command
         )
         logger.info("Subscribed to command channel via plain NATS (no JetStream)")
+
+    async def _subscribe_safety_state_changes(self) -> None:
+        """Subscribe to safety state changes from the standalone Safety Gateway.
+
+        When the Safety Gateway triggers an emergency stop or resets, the edge
+        gateway syncs its local SafetyStateMachine latch so that motion commands
+        are blocked until the reset is confirmed by the Safety Gateway.
+        """
+        await self._nats.subscribe(
+            self._config.safety_state_changed_subject,
+            self._handle_safety_state_change,
+        )
+        logger.info(
+            "Subscribed to safety state changes on '{}'",
+            self._config.safety_state_changed_subject,
+        )
+
+    async def _handle_safety_state_change(self, msg: object) -> None:
+        """Sync local safety latch with Safety Gateway state changes."""
+        import json
+
+        from opengeobot_safety_gateway.safety_state import SafetyState
+
+        raw = getattr(msg, "data", b"")
+        try:
+            payload = json.loads(raw)
+            state_str = payload.get("state", "")
+        except (json.JSONDecodeError, ValueError):
+            logger.warning("Malformed safety state change event; ignoring")
+            return
+
+        if state_str == SafetyState.EMERGENCY_STOPPED.value:
+            await self._safety_state.trigger_emergency_stop(
+                reason="Safety Gateway emergency stop broadcast",
+                trace_id=payload.get("trace_id", ""),
+            )
+            logger.warning("Safety Gateway triggered emergency stop; local latch engaged")
+        elif state_str == SafetyState.NORMAL.value:
+            if not self._safety_state.is_safe():
+                await self._safety_state.request_reset(
+                    trace_id=payload.get("trace_id", "")
+                )
+                await self._safety_state.complete_reset(
+                    trace_id=payload.get("trace_id", "")
+                )
+                logger.info("Safety Gateway reset; local latch cleared")
 
     async def stop(self) -> None:
         logger.info("Edge gateway stopping...")

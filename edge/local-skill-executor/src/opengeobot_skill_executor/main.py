@@ -59,14 +59,12 @@ class SkillExecutorService:
 
     async def start(self) -> None:
         await self._nats.connect()
-        await self._nats.ensure_stream(
-            self._config.jetstream_stream_name,
-            self._config.jetstream_stream_subjects,
-        )
-        await self._nats.subscribe_jetstream(
+        # Use plain NATS (not JetStream) for the approved subject so that
+        # the reply subject from the Safety Gateway's request-reply is
+        # preserved, allowing the executor to return the SkillExecutionResponse.
+        await self._nats.subscribe(
             self._config.skill_execute_approved_subject,
             self._executor.handle_approved_request,
-            durable=self._config.jetstream_durable_name,
         )
         logger.bind(gateway_id=self._config.gateway_id).info(
             "Skill executor started - subscribed to approved skill requests"

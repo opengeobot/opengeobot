@@ -10,8 +10,10 @@ import io.opengeobot.platform.robot.dto.ApprovalRequest;
 import io.opengeobot.platform.robot.dto.CreateMissionRequest;
 import io.opengeobot.platform.robot.dto.MissionApprovalDto;
 import io.opengeobot.platform.robot.dto.MissionDto;
+import io.opengeobot.platform.robot.dto.PlanProposalDto;
 import io.opengeobot.platform.robot.dto.RevisePlanRequest;
 import io.opengeobot.platform.robot.dto.UpdateMissionRequest;
+import io.opengeobot.platform.robot.service.MissionOrchestrator;
 import io.opengeobot.platform.robot.service.MissionService;
 import io.opengeobot.platform.robot.web.PageResponse;
 import jakarta.validation.Valid;
@@ -39,9 +41,11 @@ import java.net.URI;
 public class MissionController {
 
     private final MissionService missionService;
+    private final MissionOrchestrator missionOrchestrator;
 
-    public MissionController(MissionService missionService) {
+    public MissionController(MissionService missionService, MissionOrchestrator missionOrchestrator) {
         this.missionService = missionService;
+        this.missionOrchestrator = missionOrchestrator;
     }
 
     @GetMapping
@@ -79,6 +83,12 @@ public class MissionController {
     @PreAuthorize("hasAuthority('mission.mission.create')")
     public MissionDto revisePlan(@PathVariable String missionId, @Valid @RequestBody RevisePlanRequest request) {
         return missionService.revisePlan(missionId, request);
+    }
+
+    @PostMapping("/{missionId}/plan-with-agent")
+    @PreAuthorize("hasAuthority('mission.mission.create')")
+    public PlanProposalDto planWithAgent(@PathVariable String missionId) {
+        return missionOrchestrator.planWithAgent(missionId);
     }
 
     @PostMapping("/{missionId}/start")
