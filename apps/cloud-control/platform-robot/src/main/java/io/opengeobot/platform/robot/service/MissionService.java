@@ -488,10 +488,7 @@ public class MissionService {
             // Reload the mission to reflect the updated state.
             Mission updated = requireMission(missionId);
             log.info("Auto-replan succeeded for mission {} (replan count: {})", missionId, currentReplanCount + 1);
-            return toDto(updated, missionStepRepository.selectByMissionId(missionId)
-                    .stream()
-                    .map(this::toStepDto)
-                    .toList());
+            return toDto(updated, toStepDtos(missionStepRepository.selectByMissionId(missionId)));
         } catch (Exception e) {
             log.warn("Auto-replan failed for mission {}: {}", missionId, e.getMessage());
             return null;
