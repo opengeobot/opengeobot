@@ -8,9 +8,11 @@ description = "OpenGeoBot MCP Tool Gateway — tool registry, canary/stable rout
 requires-python = ">=3.12,<3.13"
 
 dependencies = [
+    "fastapi>=0.110.0",
     "nats-py==2.9.0",
     "pydantic==2.9.2",
     "loguru==0.7.2",
+    "uvicorn>=0.23.0",
     "jsonschema==4.23.0",
 ]
 

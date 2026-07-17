@@ -283,6 +283,7 @@ services:
       - ROBOT_ROS_ENDPOINT=ws://ros2-rosbridge:9090
       - ROSCLAW_PROFILE=offline
       - ROSCLAW_SANDBOX=true
+      - ROSCLAW_BRIDGE_READY_FILE=/tmp/opengeobot-rosclaw-bridge.ready
       - LOG_LEVEL=INFO
     volumes:
       - /storage/xy/source/rosclaw:/opt/rosclaw-source:ro
@@ -291,11 +292,11 @@ services:
       nats:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import opengeobot_rosclaw_bridge.main' || exit 1"]
-      interval: 10s
+      test: ["CMD-SHELL", "[ -f /tmp/opengeobot-rosclaw-bridge.ready ] || exit 1"]
+      interval: 5s
       timeout: 5s
-      retries: 3
-      start_period: 10s
+      retries: 24
+      start_period: 20s
     deploy:
       resources:
         limits:
@@ -417,8 +418,9 @@ services:
     profiles: [sim, rosclaw-sim, full]
     environment:
       - NATS_URL=nats://nats:4222
-      - QWENPAW_ENDPOINT=http://qwenpaw:8088/v1/chat/completions
+      - QWENPAW_ENDPOINT=http://qwenpaw:8088/api/agents/opengeobot-controller/console/chat
       - QWENPAW_ADMIN_BASE_URL=http://qwenpaw:8088
+      - QWENPAW_MCP_GATEWAY_URL=http://mcp-tool-gateway:8090/sse
       - QWENPAW_MODEL=opengeobot-controller
       - QWENPAW_MODEL_PROVIDER=opencode
       - QWENPAW_MODEL_NAME=mimo-v2.5-free
@@ -430,6 +432,33 @@ services:
         condition: service_healthy
       qwenpaw:
         condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  mcp-tool-gateway:
+    build:
+      context: ../../services/mcp-tool-gateway
+    profiles: [sim, rosclaw-sim, full]
+    ports:
+      - "8090:8090"
+    environment:
+      - NATS_URL=nats://nats:4222
+      - MCP_HTTP_HOST=0.0.0.0
+      - MCP_HTTP_PORT=8090
+      - LOG_LEVEL=INFO
+    networks: [opengeobot-net]
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8090/sse\", timeout=2)' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
     restart: unless-stopped
     deploy:
       resources:

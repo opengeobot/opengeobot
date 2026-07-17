@@ -10,6 +10,9 @@ they can run without a real NATS server or ROSClaw installation.
 from __future__ import annotations
 
 import json
+import sys
+import tempfile
+import types
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -88,6 +91,7 @@ def _make_config(**overrides: Any) -> BridgeConfig:
         "rosclaw_sandbox": True,
         "log_level": "DEBUG",
         "skill_request_timeout": 5.0,
+        "ready_file_path": tempfile.mktemp(prefix="rosclaw-bridge-ready-"),
     }
     defaults.update(overrides)
     return BridgeConfig(**defaults)
@@ -483,6 +487,95 @@ class TestConfig:
         assert config.rosclaw_profile == "offline"
         assert config.rosclaw_sandbox is True
         assert config.skill_request_timeout == 5.0
+        assert config.ready_file_path != ""
+
+
+class TestReadinessMarker:
+    async def test_start_writes_ready_file_after_subscription(self, tmp_path: pytest.TempPathFactory) -> None:
+        ready_file = tmp_path / "bridge.ready"
+        config = _make_config(ready_file_path=str(ready_file))
+        bridge, nats = _make_bridge(config)
+
+        await bridge.start(nats)
+
+        assert ready_file.exists() is True
+        assert ready_file.read_text(encoding="utf-8").strip() == config.skill_execute_subject
+
+    async def test_disconnect_and_stop_remove_ready_file(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        ready_file = tmp_path / "bridge.ready"
+        config = _make_config(ready_file_path=str(ready_file))
+        bridge, nats = _make_bridge(config)
+
+        await bridge.start(nats)
+        assert ready_file.exists() is True
+
+        assert nats.on_disconnect is not None
+        await nats.on_disconnect(None)
+        assert ready_file.exists() is False
+
+        assert nats.on_reconnect is not None
+        await nats.on_reconnect()
+        assert ready_file.exists() is True
+
+        await bridge.stop()
+        assert ready_file.exists() is False
+
+
+class FakeSkillEntry:
+    def __init__(self, **kwargs: Any) -> None:
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+class TestRuntimeSkillRegistration:
+    def test_register_bridge_skills_registers_move_forward(self) -> None:
+        bridge, _, registry, _, _ = _make_bridge_with_rosclaw()
+        registry.list_skills.return_value = ["move_forward"]
+
+        bridge._register_bridge_skills(FakeSkillEntry)
+
+        registry.register.assert_called_once()
+        entry = registry.register.call_args.args[0]
+        assert entry.name == "move_forward"
+        assert entry.skill_type == "programmed"
+        assert entry.metadata["runtime_handler"] == "navigate_to"
+        assert callable(entry.handler)
+
+    def test_move_forward_handler_uses_navigate_to_runtime_handler(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bridge, _ = _make_bridge()
+
+        class FakePlugin:
+            def get_handler(self, skill_name: str) -> Any:
+                assert skill_name == "navigate_to"
+                return lambda params: {
+                    "status": "success",
+                    "skill": "navigate_to",
+                    "target": params["target"],
+                }
+
+        plugin_module = types.ModuleType("rosclaw.runtime.plugin")
+        plugin_module.get_runtime_plugin = lambda: FakePlugin()
+        runtime_module = types.ModuleType("rosclaw.runtime")
+        rosclaw_module = types.ModuleType("rosclaw")
+
+        monkeypatch.setitem(sys.modules, "rosclaw", rosclaw_module)
+        monkeypatch.setitem(sys.modules, "rosclaw.runtime", runtime_module)
+        monkeypatch.setitem(
+            sys.modules, "rosclaw.runtime.plugin", plugin_module
+        )
+
+        result = bridge._handle_move_forward_skill(
+            {"distance": 2.0, "speed": 0.4}
+        )
+
+        assert result["status"] == "success"
+        assert result["skill"] == "navigate_to"
+        assert result["translated_params"]["target"] == "forward:2.00m"
+        assert result["translated_params"]["speed"] == 0.4
 
 
 # ---------------------------------------------------------------------------

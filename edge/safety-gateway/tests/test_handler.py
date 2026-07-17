@@ -29,6 +29,7 @@ class MockNats:
 
     def __init__(self) -> None:
         self.published: list[tuple[str, bytes]] = []
+        self.requests: list[tuple[str, bytes, float]] = []
 
     async def publish(self, subject: str, data: bytes) -> None:
         self.published.append((subject, data))
@@ -37,7 +38,26 @@ class MockNats:
         return None
 
     async def request(self, subject: str, data: bytes, timeout: float) -> Any:
-        raise RuntimeError("Not used in tests")
+        self.requests.append((subject, data, timeout))
+        payload = json.loads(data)
+        return type(
+            "MockReply",
+            (),
+            {
+                "data": json.dumps(
+                    {
+                        "request_id": payload["request_id"],
+                        "trace_id": payload.get("trace_id", ""),
+                        "skill_id": payload.get("skill_id", ""),
+                        "success": True,
+                        "output": {"executor_subject": subject},
+                        "error": None,
+                        "started_at": "2026-01-01T00:00:00Z",
+                        "completed_at": "2026-01-01T00:00:01Z",
+                    }
+                ).encode("utf-8")
+            },
+        )()
 
     async def drain_and_close(self) -> None:
         pass
@@ -195,17 +215,15 @@ class TestSkillExecutionInterception:
         await handler.handle_skill_execute(skill_msg)
 
         # No forward to executor.
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 0
+        assert len(nats.requests) == 0
 
         # Response should be published on the reply subject.
         replies = _published_on(nats, "reply.subject")
         assert len(replies) == 1
         response = json.loads(replies[0][1])
-        assert response["allowed"] is False
-        assert response["state"] == "EMERGENCY_STOPPED"
-        assert response["forwarded"] is False
-        assert "safety_state" in response["denied_checks"]
+        assert response["success"] is False
+        assert "Safety blocked" in response["error"]
+        assert response["skill_id"] == "move_to"
 
     async def test_skill_allowed_and_forwarded_when_safe(self):
         """When safe, skill execution should be forwarded to the executor."""
@@ -225,10 +243,11 @@ class TestSkillExecutionInterception:
         )
         await handler.handle_skill_execute(skill_msg)
 
-        # Should be forwarded to the executor subject.
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 1
-        forwarded = json.loads(forwards[0][1])
+        # Should be forwarded to the executor via request-reply.
+        assert len(nats.requests) == 1
+        request_subject, request_payload, _ = nats.requests[0]
+        assert request_subject == "edge.test_edge.skill.execute.approved"
+        forwarded = json.loads(request_payload)
         assert forwarded["request_id"] == "skreq_001"
         assert forwarded["skill_id"] == "move_to"
 
@@ -236,9 +255,8 @@ class TestSkillExecutionInterception:
         replies = _published_on(nats, "reply.subject")
         assert len(replies) == 1
         response = json.loads(replies[0][1])
-        assert response["allowed"] is True
-        assert response["forwarded"] is True
-        assert response["state"] == "NORMAL"
+        assert response["success"] is True
+        assert response["output"]["executor_subject"] == "edge.test_edge.skill.execute.approved"
 
     async def test_skill_denied_by_safety_checker(self):
         """When safe but speed exceeds limit, skill should be denied."""
@@ -259,15 +277,14 @@ class TestSkillExecutionInterception:
         await handler.handle_skill_execute(skill_msg)
 
         # Should NOT be forwarded.
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 0
+        assert len(nats.requests) == 0
 
         # Response should deny.
         replies = _published_on(nats, "reply.subject")
         assert len(replies) == 1
         response = json.loads(replies[0][1])
-        assert response["allowed"] is False
-        assert "speed_limit" in response["denied_checks"]
+        assert response["success"] is False
+        assert "Safety blocked" in response["error"]
 
     async def test_skill_no_reply_subject(self):
         """When no reply subject, handler should not crash."""
@@ -285,18 +302,16 @@ class TestSkillExecutionInterception:
         )
         await handler.handle_skill_execute(skill_msg)
 
-        # Should still be forwarded.
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 1
+        # Should still be forwarded through the executor request path.
+        assert len(nats.requests) == 1
 
     async def test_malformed_skill_request_ignored(self):
         """Malformed skill request should be ignored gracefully."""
         handler, nats, sm = _make_handler()
         msg = MockMsg(data=b"not-json", reply="")
         await handler.handle_skill_execute(msg)
-        # No forward, no crash.
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 0
+        # No executor request, no crash.
+        assert len(nats.requests) == 0
 
     async def test_skill_blocked_during_resetting(self):
         """During RESETTING state, skills should also be blocked."""
@@ -318,14 +333,13 @@ class TestSkillExecutionInterception:
         )
         await handler.handle_skill_execute(skill_msg)
 
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 0
+        assert len(nats.requests) == 0
 
         replies = _published_on(nats, "reply.subject")
         assert len(replies) == 1
         response = json.loads(replies[0][1])
-        assert response["allowed"] is False
-        assert response["state"] == "RESETTING"
+        assert response["success"] is False
+        assert "Safety blocked" in response["error"]
 
 
 class TestStateChangePublishing:

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -73,6 +74,7 @@ class RosclawBridge:
         self._config = config
         self._nats: NatsBridge | None = None
         self._stop_event = asyncio.Event()
+        self._ready_file = Path(self._config.ready_file_path)
 
         # ROSClaw runtime components (populated by _init_rosclaw).
         self._rosclaw_available = False
@@ -102,12 +104,16 @@ class RosclawBridge:
     async def start(self, nats: NatsBridge) -> None:
         """Connect NATS, initialize ROSClaw, and subscribe to the skill subject."""
         self._nats = nats
+        self._mark_not_ready()
+        nats.on_disconnect = self._handle_nats_disconnect
+        nats.on_reconnect = self._handle_nats_reconnect
         await nats.connect()
         self._init_rosclaw()
         await nats.subscribe(
             self._config.skill_execute_subject,
             handler=self._handle_request,
         )
+        self._mark_ready()
         mode = "rosclaw" if self._rosclaw_available else "fallback"
         logger.bind(
             robot_id=self._config.robot_id,
@@ -118,12 +124,21 @@ class RosclawBridge:
     async def stop(self) -> None:
         """Signal shutdown and drain the NATS connection."""
         self._stop_event.set()
+        self._mark_not_ready()
         if self._nats is not None:
             await self._nats.drain_and_close()
             self._nats = None
 
     async def wait_for_shutdown(self) -> None:
         await self._stop_event.wait()
+
+    async def _handle_nats_disconnect(self, _exc: Exception | None) -> None:
+        """Reflect a lost NATS connection in the readiness signal."""
+        self._mark_not_ready()
+
+    async def _handle_nats_reconnect(self) -> None:
+        """Restore readiness once the NATS client reconnects."""
+        self._mark_ready()
 
     # ------------------------------------------------------------------
     # ROSClaw initialization
@@ -140,7 +155,7 @@ class RosclawBridge:
             # we never guess the API.
             from rosclaw.core.event_bus import EventBus, Event, EventPriority
             from rosclaw.skill_manager.executor import SkillExecutor
-            from rosclaw.skill_manager.registry import SkillRegistry
+            from rosclaw.skill_manager.registry import SkillEntry, SkillRegistry
         except ImportError as exc:
             logger.bind(error=str(exc)).warning(
                 "ROSClaw package not available; bridge running in degraded fallback mode"
@@ -157,6 +172,7 @@ class RosclawBridge:
                 registry=self._skill_registry,
             )
             self._skill_executor.initialize()
+            self._register_bridge_skills(SkillEntry)
             # Cache the classes so emergency_stop can publish without re-importing.
             self._Event_cls = Event
             self._EventPriority_cls = EventPriority
@@ -172,6 +188,92 @@ class RosclawBridge:
             self._skill_executor = None
             self._Event_cls = None
             self._EventPriority_cls = None
+
+    def _mark_ready(self) -> None:
+        """Write a readiness marker once the bridge is serving requests."""
+        try:
+            self._ready_file.parent.mkdir(parents=True, exist_ok=True)
+            self._ready_file.write_text(
+                f"{self._config.skill_execute_subject}\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            logger.bind(
+                error=str(exc),
+                ready_file=str(self._ready_file),
+            ).warning("Failed to write rosclaw-bridge readiness marker")
+
+    def _mark_not_ready(self) -> None:
+        """Remove the readiness marker when the bridge cannot serve requests."""
+        try:
+            self._ready_file.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.bind(
+                error=str(exc),
+                ready_file=str(self._ready_file),
+            ).warning("Failed to remove rosclaw-bridge readiness marker")
+
+    def _register_bridge_skills(self, skill_entry_cls: Any) -> None:
+        """Register the platform skills that are executable through ROSClaw."""
+        assert self._skill_registry is not None
+
+        self._skill_registry.register(
+            skill_entry_cls(
+                name="move_forward",
+                description="Move the robot forward via the ROSClaw runtime",
+                skill_type="programmed",
+                parameters={"distance": 1.0, "speed": 0.3},
+                handler=self._handle_move_forward_skill,
+                metadata={
+                    "source": "opengeobot_rosclaw_bridge",
+                    "runtime_handler": "navigate_to",
+                },
+            )
+        )
+        logger.bind(skills=self._skill_registry.list_skills()).info(
+            "Registered ROSClaw bridge skills"
+        )
+
+    def _handle_move_forward_skill(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Translate ``move_forward`` into ROSClaw's built-in navigation handler."""
+        try:
+            from rosclaw.runtime.plugin import get_runtime_plugin
+        except ImportError as exc:
+            return {
+                "status": "error",
+                "error": f"ROSClaw runtime plugin unavailable: {exc}",
+            }
+
+        runtime_handler = get_runtime_plugin().get_handler("navigate_to")
+        if runtime_handler is None:
+            return {
+                "status": "error",
+                "error": "ROSClaw runtime handler navigate_to is not registered",
+            }
+
+        distance = float(params.get("distance", 1.0))
+        speed = float(params.get("speed", 0.3))
+        duration = params.get("duration")
+        translated_params: dict[str, Any] = {
+            "target": f"forward:{distance:.2f}m",
+            "distance": distance,
+            "speed": speed,
+        }
+        if duration is not None:
+            translated_params["duration"] = duration
+
+        result = runtime_handler(translated_params)
+        if isinstance(result, dict):
+            response = dict(result)
+            response.setdefault("skill", "move_forward")
+            response.setdefault("translated_params", translated_params)
+            return response
+        return {
+            "status": "success",
+            "skill": "move_forward",
+            "translated_params": translated_params,
+            "handler_result": result,
+        }
 
     # ------------------------------------------------------------------
     # Request handling

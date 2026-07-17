@@ -23,7 +23,7 @@ COPY src ./src
 RUN pip install --no-cache-dir .
 
 ENV NATS_URL=nats://nats:4222 \
-    QWENPAW_ENDPOINT=http://localhost:8000/v1/chat/completions \
+    QWENPAW_ENDPOINT=http://localhost:8000/api/agents/opengeobot-controller/console/chat \
     QWENPAW_API_KEY="" \
     LOG_LEVEL=INFO
 

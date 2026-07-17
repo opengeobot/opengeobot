@@ -112,14 +112,23 @@ class NatsBridge:
         logger.info("JetStream context ready (stream={})", self._config.jetstream_stream_name)
 
     async def _ensure_stream(self) -> None:
-        """Create the edge stream if it does not already exist."""
+        """Create or update the edge stream for async edge subjects only."""
         if self._js is None:
             return
         stream_name = self._config.jetstream_stream_name
-        subjects = [self._config.jetstream_stream_subjects]
+        subjects = [
+            subject.strip()
+            for subject in self._config.jetstream_stream_subjects.split(",")
+            if subject.strip()
+        ]
         try:
             await self._js.stream_info(stream_name)
-            logger.debug("JetStream stream '{}' already exists", stream_name)
+            await self._js.update_stream(name=stream_name, subjects=subjects)
+            logger.info(
+                "Updated JetStream stream '{}' for subjects {}",
+                stream_name,
+                subjects,
+            )
         except NotFoundError:
             await self._js.add_stream(name=stream_name, subjects=subjects)
             logger.info("Created JetStream stream '{}' for subjects {}", stream_name, subjects)

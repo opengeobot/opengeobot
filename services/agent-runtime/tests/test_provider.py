@@ -14,6 +14,7 @@ from opengeobot_agent.config import AgentConfig
 from opengeobot_agent.provider import (
     AgentRuntimeProvider,
     MissionContext,
+    NatsSkillRegistry,
     PlanStep,
     QwenPawProvider,
     QwenPawProviderError,
@@ -30,7 +31,7 @@ def _make_config() -> AgentConfig:
         nats_max_reconnect=-1,
         nats_reconnect_wait=2.0,
         nats_connect_timeout=5.0,
-        qwenpaw_endpoint="http://localhost:8000/v1/chat/completions",
+        qwenpaw_endpoint="http://localhost:8000/api/agents/opengeobot-controller/console/chat",
         qwenpaw_api_key="test-key",
         qwenpaw_timeout=30.0,
         plan_request_subject="opengeobot.agent.mission.plan_request",
@@ -80,6 +81,15 @@ def _make_qwenpaw_response(steps: list[dict], confidence: float = 0.9) -> dict[s
     }
 
 
+class _FakeSseResponse:
+    def __init__(self, lines: list[str]) -> None:
+        self._lines = lines
+
+    async def aiter_lines(self):
+        for line in self._lines:
+            yield line
+
+
 class TestAgentRuntimeProvider:
     def test_is_abstract(self):
         """AgentRuntimeProvider should be an abstract class."""
@@ -88,6 +98,53 @@ class TestAgentRuntimeProvider:
 
 
 class TestQwenPawProviderSuccess:
+    def test_builds_console_chat_payload(self):
+        config = _make_config()
+        provider = QwenPawProvider(config)
+        provider.set_agent_context("opengeobot-controller", ["move_forward"])
+
+        payload = provider._build_request_payload(_make_mission())
+
+        assert payload["tool_choice"] == "none"
+        assert payload["stream"] is True
+        assert payload["session_id"] == "trace_001"
+        assert payload["metadata"]["request_kind"] == "plan"
+        assert payload["input"][0]["role"] == "user"
+        assert payload["input"][0]["content"][0]["type"] == "text"
+        assert "Move to location B and capture an image" in payload["input"][0]["content"][0]["text"]
+
+    def test_resolves_legacy_endpoint_to_console_chat(self):
+        config = _make_config()
+        config = AgentConfig(
+            **{
+                **config.__dict__,
+                "qwenpaw_endpoint": "http://localhost:8000/v1/chat/completions",
+                "qwenpaw_agent_id": "agent-42",
+            }
+        )
+        provider = QwenPawProvider(config)
+
+        assert (
+            provider._resolve_runtime_endpoint()
+            == "http://localhost:8000/api/agents/agent-42/console/chat"
+        )
+
+    async def test_reads_assistant_text_from_sse_stream(self):
+        config = _make_config()
+        provider = QwenPawProvider(config)
+        normalized = await provider._read_sse_response(
+            _FakeSseResponse(
+                [
+                    'data: {"type":"message","role":"assistant","content":[{"type":"output_text","text":"{\\"steps\\": [], \\"confidence\\": 0.7}"}]}',
+                ]
+            )
+        )
+
+        assert (
+            normalized["choices"][0]["message"]["content"]
+            == '{"steps": [], "confidence": 0.7}'
+        )
+
     async def test_generates_untrusted_proposal(self):
         """The generated proposal must be UNTRUSTED."""
         config = _make_config()
@@ -184,6 +241,37 @@ class TestQwenPawProviderConfidenceClamping:
 
 
 class TestQwenPawProviderErrors:
+    async def test_mixed_prose_plus_json_is_parsed(self):
+        """Assistant prose before the JSON payload should not break parsing."""
+        config = _make_config()
+        provider = QwenPawProvider(config)
+
+        async def _mock_call(mission: MissionContext) -> dict[str, Any]:
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": (
+                                "I will produce a valid plan JSON now.\n"
+                                '{"steps":[{"skill_id":"stand_up","params":{}},'
+                                '{"skill_id":"move_forward","params":{"distance":2.0}}],'
+                                '"confidence":0.95}'
+                            ),
+                        }
+                    }
+                ]
+            }
+
+        provider._call_qwenpaw_api = _mock_call  # type: ignore[method-assign]
+
+        proposal = await provider.generate_plan(_make_mission())
+        assert proposal.error is None
+        assert len(proposal.steps) == 2
+        assert proposal.steps[0].skill_id == "stand_up"
+        assert proposal.steps[1].skill_id == "move_forward"
+        assert proposal.confidence == pytest.approx(0.95)
+
     async def test_api_failure_returns_error_proposal(self):
         """When the API fails, the proposal should have an error message."""
         config = _make_config()
@@ -361,6 +449,42 @@ class TestSchemaValidationUnregisteredSkill:
         assert proposal.error is None
         assert len(proposal.steps) == 1
         assert proposal.is_trusted is False
+
+
+class _StubNatsBridge:
+    def __init__(self, payload: Any) -> None:
+        self._payload = payload
+
+    async def request(self, subject: str, data: bytes, timeout: float):
+        class _Reply:
+            def __init__(self, raw: bytes) -> None:
+                self.data = raw
+
+        return _Reply(json.dumps(self._payload).encode("utf-8"))
+
+
+class TestNatsSkillRegistry:
+    async def test_lookup_accepts_skill_name_alias_from_platform_response(self):
+        registry = NatsSkillRegistry(
+            _StubNatsBridge(
+                [
+                    {
+                        "skill_id": "skl_001",
+                        "name": "move_forward",
+                        "input_schema": {"type": "object"},
+                    }
+                ]
+            )  # type: ignore[arg-type]
+        )
+
+        by_name = await registry.get_skill("move_forward")
+        by_id = await registry.get_skill("skl_001")
+
+        assert by_name is not None
+        assert by_id is not None
+        assert by_name.skill_id == "skl_001"
+        assert by_name.name == "move_forward"
+        assert by_id.skill_id == "skl_001"
 
 
 class TestSchemaValidationParamsMismatch:
@@ -753,7 +877,10 @@ class TestHealth:
 
         assert result["status"] == "healthy"
         assert result["provider"] == "qwenpaw"
-        assert result["endpoint"] == "http://localhost:8000/v1/chat/completions"
+        assert (
+            result["endpoint"]
+            == "http://localhost:8000/api/agents/opengeobot-controller/console/chat"
+        )
 
     def test_health_default_in_abstract(self):
         """The abstract class provides a default health status."""
@@ -767,3 +894,23 @@ class TestHealth:
         provider = MinimalProvider()
         result = provider.health()
         assert result["status"] == "unknown"
+
+
+class TestQwenPawProviderSystemPrompt:
+    """Verify the system prompt carries the persona and safety red lines."""
+
+    def test_system_prompt_contains_persona_and_safety(self):
+        config = _make_config()
+        provider = QwenPawProvider(config)
+
+        prompt = provider._build_system_prompt()
+
+        # Persona identity from AGENTS.md
+        assert "一脑多控" in prompt
+        # Untrusted-proposal safety clause
+        assert "不可信提案" in prompt or "UNTRUSTED" in prompt
+        # Safety red line referencing the forbidden direct motor interface
+        assert "/cmd_vel" in prompt
+        # Output format keys
+        assert "steps" in prompt
+        assert "confidence" in prompt

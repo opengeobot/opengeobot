@@ -19,6 +19,7 @@ public class ActorResolver {
 
     private static final String DEFAULT_ACTOR = "system";
     private static final String TRACE_ID_KEY = "traceId";
+    private static final String TRACE_ID_ALT_KEY = "trace_id";
 
     /**
      * Sets the actor for the current request. Called by the security layer
@@ -43,6 +44,9 @@ public class ActorResolver {
 
     public String currentTraceId() {
         String traceId = MDC.get(TRACE_ID_KEY);
+        if (traceId == null || traceId.isBlank()) {
+            traceId = MDC.get(TRACE_ID_ALT_KEY);
+        }
         return (traceId == null || traceId.isBlank()) ? null : traceId;
     }
 

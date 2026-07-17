@@ -69,8 +69,13 @@ class ExecutorConfig:
 
     @property
     def jetstream_stream_subjects(self) -> list[str]:
-        """Subjects covered by the JetStream persistence stream."""
-        return [f"edge.{self.gateway_id}.skill.execute.approved"]
+        """Subjects covered by the JetStream persistence stream.
+
+        Request-reply traffic on ``skill.execute.approved`` must stay on core
+        NATS so the Safety Gateway receives the real execution result instead
+        of a JetStream publish acknowledgement.
+        """
+        return [f"edge.{self.gateway_id}.skill.events.>"]
 
     @property
     def jetstream_durable_name(self) -> str:

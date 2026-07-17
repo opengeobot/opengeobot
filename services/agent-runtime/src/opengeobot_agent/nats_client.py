@@ -38,9 +38,11 @@ class NatsBridge:
     """Manages a single NATS connection with reconnect-driven lifecycle hooks.
 
     After connecting, a JetStream context is created and a durable stream is
-    ensured so that mission-critical subjects (``opengeobot.agent.>``) are
-    persisted.  Subscribers created via :meth:`subscribe_js` use durable
-    consumers so messages survive disconnect/reconnect.
+    ensured for asynchronous agent event subjects. Request-reply subjects stay
+    on core NATS so callers receive the real response body instead of a
+    JetStream publish acknowledgement. Subscribers created via
+    :meth:`subscribe_js` use durable consumers so asynchronous messages survive
+    disconnect/reconnect.
     """
 
     def __init__(self, config: AgentConfig) -> None:
@@ -104,10 +106,9 @@ class NatsBridge:
         logger.info("NATS connected to {}", self._config.nats_url)
 
     async def ensure_stream(self) -> None:
-        """Create or verify the JetStream durable stream for agent subjects.
+        """Create or verify the JetStream durable stream for async agent subjects.
 
-        The stream covers ``opengeobot.agent.>`` so that mission-critical
-        messages are persisted and survive consumer disconnects.
+        Request-reply subjects are intentionally excluded from the stream.
         """
         if self._js is None:
             raise NatsConnectionError("JetStream context not initialised")

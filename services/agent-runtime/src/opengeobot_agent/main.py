@@ -28,13 +28,11 @@ from .initializer import AgentInitializer
 from .nats_client import NatsBridge
 from .provider import NatsSkillRegistry, QwenPawProvider
 
-# Default skill names bound to the QwenPaw agent when the platform skill
-# registry cannot be enumerated (e.g. NATS skill.list has no responders).
+# Skill names currently verified to execute through the edge ROSClaw chain.
+# The platform registry may publish a broader catalogue, but the QwenPaw agent
+# must only see skills that the live edge execution path can actually handle.
 DEFAULT_SKILL_NAMES: list[str] = [
-    "stand_up",
     "move_forward",
-    "stop",
-    "capture_image",
 ]
 
 
@@ -91,20 +89,16 @@ class AgentRuntime:
                 "Running in stateless mode (QwenPaw agent not initialized)"
             )
 
-        await self._nats.subscribe_js(
+        await self._nats.subscribe(
             self._config.plan_request_subject,
             self._handler.handle_plan_request,
-            durable=self._config.js_durable_consumer,
         )
-        await self._nats.subscribe_js(
+        await self._nats.subscribe(
             self._config.replan_request_subject,
             self._handler.handle_replan_request,
-            durable=self._config.js_durable_consumer + "-replan",
         )
         logger.info(
-            "Agent runtime started - JetStream durable consumer '{}' "
-            "subscribed to {} and {}",
-            self._config.js_durable_consumer,
+            "Agent runtime started - core NATS request-reply subscribed to {} and {}",
             self._config.plan_request_subject,
             self._config.replan_request_subject,
         )
@@ -113,7 +107,9 @@ class AgentRuntime:
         """Resolve the skill names to bind to the QwenPaw agent.
 
         Attempts to enumerate skills via the NATS skill.list subject; falls
-        back to DEFAULT_SKILL_NAMES when no responder is available.
+        back to DEFAULT_SKILL_NAMES when no responder is available. Published
+        skills are filtered to the subset currently verified as executable via
+        the edge ROSClaw path so planning does not emit unsupported actions.
         """
         try:
             reply = await self._nats.request(
@@ -122,14 +118,53 @@ class AgentRuntime:
                 self._config.skill_request_timeout,
             )
             data = json.loads(reply.data)
+            if isinstance(data, list):
+                names = [
+                    str(item.get("name", "")).strip()
+                    for item in data
+                    if isinstance(item, dict)
+                    and str(item.get("name", "")).strip()
+                ]
+                filtered = self._filter_executable_skill_names(names)
+                if filtered:
+                    return filtered
             skills = data.get("skill_names") or data.get("skills") or []
             if isinstance(skills, list) and skills:
-                return [str(s) for s in skills]
+                filtered = self._filter_executable_skill_names(
+                    [str(s).strip() for s in skills if str(s).strip()]
+                )
+                if filtered:
+                    return filtered
         except Exception as exc:  # noqa: BLE001 - fallback to defaults
             logger.bind(error=str(exc)).debug(
                 "Skill list query failed; using default skill names"
             )
         return DEFAULT_SKILL_NAMES
+
+    def _filter_executable_skill_names(
+        self, skill_names: list[str]
+    ) -> list[str]:
+        """Keep only the skills verified to execute on the current edge path."""
+        allowed = set(DEFAULT_SKILL_NAMES)
+        filtered: list[str] = []
+        skipped: list[str] = []
+        seen: set[str] = set()
+
+        for name in skill_names:
+            normalized = str(name).strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            if normalized in allowed:
+                filtered.append(normalized)
+            else:
+                skipped.append(normalized)
+
+        if skipped:
+            logger.bind(skipped_skills=skipped).warning(
+                "Filtered out platform skills not yet executable on the edge path"
+            )
+        return filtered
 
     async def stop(self) -> None:
         logger.info("Agent runtime stopping...")

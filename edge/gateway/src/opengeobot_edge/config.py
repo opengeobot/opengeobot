@@ -18,7 +18,9 @@ DEFAULT_GATEWAY_ID = "edge_01"
 DEFAULT_NATS_URL = "nats://localhost:4222"
 DEFAULT_CLOUD_API = "http://localhost:8080"
 DEFAULT_JETSTREAM_STREAM_NAME = "EDGE_STREAM"
-DEFAULT_JETSTREAM_STREAM_SUBJECTS = "opengeobot.dev.edge.>"
+DEFAULT_JETSTREAM_STREAM_SUBJECTS = (
+    "opengeobot.dev.edge.command.*,opengeobot.dev.edge.state.*,opengeobot.dev.edge.reconcile.*"
+)
 DEFAULT_JETSTREAM_CONSUMER_PREFIX = "edge-cmd"
 
 

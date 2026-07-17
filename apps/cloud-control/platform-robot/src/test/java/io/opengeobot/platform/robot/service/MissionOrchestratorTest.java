@@ -76,7 +76,12 @@ class MissionOrchestratorTest {
                 missionId, "Test Mission", "Navigate to room A",
                 robotId, "READY", "NORMAL", null, null, null, null,
                 "user_001", OffsetDateTime.now(ZoneOffset.UTC),
-                OffsetDateTime.now(ZoneOffset.UTC), "trace_001", null);
+                OffsetDateTime.now(ZoneOffset.UTC), "trace_001", List.of(
+                        new MissionStepDto("stp_exec_1", missionId, "stand_up", 1,
+                                Map.of("speed", 0.5), null, "PENDING", null, null, null),
+                        new MissionStepDto("stp_exec_2", missionId, "move_forward", 2,
+                                Map.of("speed", 0.3, "duration", 6.7), null, "PENDING", null, null, null)
+                ));
     }
 
     private PlanProposalDto createPlanProposal(String missionId) {
@@ -187,6 +192,13 @@ class MissionOrchestratorTest {
         assertEquals("trace_001", command.traceId());
         assertEquals("lease_001", command.params().get("lease_id"));
         assertEquals("ftk_001", command.params().get("fencing_token"));
+        assertInstanceOf(List.class, command.params().get("steps"));
+        List<?> steps = (List<?>) command.params().get("steps");
+        assertEquals(2, steps.size());
+        assertInstanceOf(Map.class, steps.get(0));
+        Map<?, ?> firstStep = (Map<?, ?>) steps.get(0);
+        assertEquals("stand_up", firstStep.get("skill_id"));
+        assertEquals(1, firstStep.get("step_order"));
         assertNotNull(command.commandId());
         assertNotNull(command.issuedAt());
     }

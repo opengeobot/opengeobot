@@ -30,6 +30,13 @@ def _env_float(key: str, default: float) -> float:
     return float(raw)
 
 
+def _env_csv(key: str) -> list[str]:
+    raw = os.getenv(key)
+    if raw is None or raw.strip() == "":
+        return []
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
 @dataclass(frozen=True)
 class GatewayConfig:
     """Immutable MCP tool gateway configuration."""
@@ -41,6 +48,10 @@ class GatewayConfig:
     # Timeout for remote tool backend calls via NATS request-reply.
     tool_backend_timeout: float
     log_level: str
+    http_host: str
+    http_port: int
+    http_auth_token: str
+    allowed_origins: list[str]
     # JetStream durable consumer configuration.
     js_stream_name: str = "MCP_STREAM"
     js_durable_consumer: str = "mcp-tool-gateway-consumer"
@@ -83,6 +94,10 @@ class GatewayConfig:
             nats_connect_timeout=_env_float("NATS_CONNECT_TIMEOUT", 5.0),
             tool_backend_timeout=_env_float("MCP_TOOL_BACKEND_TIMEOUT", 30.0),
             log_level=_env_str("LOG_LEVEL", "INFO"),
+            http_host=_env_str("MCP_HTTP_HOST", "0.0.0.0"),
+            http_port=_env_int("MCP_HTTP_PORT", 8090),
+            http_auth_token=_env_str("MCP_HTTP_AUTH_TOKEN", ""),
+            allowed_origins=_env_csv("MCP_ALLOWED_ORIGINS"),
             js_stream_name=_env_str("MCP_JS_STREAM_NAME", "MCP_STREAM"),
             js_durable_consumer=_env_str(
                 "MCP_JS_DURABLE_CONSUMER", "mcp-tool-gateway-consumer"

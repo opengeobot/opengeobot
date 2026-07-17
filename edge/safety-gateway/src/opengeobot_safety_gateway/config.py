@@ -111,10 +111,14 @@ class SafetyGatewayConfig:
 
     @property
     def jetstream_stream_subjects(self) -> list[str]:
-        """Subjects covered by the JetStream persistence stream."""
+        """Subjects covered by the JetStream persistence stream.
+
+        Request-reply traffic on ``skill.execute`` must stay on core NATS so
+        the edge gateway receives a real ``SkillExecutionResponse`` instead of
+        a JetStream publish acknowledgement.
+        """
         return [
             f"edge.{self.gateway_id}.safety.>",
-            f"edge.{self.gateway_id}.skill.execute",
         ]
 
     @property

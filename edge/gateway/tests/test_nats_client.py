@@ -18,6 +18,7 @@ from opengeobot_edge.nats_client import NatsBridge, NatsConnectionError
 def _make_config(**overrides: Any) -> EdgeConfig:
     defaults: dict[str, Any] = {
         "robot_id": "rbt_test",
+        "gateway_id": "edge_01",
         "nats_url": "nats://localhost:4222",
         "nats_max_reconnect": -1,
         "nats_reconnect_wait": 2.0,

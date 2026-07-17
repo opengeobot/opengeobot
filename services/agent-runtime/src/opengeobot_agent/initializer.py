@@ -20,6 +20,7 @@ import httpx
 from loguru import logger
 
 from .config import AgentConfig
+from .persona import PERSONA_FILE_NAMES
 
 # HTTP timeouts for the QwenPaw management API (seconds).
 _GET_TIMEOUT = 10.0
@@ -61,6 +62,12 @@ class AgentInitializer:
             logger.info("QwenPaw agent auto-create disabled; using stateless mode")
             return False
 
+        if not self._config.qwenpaw_mcp_gateway_url:
+            logger.warning(
+                "QWENPAW_MCP_GATEWAY_URL not configured; "
+                "skipping MCP client binding for QwenPaw agent"
+            )
+
         skills = skill_names or []
 
         try:
@@ -85,19 +92,33 @@ class AgentInitializer:
             return False
 
         if existing is not None:
-            await self._update_agent(existing, skills)
-            self._agent_initialized = True
-            self._agent_id = self._config.qwenpaw_agent_id
-            logger.info(
-                "QwenPaw agent '{}' updated with {} skills",
-                self._agent_id,
-                len(skills),
-            )
-            return True
+            try:
+                await self._update_agent(existing, skills)
+                self._agent_initialized = True
+                self._agent_id = self._config.qwenpaw_agent_id
+                logger.info(
+                    "QwenPaw agent '{}' updated with {} skills",
+                    self._agent_id,
+                    len(skills),
+                )
+                return True
+            except Exception as exc:  # noqa: BLE001 - update failure degrades
+                logger.bind(
+                    agent_id=self._config.qwenpaw_agent_id,
+                    error=str(exc),
+                ).warning(
+                    "Failed to update QwenPaw agent; degrading to stateless mode"
+                )
+                return False
 
         # Agent does not exist - create it.
         try:
             await self._create_agent(skills)
+            # After POST creates the basic agent, write the full
+            # AgentProfileConfig (persona files, mcp clients, approval_level)
+            # via PUT so QwenPaw loads the "一脑多控" persona and tool gateway.
+            profile = self._build_agent_profile_config()
+            await self._put_agent_profile(profile)
             self._agent_initialized = True
             self._agent_id = self._config.qwenpaw_agent_id
             logger.info(
@@ -151,29 +172,94 @@ class AgentInitializer:
     async def _update_agent(
         self, current: dict[str, Any], skill_names: list[str]
     ) -> dict[str, Any]:
-        """Update the agent's skill_names binding via PUT /api/agents/{id}.
+        """Update the managed AgentProfileConfig fields via PUT /api/agents/{id}.
 
-        Skips the update when the skill set is already current.
+        The drift check only compares fields that are both visible in
+        ``GET /api/agents/{id}`` and managed by OpenGeoBot, so missing
+        ``skill_names`` in GET responses does not trigger a false update.
         """
-        current_skills = set(current.get("skill_names", []))
-        new_skills = set(skill_names)
-        if current_skills == new_skills and new_skills:
+        del skill_names  # skill_names is only supported during POST create.
+
+        desired = self._build_agent_profile_config()
+        if self._managed_profile_view(current) == self._managed_profile_view(desired):
             logger.info(
-                "QwenPaw agent '{}' skills already up to date",
+                "QwenPaw agent '{}' managed profile already up to date",
                 self._config.qwenpaw_agent_id,
             )
             return current
 
-        body = {
-            "name": self._config.qwenpaw_agent_name,
-            "description": current.get("description", AGENT_DESCRIPTION),
-            "workspace_dir": current.get(
-                "workspace_dir",
-                f"/app/working/workspaces/{self._config.qwenpaw_agent_id}",
-            ),
-            "language": current.get("language", "zh"),
-            "skill_names": skill_names,
+        return await self._put_agent_profile(desired)
+
+    def _build_mcp_clients(self) -> dict[str, Any]:
+        """Build the mcp.clients dict for the QwenPaw agent profile.
+
+        Returns a single SSE client pointing at the platform MCP Tool Gateway
+        when ``qwenpaw_mcp_gateway_url`` is configured, otherwise an empty
+        dict (no MCP client binding).
+        """
+        url = self._config.qwenpaw_mcp_gateway_url
+        if not url:
+            return {}
+        token = self._config.qwenpaw_mcp_gateway_auth_token
+        headers: dict[str, str] = (
+            {"Authorization": f"Bearer {token}"} if token else {}
+        )
+        return {
+            "opengeobot-mcp-gateway": {
+                "name": "OpenGeoBot MCP Tool Gateway",
+                "description": "Platform MCP Tool Gateway for registered skills",
+                "enabled": True,
+                "transport": "sse",
+                "url": url,
+                "headers": headers,
+            }
         }
+
+    def _build_agent_profile_config(self) -> dict[str, Any]:
+        """Construct the full AgentProfileConfig dict for PUT /api/agents/{id}.
+
+        Only includes the fields confirmed to be accepted by the runtime PUT
+        contract. ``skill_names`` is intentionally excluded.
+        """
+        return {
+            "id": self._config.qwenpaw_agent_id,
+            "name": self._config.qwenpaw_agent_name,
+            "description": AGENT_DESCRIPTION,
+            "workspace_dir": (
+                f"/app/working/workspaces/{self._config.qwenpaw_agent_id}"
+            ),
+            "language": "zh",
+            "active_model": {
+                "provider_id": self._config.qwenpaw_model_provider,
+                "model": self._config.qwenpaw_model_name,
+            },
+            "system_prompt_files": list(PERSONA_FILE_NAMES),
+            "mcp": {"clients": self._build_mcp_clients()},
+            "approval_level": self._config.qwenpaw_agent_approval_level,
+        }
+
+    def _managed_profile_view(self, profile: dict[str, Any]) -> dict[str, Any]:
+        """Project a profile to the GET-visible fields managed by OpenGeoBot."""
+        mcp = profile.get("mcp") or {}
+        active_model = profile.get("active_model") or {}
+        return {
+            "name": profile.get("name"),
+            "description": profile.get("description"),
+            "workspace_dir": profile.get("workspace_dir"),
+            "language": profile.get("language"),
+            "system_prompt_files": profile.get("system_prompt_files") or [],
+            "mcp": {"clients": mcp.get("clients", {}) or {}},
+            "approval_level": profile.get("approval_level"),
+            "active_model": {
+                "provider_id": active_model.get("provider_id"),
+                "model": active_model.get("model"),
+            },
+        }
+
+    async def _put_agent_profile(
+        self, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Write the full AgentProfileConfig via PUT /api/agents/{id}."""
         async with httpx.AsyncClient(timeout=_WRITE_TIMEOUT) as client:
             resp = await client.put(
                 f"{self._config.qwenpaw_admin_base_url}/api/agents/"

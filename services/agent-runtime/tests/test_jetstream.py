@@ -163,14 +163,14 @@ class TestJetStreamPersistence:
         await js.add_stream(
             config=js_api.StreamConfig(
                 name="AGENT_STREAM",
-                subjects=["opengeobot.agent.>"],
+                subjects=["opengeobot.agent.events.>"],
             )
         )
 
         # Publish while no consumer is connected.
         await js.publish(
-            "opengeobot.agent.mission.plan_request",
-            b'{"mission_id": "msn_survive"}',
+            "opengeobot.agent.events.status",
+            b'{"event_id": "evt_survive"}',
         )
 
         # First consumer connects, receives but does NOT ack (crash).
@@ -180,13 +180,13 @@ class TestJetStreamPersistence:
             received_first.append(msg)
 
         await js.subscribe(
-            subject="opengeobot.agent.mission.plan_request",
+            subject="opengeobot.agent.events.status",
             cb=handler_first,
             durable="agent-runtime-consumer",
             manual_ack=True,
         )
         assert len(received_first) == 1
-        assert received_first[0].data == b'{"mission_id": "msn_survive"}'
+        assert received_first[0].data == b'{"event_id": "evt_survive"}'
 
         # Consumer "crashes" and reconnects with the same durable name.
         received_reconnect: list[MockJSMsg] = []
@@ -196,13 +196,13 @@ class TestJetStreamPersistence:
             await msg.ack()
 
         await js.subscribe(
-            subject="opengeobot.agent.mission.plan_request",
+            subject="opengeobot.agent.events.status",
             cb=handler_reconnect,
             durable="agent-runtime-consumer",
             manual_ack=True,
         )
         assert len(received_reconnect) == 1
-        assert received_reconnect[0].data == b'{"mission_id": "msn_survive"}'
+        assert received_reconnect[0].data == b'{"event_id": "evt_survive"}'
 
         # Reconnect again – message was acked, so it must NOT be redelivered.
         received_after_ack: list[MockJSMsg] = []
@@ -211,7 +211,7 @@ class TestJetStreamPersistence:
             received_after_ack.append(msg)
 
         await js.subscribe(
-            subject="opengeobot.agent.mission.plan_request",
+            subject="opengeobot.agent.events.status",
             cb=handler_after_ack,
             durable="agent-runtime-consumer",
             manual_ack=True,
@@ -224,13 +224,13 @@ class TestJetStreamPersistence:
         await js.add_stream(
             config=js_api.StreamConfig(
                 name="AGENT_STREAM",
-                subjects=["opengeobot.agent.>"],
+                subjects=["opengeobot.agent.events.>"],
             )
         )
 
         await js.publish(
-            "opengeobot.agent.mission.plan_request",
-            b'{"mission_id": "msn_ack"}',
+            "opengeobot.agent.events.status",
+            b'{"event_id": "evt_ack"}',
         )
 
         # Consumer processes and acks.
@@ -241,7 +241,7 @@ class TestJetStreamPersistence:
             await msg.ack()
 
         await js.subscribe(
-            subject="opengeobot.agent.mission.plan_request",
+            subject="opengeobot.agent.events.status",
             cb=handler,
             durable="agent-runtime-consumer",
             manual_ack=True,
@@ -255,7 +255,7 @@ class TestJetStreamPersistence:
             received_reconnect.append(msg)
 
         await js.subscribe(
-            subject="opengeobot.agent.mission.plan_request",
+            subject="opengeobot.agent.events.status",
             cb=handler_reconnect,
             durable="agent-runtime-consumer",
             manual_ack=True,
@@ -268,14 +268,14 @@ class TestJetStreamPersistence:
         await js.add_stream(
             config=js_api.StreamConfig(
                 name="AGENT_STREAM",
-                subjects=["opengeobot.agent.>"],
+                subjects=["opengeobot.agent.events.>"],
             )
         )
 
         for i in range(3):
             await js.publish(
-                "opengeobot.agent.mission.plan_request",
-                f'{{"mission_id": "msn_{i}"}}'.encode(),
+                "opengeobot.agent.events.status",
+                f'{{"event_id": "evt_{i}"}}'.encode(),
             )
 
         received: list[MockJSMsg] = []
@@ -285,7 +285,7 @@ class TestJetStreamPersistence:
             await msg.ack()
 
         await js.subscribe(
-            subject="opengeobot.agent.mission.plan_request",
+            subject="opengeobot.agent.events.status",
             cb=handler,
             durable="agent-runtime-consumer",
             manual_ack=True,
@@ -293,7 +293,7 @@ class TestJetStreamPersistence:
 
         assert len(received) == 3
         for i, msg in enumerate(received):
-            assert f"msn_{i}" in msg.data.decode()
+            assert f"evt_{i}" in msg.data.decode()
 
 
 # ------------------------------------------------------------------
@@ -322,7 +322,7 @@ class TestNatsBridgeJetStream:
         stream_config = call_kwargs.kwargs.get("config")
         assert stream_config is not None
         assert stream_config.name == config.js_stream_name
-        assert "opengeobot.agent.>" in stream_config.subjects
+        assert "opengeobot.agent.events.>" in stream_config.subjects
 
     async def test_ensure_stream_updates_when_exists(self):
         """ensure_stream should update the stream when it already exists."""
@@ -354,14 +354,14 @@ class TestNatsBridgeJetStream:
 
         bridge._js = mock_js  # type: ignore[attr-defined]
         await bridge.subscribe_js(
-            subject="opengeobot.agent.mission.plan_request",
+            subject="opengeobot.agent.events.status",
             handler=_handler,
             durable="agent-runtime-consumer",
         )
 
         mock_js.subscribe.assert_awaited_once()
         call_kwargs = mock_js.subscribe.call_args.kwargs
-        assert call_kwargs["subject"] == "opengeobot.agent.mission.plan_request"
+        assert call_kwargs["subject"] == "opengeobot.agent.events.status"
         assert call_kwargs["durable"] == "agent-runtime-consumer"
         assert call_kwargs["manual_ack"] is True
 

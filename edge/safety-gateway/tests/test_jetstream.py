@@ -17,6 +17,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from nats.js.errors import NotFoundError
+
 from opengeobot_safety_gateway.config import SafetyGatewayConfig
 from opengeobot_safety_gateway.handler import SafetyHandler
 from opengeobot_safety_gateway.nats_client import NatsBridge
@@ -53,6 +55,7 @@ class MockNats:
 
     def __init__(self) -> None:
         self.published: list[tuple[str, bytes]] = []
+        self.requests: list[tuple[str, bytes, float]] = []
 
     async def publish(self, subject: str, data: bytes) -> None:
         self.published.append((subject, data))
@@ -69,7 +72,26 @@ class MockNats:
         pass
 
     async def request(self, subject: str, data: bytes, timeout: float) -> Any:
-        raise RuntimeError("Not used in tests")
+        self.requests.append((subject, data, timeout))
+        payload = json.loads(data)
+        return type(
+            "MockReply",
+            (),
+            {
+                "data": json.dumps(
+                    {
+                        "request_id": payload["request_id"],
+                        "trace_id": payload.get("trace_id", ""),
+                        "skill_id": payload.get("skill_id", ""),
+                        "success": True,
+                        "output": {"executor_subject": subject},
+                        "error": None,
+                        "started_at": "2026-01-01T00:00:00Z",
+                        "completed_at": "2026-01-01T00:00:01Z",
+                    }
+                ).encode("utf-8")
+            },
+        )()
 
     async def drain_and_close(self) -> None:
         pass
@@ -85,9 +107,22 @@ class MockJetStream:
     def __init__(self) -> None:
         self.streams_created: list[Any] = []
         self.subscriptions: list[dict[str, Any]] = []
+        self.streams: dict[str, Any] = {}
 
     async def add_stream(self, config: Any = None, **kwargs: Any) -> Any:
         self.streams_created.append(config)
+        if config is not None:
+            self.streams[config.name] = config
+        return MagicMock()
+
+    async def stream_info(self, name: str) -> Any:
+        if name not in self.streams:
+            raise NotFoundError(f"stream {name} not found")
+        return MagicMock(name=name)
+
+    async def update_stream(self, config: Any = None, **kwargs: Any) -> Any:
+        if config is not None:
+            self.streams[config.name] = config
         return MagicMock()
 
     async def subscribe(
@@ -166,7 +201,7 @@ class TestJetStreamConfig:
         config = _make_config()
         subjects = config.jetstream_stream_subjects
         assert "edge.test_edge.safety.>" in subjects
-        assert "edge.test_edge.skill.execute" in subjects
+        assert "edge.test_edge.skill.execute" not in subjects
 
     def test_durable_name_includes_gateway_id(self):
         config = _make_config()
@@ -211,7 +246,7 @@ class TestNatsBridgeJetStream:
         created = mock_js_obj.streams_created[0]
         assert created.name == "SAFETY_STREAM"
         assert "edge.test_edge.safety.>" in created.subjects
-        assert "edge.test_edge.skill.execute" in created.subjects
+        assert "edge.test_edge.skill.execute" not in created.subjects
 
     async def test_subscribe_jetstream_uses_durable_consumer(
         self, monkeypatch: pytest.MonkeyPatch
@@ -246,6 +281,36 @@ class TestNatsBridgeJetStream:
         assert sub["durable"] == "safety-gw-test_edge-skill"
         assert sub["manual_ack"] is True
 
+    async def test_ensure_stream_updates_existing_subjects(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        mock_nc = MagicMock()
+        mock_js_obj = MockJetStream()
+        mock_js_obj.stream_info = AsyncMock(return_value=MagicMock())
+        mock_js_obj.update_stream = AsyncMock()
+        mock_nc.jetstream = MagicMock(return_value=mock_js_obj)
+        mock_nc.is_connected = True
+
+        async def _mock_connect(*args: Any, **kwargs: Any) -> Any:
+            return mock_nc
+
+        monkeypatch.setattr("nats.connect", _mock_connect)
+
+        config = _make_config()
+        bridge = NatsBridge(config)
+        await bridge.connect()
+
+        await bridge.ensure_stream(
+            config.jetstream_stream_name,
+            config.jetstream_stream_subjects,
+        )
+
+        mock_js_obj.stream_info.assert_awaited_once_with("SAFETY_STREAM")
+        mock_js_obj.update_stream.assert_awaited_once()
+        updated = mock_js_obj.update_stream.call_args.kwargs["config"]
+        assert "edge.test_edge.safety.>" in updated.subjects
+        assert "edge.test_edge.skill.execute" not in updated.subjects
+
     async def test_jetstream_initialised_on_connect(
         self, monkeypatch: pytest.MonkeyPatch
     ):
@@ -267,13 +332,13 @@ class TestNatsBridgeJetStream:
 
 
 # ------------------------------------------------------------------
-# Handler ack tests.
+# Handler request/reply tests.
 # ------------------------------------------------------------------
 
 
-class TestHandlerAck:
-    async def test_ack_after_successful_forward(self):
-        """A JetStream message should be acked after successful safety evaluation and forward."""
+class TestHandlerRequestReply:
+    async def test_successful_forward_uses_executor_request(self):
+        """A safe request should call the executor via request-reply."""
         handler, nats, sm = _make_handler()
         msg = JetStreamMockMsg(
             data=json.dumps(_make_skill_request_data()).encode("utf-8"),
@@ -281,16 +346,15 @@ class TestHandlerAck:
         )
         await handler.handle_skill_execute(msg)
 
-        # Message should be acked.
-        assert msg.acked is True
-        assert msg.nacked is False
+        assert len(nats.requests) == 1
+        request_subject, request_payload, _ = nats.requests[0]
+        assert request_subject == "edge.test_edge.skill.execute.approved"
+        forwarded = json.loads(request_payload)
+        assert forwarded["request_id"] == "skreq_001"
+        assert forwarded["skill_id"] == "move_to"
 
-        # Skill should be forwarded.
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 1
-
-    async def test_ack_after_safety_denial(self):
-        """A JetStream message should be acked even when safety denies the request."""
+    async def test_safety_denial_skips_executor_request(self):
+        """A denied request should not call the executor."""
         handler, nats, sm = _make_handler()
         await sm.trigger_emergency_stop(reason="Test", trace_id="t1")
 
@@ -300,22 +364,18 @@ class TestHandlerAck:
         )
         await handler.handle_skill_execute(msg)
 
-        assert msg.acked is True
+        assert len(nats.requests) == 0
 
-        # Skill should NOT be forwarded.
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 0
-
-    async def test_ack_after_malformed_payload(self):
-        """A malformed JetStream message should be acked (not redelivered)."""
+    async def test_malformed_payload_skips_executor_request(self):
+        """A malformed request should not call the executor."""
         handler, nats, sm = _make_handler()
         msg = JetStreamMockMsg(data=b"not-json", reply="")
         await handler.handle_skill_execute(msg)
 
-        assert msg.acked is True
+        assert len(nats.requests) == 0
 
-    async def test_ack_after_safety_check_denial(self):
-        """A JetStream message denied by action-level checks should be acked."""
+    async def test_safety_check_denial_skips_executor_request(self):
+        """A request denied by action-level checks should not call the executor."""
         handler, nats, sm = _make_handler()
         msg = JetStreamMockMsg(
             data=json.dumps(
@@ -325,27 +385,7 @@ class TestHandlerAck:
         )
         await handler.handle_skill_execute(msg)
 
-        assert msg.acked is True
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 0
-
-    async def test_ack_failure_does_not_crash_handler(self):
-        """If ack raises, the handler should not crash."""
-        handler, nats, sm = _make_handler()
-
-        class FailingAckMsg(JetStreamMockMsg):
-            async def ack(self) -> None:
-                raise RuntimeError("ack failed")
-
-        msg = FailingAckMsg(
-            data=json.dumps(_make_skill_request_data()).encode("utf-8"),
-            reply="reply.subject",
-        )
-        await handler.handle_skill_execute(msg)
-
-        # Forward should still have happened.
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 1
+        assert len(nats.requests) == 0
 
 
 # ------------------------------------------------------------------
@@ -354,8 +394,8 @@ class TestHandlerAck:
 
 
 class TestJetStreamPersistenceFlow:
-    async def test_full_persistence_flow_allowed(self):
-        """Full flow: message arrives, safety passes, forwarded, response sent, acked."""
+    async def test_full_request_reply_flow_allowed(self):
+        """Full flow: request arrives, safety passes, executor is called, response sent."""
         handler, nats, sm = _make_handler()
 
         msg = JetStreamMockMsg(
@@ -364,22 +404,17 @@ class TestJetStreamPersistenceFlow:
         )
         await handler.handle_skill_execute(msg)
 
-        # 1. Forwarded to executor.
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 1
+        # 1. Forwarded to executor via request-reply.
+        assert len(nats.requests) == 1
 
         # 2. Response published on reply subject.
         replies = _published_on(nats, "reply.subject")
         assert len(replies) == 1
         response = json.loads(replies[0][1])
-        assert response["allowed"] is True
-        assert response["forwarded"] is True
+        assert response["success"] is True
 
-        # 3. Message acked (not redelivered).
-        assert msg.acked is True
-
-    async def test_full_persistence_flow_denied(self):
-        """Full flow: message arrives, safety denies, response sent, acked."""
+    async def test_full_request_reply_flow_denied(self):
+        """Full flow: request arrives, safety denies, response sent without executor call."""
         handler, nats, sm = _make_handler()
         await sm.trigger_emergency_stop(reason="Test", trace_id="t1")
 
@@ -390,15 +425,11 @@ class TestJetStreamPersistenceFlow:
         await handler.handle_skill_execute(msg)
 
         # 1. NOT forwarded to executor.
-        forwards = _published_on(nats, "edge.test_edge.skill.execute.approved")
-        assert len(forwards) == 0
+        assert len(nats.requests) == 0
 
         # 2. Response published on reply subject (denied).
         replies = _published_on(nats, "reply.subject")
         assert len(replies) == 1
         response = json.loads(replies[0][1])
-        assert response["allowed"] is False
-        assert response["state"] == "EMERGENCY_STOPPED"
-
-        # 3. Message acked (not redelivered).
-        assert msg.acked is True
+        assert response["success"] is False
+        assert "Safety blocked" in response["error"]

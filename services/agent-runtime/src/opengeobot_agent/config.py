@@ -14,7 +14,9 @@ import os
 from dataclasses import dataclass
 
 DEFAULT_NATS_URL = "nats://localhost:4222"
-DEFAULT_QWENPAW_ENDPOINT = "http://localhost:8000/v1/chat/completions"
+DEFAULT_QWENPAW_ENDPOINT = (
+    "http://localhost:8000/api/agents/opengeobot-controller/console/chat"
+)
 DEFAULT_QWENPAW_ADMIN_BASE_URL = "http://qwenpaw:8088"
 DEFAULT_QWENPAW_AGENT_ID = "opengeobot-controller"
 DEFAULT_QWENPAW_AGENT_NAME = "一脑多控"
@@ -66,10 +68,12 @@ class AgentConfig:
     log_level: str
     # NATS subject for receiving mission replan requests (after step failure).
     replan_request_subject: str = "opengeobot.agent.mission.replan"
-    # JetStream durable consumer configuration.
+    # JetStream stream subjects are reserved for asynchronous agent events only.
+    # Request-reply subjects such as plan_request/replan MUST stay on core NATS,
+    # otherwise request inboxes receive JetStream publish acks instead of plans.
     js_stream_name: str = "AGENT_STREAM"
     js_durable_consumer: str = "agent-runtime-consumer"
-    js_stream_subjects: str = "opengeobot.agent.>"
+    js_stream_subjects: str = "opengeobot.agent.events.>"
     # Skill registry query configuration.
     skill_list_subject: str = "opengeobot.skill.list"
     skill_request_timeout: float = 5.0
@@ -83,6 +87,14 @@ class AgentConfig:
     # Provider and model name for the QwenPaw agent's active_model binding.
     qwenpaw_model_provider: str = DEFAULT_QWENPAW_MODEL_PROVIDER
     qwenpaw_model_name: str = DEFAULT_QWENPAW_MODEL_NAME
+    # Platform MCP Tool Gateway SSE/HTTP endpoint for the QwenPaw agent's mcp.clients config.
+    qwenpaw_mcp_gateway_url: str = ""
+    # Auth token for the MCP Tool Gateway client (Bearer header).
+    qwenpaw_mcp_gateway_auth_token: str = ""
+    # Optional persona template directory; empty string means use built-in templates.
+    qwenpaw_persona_dir: str = ""
+    # QwenPaw agent tool execution approval level (STRICT/SMART/AUTO/OFF).
+    qwenpaw_agent_approval_level: str = "STRICT"
 
     @classmethod
     def from_env(cls) -> AgentConfig:
@@ -108,7 +120,7 @@ class AgentConfig:
                 "AGENT_JS_DURABLE_CONSUMER", "agent-runtime-consumer"
             ),
             js_stream_subjects=_env_str(
-                "AGENT_JS_STREAM_SUBJECTS", "opengeobot.agent.>"
+                "AGENT_JS_STREAM_SUBJECTS", "opengeobot.agent.events.>"
             ),
             skill_list_subject=_env_str(
                 "AGENT_SKILL_LIST_SUBJECT", "opengeobot.skill.list"
@@ -130,5 +142,13 @@ class AgentConfig:
             ),
             qwenpaw_model_name=_env_str(
                 "QWENPAW_MODEL_NAME", DEFAULT_QWENPAW_MODEL_NAME
+            ),
+            qwenpaw_mcp_gateway_url=_env_str("QWENPAW_MCP_GATEWAY_URL", ""),
+            qwenpaw_mcp_gateway_auth_token=_env_str(
+                "QWENPAW_MCP_GATEWAY_AUTH_TOKEN", ""
+            ),
+            qwenpaw_persona_dir=_env_str("QWENPAW_PERSONA_DIR", ""),
+            qwenpaw_agent_approval_level=_env_str(
+                "QWENPAW_AGENT_APPROVAL_LEVEL", "STRICT"
             ),
         )

@@ -14,9 +14,10 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from nats.js.errors import NotFoundError
 
 from opengeobot_skill_executor.adapter_client import (
     AdapterClient,
@@ -110,9 +111,22 @@ class MockJetStream:
     def __init__(self) -> None:
         self.streams_created: list[Any] = []
         self.subscriptions: list[dict[str, Any]] = []
+        self.streams: dict[str, Any] = {}
 
     async def add_stream(self, config: Any = None, **kwargs: Any) -> Any:
         self.streams_created.append(config)
+        if config is not None:
+            self.streams[config.name] = config
+        return MagicMock()
+
+    async def stream_info(self, name: str) -> Any:
+        if name not in self.streams:
+            raise NotFoundError(f"stream {name} not found")
+        return MagicMock(name=name)
+
+    async def update_stream(self, config: Any = None, **kwargs: Any) -> Any:
+        if config is not None:
+            self.streams[config.name] = config
         return MagicMock()
 
     async def subscribe(
@@ -200,7 +214,8 @@ class TestJetStreamConfig:
     def test_stream_subjects_include_approved_subject(self):
         config = _make_config()
         subjects = config.jetstream_stream_subjects
-        assert "edge.test_edge.skill.execute.approved" in subjects
+        assert "edge.test_edge.skill.execute.approved" not in subjects
+        assert "edge.test_edge.skill.events.>" in subjects
 
     def test_durable_name_includes_gateway_id(self):
         config = _make_config()
@@ -242,7 +257,8 @@ class TestNatsBridgeJetStream:
         assert len(mock_js_obj.streams_created) == 1
         created = mock_js_obj.streams_created[0]
         assert created.name == "SKILL_EXECUTOR_STREAM"
-        assert "edge.test_edge.skill.execute.approved" in created.subjects
+        assert "edge.test_edge.skill.execute.approved" not in created.subjects
+        assert "edge.test_edge.skill.events.>" in created.subjects
 
     async def test_subscribe_jetstream_uses_durable_consumer(
         self, monkeypatch: pytest.MonkeyPatch
@@ -276,6 +292,36 @@ class TestNatsBridgeJetStream:
         assert sub["subject"] == "edge.test_edge.skill.execute.approved"
         assert sub["durable"] == "skill-executor-test_edge"
         assert sub["manual_ack"] is True
+
+    async def test_ensure_stream_updates_existing_subjects(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        mock_nc = MagicMock()
+        mock_js_obj = MockJetStream()
+        mock_js_obj.stream_info = AsyncMock(return_value=MagicMock())
+        mock_js_obj.update_stream = AsyncMock()
+        mock_nc.jetstream = MagicMock(return_value=mock_js_obj)
+        mock_nc.is_connected = True
+
+        async def _mock_connect(*args: Any, **kwargs: Any) -> Any:
+            return mock_nc
+
+        monkeypatch.setattr("nats.connect", _mock_connect)
+
+        config = _make_config()
+        bridge = NatsBridge(config)
+        await bridge.connect()
+
+        await bridge.ensure_stream(
+            config.jetstream_stream_name,
+            config.jetstream_stream_subjects,
+        )
+
+        mock_js_obj.stream_info.assert_awaited_once_with("SKILL_EXECUTOR_STREAM")
+        mock_js_obj.update_stream.assert_awaited_once()
+        updated = mock_js_obj.update_stream.call_args.kwargs["config"]
+        assert "edge.test_edge.skill.execute.approved" not in updated.subjects
+        assert "edge.test_edge.skill.events.>" in updated.subjects
 
     async def test_jetstream_initialised_on_connect(
         self, monkeypatch: pytest.MonkeyPatch

@@ -26,6 +26,7 @@ from opengeobot_safety_gateway.safety_state import SafetyStateMachine
 def _make_config(**overrides: Any) -> EdgeConfig:
     defaults: dict[str, Any] = {
         "robot_id": "rbt_test",
+        "gateway_id": "edge_01",
         "nats_url": "nats://localhost:4222",
         "nats_max_reconnect": -1,
         "nats_reconnect_wait": 2.0,
@@ -45,6 +46,7 @@ def _make_mock_nc_with_js() -> tuple[MagicMock, MagicMock]:
     mock_js = MagicMock()
     mock_js.add_stream = AsyncMock()
     mock_js.stream_info = AsyncMock()
+    mock_js.update_stream = AsyncMock()
     mock_js.subscribe = AsyncMock(return_value=MagicMock())
 
     mock_nc = MagicMock()
@@ -119,7 +121,11 @@ class TestStreamManagement:
         mock_js.add_stream.assert_called_once()
         call_kwargs = mock_js.add_stream.call_args.kwargs
         assert call_kwargs["name"] == config.jetstream_stream_name
-        assert call_kwargs["subjects"] == [config.jetstream_stream_subjects]
+        assert call_kwargs["subjects"] == [
+            "opengeobot.dev.edge.command.*",
+            "opengeobot.dev.edge.state.*",
+            "opengeobot.dev.edge.reconcile.*",
+        ]
 
     async def test_does_not_create_stream_when_exists(
         self, monkeypatch: pytest.MonkeyPatch
@@ -134,6 +140,14 @@ class TestStreamManagement:
         bridge = NatsBridge(config)
         await bridge.connect()
 
+        mock_js.update_stream.assert_called_once()
+        call_kwargs = mock_js.update_stream.call_args.kwargs
+        assert call_kwargs["name"] == config.jetstream_stream_name
+        assert call_kwargs["subjects"] == [
+            "opengeobot.dev.edge.command.*",
+            "opengeobot.dev.edge.state.*",
+            "opengeobot.dev.edge.reconcile.*",
+        ]
         mock_js.add_stream.assert_not_called()
 
     async def test_custom_stream_name_from_config(

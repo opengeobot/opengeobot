@@ -15,6 +15,7 @@ DEFAULT_ROS_ENDPOINT = "ws://ros2-turtlesim:9090"
 DEFAULT_ROSCLAW_PROFILE = "offline"
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_SKILL_REQUEST_TIMEOUT = 30.0
+DEFAULT_READY_FILE_PATH = "/tmp/opengeobot-rosclaw-bridge.ready"
 
 
 def _env_str(key: str, default: str) -> str:
@@ -51,6 +52,7 @@ class BridgeConfig:
     rosclaw_sandbox: bool
     log_level: str
     skill_request_timeout: float
+    ready_file_path: str
 
     @property
     def skill_execute_subject(self) -> str:
@@ -71,4 +73,8 @@ class BridgeConfig:
             rosclaw_sandbox=_env_bool("ROSCLAW_SANDBOX", True),
             log_level=_env_str("LOG_LEVEL", DEFAULT_LOG_LEVEL),
             skill_request_timeout=_env_float("SKILL_REQUEST_TIMEOUT", DEFAULT_SKILL_REQUEST_TIMEOUT),
+            ready_file_path=_env_str(
+                "ROSCLAW_BRIDGE_READY_FILE",
+                DEFAULT_READY_FILE_PATH,
+            ),
         )

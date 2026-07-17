@@ -14,26 +14,27 @@
 set -e
 
 ROSCLAW_SOURCE_DIR="/opt/rosclaw-source"
+ROSCLAW_SOURCE_PATH="${ROSCLAW_SOURCE_DIR}/src"
+READY_FILE="${ROSCLAW_BRIDGE_READY_FILE:-/tmp/opengeobot-rosclaw-bridge.ready}"
+ROSCLAW_REQUIRE_RUNTIME="${ROSCLAW_REQUIRE_RUNTIME:-true}"
 
-if [ -d "$ROSCLAW_SOURCE_DIR" ] && [ -f "$ROSCLAW_SOURCE_DIR/pyproject.toml" ]; then
-    echo "[entrypoint] Installing ROSClaw from $ROSCLAW_SOURCE_DIR ..."
-    if uv pip install --system "$ROSCLAW_SOURCE_DIR"; then
-        echo "[entrypoint] ROSClaw package installed via uv"
-    else
-        echo "[entrypoint] uv install failed, falling back to pip ..."
-        pip install "$ROSCLAW_SOURCE_DIR" || {
-            echo "[entrypoint] WARNING: pip install also failed; bridge will run in degraded fallback mode"
-        }
-    fi
+rm -f "$READY_FILE"
 
-    # Verify the import actually works so we get a clear log line.
-    if python -c "import rosclaw; print(f'[entrypoint] ROSClaw {rosclaw.__version__} imported successfully')"; then
-        echo "[entrypoint] ROSClaw runtime is available"
-    else
-        echo "[entrypoint] WARNING: rosclaw import failed after install; bridge will run in degraded fallback mode"
-    fi
+verify_rosclaw_import() {
+    python -c "from rosclaw.skill_manager.registry import SkillRegistry; from rosclaw.runtime.plugin import get_runtime_plugin; import rosclaw.runtime.handlers.navigation as _n; print('[entrypoint] ROSClaw runtime modules imported successfully')"
+}
+
+if [ -d "$ROSCLAW_SOURCE_PATH" ]; then
+    export PYTHONPATH="${ROSCLAW_SOURCE_PATH}:${PYTHONPATH:-}"
+fi
+
+if verify_rosclaw_import; then
+    echo "[entrypoint] ROSClaw runtime is available"
 else
-    echo "[entrypoint] WARNING: ROSClaw source not found at $ROSCLAW_SOURCE_DIR; bridge will run in degraded fallback mode"
+    echo "[entrypoint] WARNING: ROSClaw runtime modules are unavailable"
+    if [ "$ROSCLAW_REQUIRE_RUNTIME" = "true" ]; then
+        exit 1
+    fi
 fi
 
 # Drop to the non-root bridge user for the actual runtime.

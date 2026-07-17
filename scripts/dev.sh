@@ -407,7 +407,7 @@ cmd_sim_up() {
     wait_for_health qwenpaw 90 || true
     wait_for_health agent-runtime 60 || true
     wait_for_health sim-adapter 60 || true
-    wait_for_health rosclaw-bridge 60 || true
+    wait_for_health rosclaw-bridge 180 || true
     wait_for_health edge-gateway 60 || true
     wait_for_health safety-gateway 60 || true
     wait_for_health local-skill-executor 60 || true
@@ -538,6 +538,7 @@ cmd_e2e() {
     wait_for_health edge-gateway 60 || true
     wait_for_health safety-gateway 60 || true
     wait_for_health local-skill-executor 60 || true
+    wait_for_health rosclaw-bridge 180 || true
     ok "Full stack is ready"
 
     info "Running E2E business loop test..."

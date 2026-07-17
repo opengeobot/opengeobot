@@ -40,6 +40,7 @@ import io.opengeobot.platform.robot.web.ConflictException;
 import io.opengeobot.platform.robot.web.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,6 +84,7 @@ public class MissionService {
     private final MissionOrchestrator missionOrchestrator;
     private final MonitorEventPublisher monitorEventPublisher;
     private final TraceRecorder traceRecorder;
+    private final ControlLeaseService controlLeaseService;
     private final int maxReplanCount;
 
     public MissionService(MissionRepository missionRepository,
@@ -98,6 +100,7 @@ public class MissionService {
                           @Lazy MissionOrchestrator missionOrchestrator,
                           MonitorEventPublisher monitorEventPublisher,
                           TraceRecorder traceRecorder,
+                          ControlLeaseService controlLeaseService,
                           @org.springframework.beans.factory.annotation.Value("${opengeobot.mission.max-replan-count:3}") int maxReplanCount) {
         this.missionRepository = missionRepository;
         this.missionStepRepository = missionStepRepository;
@@ -112,6 +115,7 @@ public class MissionService {
         this.missionOrchestrator = missionOrchestrator;
         this.monitorEventPublisher = monitorEventPublisher;
         this.traceRecorder = traceRecorder;
+        this.controlLeaseService = controlLeaseService;
         this.maxReplanCount = maxReplanCount;
     }
 
@@ -121,7 +125,7 @@ public class MissionService {
     public MissionDto create(CreateMissionRequest request) {
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
         String missionId = publicIdGenerator.generate("mission");
 
         Mission mission = new Mission();
@@ -175,7 +179,7 @@ public class MissionService {
         assertEditable(mission);
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         if (request.name() != null) {
             mission.setName(request.name());
@@ -208,7 +212,7 @@ public class MissionService {
         }
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         missionStepRepository.deleteByMissionId(missionId);
         persistSteps(missionId, request.steps(), now);
@@ -242,7 +246,7 @@ public class MissionService {
         transition(mission, MissionState.EXECUTING);
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         mission.setStartedAt(now.atOffset(ZoneOffset.UTC));
         mission.setUpdatedAt(now.atOffset(ZoneOffset.UTC));
@@ -281,7 +285,7 @@ public class MissionService {
         transition(mission, MissionState.PAUSED);
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         mission.setUpdatedAt(now.atOffset(ZoneOffset.UTC));
         mission.setUpdatedBy(actor);
@@ -301,7 +305,7 @@ public class MissionService {
         transition(mission, MissionState.EXECUTING);
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         mission.setUpdatedAt(now.atOffset(ZoneOffset.UTC));
         mission.setUpdatedBy(actor);
@@ -324,7 +328,7 @@ public class MissionService {
         }
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         mission.setStatus(MissionState.CANCELLED.name());
         mission.setCompletedAt(now.atOffset(ZoneOffset.UTC));
@@ -352,6 +356,7 @@ public class MissionService {
         cancelAttrs.put("previous_status", current.name());
         traceRecorder.recordFact(traceId, "mission.cancelled", missionId, "mission",
                 mission.getRobotId(), missionId, actor, cancelAttrs);
+        releaseLeaseIfPresent(mission.getRobotId());
 
         log.info("Cancelled mission {} from state {}", missionId, current);
         return toDto(mission, null);
@@ -367,7 +372,7 @@ public class MissionService {
         transition(mission, MissionState.COMPLETED);
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         mission.setCompletedAt(now.atOffset(ZoneOffset.UTC));
         mission.setUpdatedAt(now.atOffset(ZoneOffset.UTC));
@@ -390,6 +395,7 @@ public class MissionService {
                 MissionState.COMPLETED.name(), traceId);
         traceRecorder.recordFact(traceId, "mission.completed", missionId, "mission",
                 mission.getRobotId(), missionId, actor, Map.of("completed_by", actor));
+        releaseLeaseIfPresent(mission.getRobotId());
 
         log.info("Completed mission {}", missionId);
         return toDto(mission, null);
@@ -405,7 +411,7 @@ public class MissionService {
         transition(mission, MissionState.FAILED);
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         mission.setFailedReason(reason);
         mission.setCompletedAt(now.atOffset(ZoneOffset.UTC));
@@ -433,6 +439,7 @@ public class MissionService {
         failAttrs.put("failed_by", actor);
         traceRecorder.recordFact(traceId, "mission.failed", missionId, "mission",
                 mission.getRobotId(), missionId, actor, failAttrs);
+        releaseLeaseIfPresent(mission.getRobotId());
 
         log.info("Failed mission {}: {}", missionId, reason);
 
@@ -448,6 +455,17 @@ public class MissionService {
         }
 
         return toDto(mission, null);
+    }
+
+    private void releaseLeaseIfPresent(String robotId) {
+        if (robotId == null || robotId.isBlank()) {
+            return;
+        }
+        try {
+            controlLeaseService.release(robotId);
+        } catch (Exception e) {
+            log.debug("Control lease release skipped for robot {}: {}", robotId, e.getMessage());
+        }
     }
 
     /**
@@ -514,7 +532,7 @@ public class MissionService {
         mission.setUpdatedAt(now.atOffset(ZoneOffset.UTC));
         missionRepository.updateById(mission);
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
         audit(actor, "mission.replan_reset", missionId, now, traceId,
                 "reset to PLANNING for auto-replan (count=" + (currentCount + 1) + ")");
         log.info("Reset mission {} to PLANNING for replan (count={})", missionId, currentCount + 1);
@@ -563,7 +581,7 @@ public class MissionService {
         }
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         MissionApproval approval = new MissionApproval();
         approval.setMissionId(missionId);
@@ -588,7 +606,7 @@ public class MissionService {
         }
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         approval.setStatus("APPROVED");
         approval.setComment(request.comment());
@@ -612,7 +630,7 @@ public class MissionService {
         }
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
-        String traceId = actorResolver.currentTraceId();
+        String traceId = effectiveTraceId();
 
         approval.setStatus("REJECTED");
         approval.setComment(request.comment());
@@ -641,6 +659,7 @@ public class MissionService {
     public MissionTemplateDto createTemplate(CreateMissionTemplateRequest request) {
         Instant now = Instant.now(clockProvider.getClock());
         String actor = actorResolver.currentActor();
+        String traceId = effectiveTraceId();
         String templateId = publicIdGenerator.generate("mission_template");
 
         MissionTemplate template = new MissionTemplate();
@@ -653,7 +672,7 @@ public class MissionService {
         template.setCreatedBy(actor);
         missionTemplateRepository.insert(template);
 
-        audit(actor, "mission_template.create", templateId, now, actorResolver.currentTraceId(), null);
+        audit(actor, "mission_template.create", templateId, now, traceId, null);
         log.info("Created mission template {}", templateId);
         return toTemplateDto(template);
     }
@@ -668,6 +687,17 @@ public class MissionService {
             throw new ResourceNotFoundException("Mission not found: " + missionId);
         }
         return mission;
+    }
+
+    private String effectiveTraceId() {
+        String traceId = actorResolver.currentTraceId();
+        if (traceId != null && !traceId.isBlank()) {
+            return traceId;
+        }
+        String generatedTraceId = publicIdGenerator.generate("trace");
+        MDC.put("traceId", generatedTraceId);
+        MDC.put("trace_id", generatedTraceId);
+        return generatedTraceId;
     }
 
     private void assertEditable(Mission mission) {

@@ -40,6 +40,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.slf4j.MDC;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -74,11 +75,13 @@ class MissionServiceTest {
     @Mock private MissionOrchestrator missionOrchestrator;
     @Mock private MonitorEventPublisher monitorEventPublisher;
     @Mock private TraceRecorder traceRecorder;
+    @Mock private ControlLeaseService controlLeaseService;
 
     private MissionService service;
 
     @BeforeEach
     void setUp() {
+        MDC.clear();
         ObjectMapper objectMapper = new ObjectMapper();
         when(actorResolver.currentActor()).thenReturn("user_001");
         when(actorResolver.currentTraceId()).thenReturn("trace_001");
@@ -87,7 +90,8 @@ class MissionServiceTest {
         service = new MissionService(missionRepository, missionStepRepository,
                 missionTemplateRepository, missionApprovalRepository, auditService,
                 outboxRepository, publicIdGenerator, clockProvider, actorResolver,
-                objectMapper, missionOrchestrator, monitorEventPublisher, traceRecorder, 3);
+                objectMapper, missionOrchestrator, monitorEventPublisher, traceRecorder,
+                controlLeaseService, 3);
     }
 
     private Mission createMission(String missionId, MissionState state) {
@@ -139,6 +143,23 @@ class MissionServiceTest {
         ArgumentCaptor<Mission> captor = ArgumentCaptor.forClass(Mission.class);
         verify(missionRepository).insert(captor.capture());
         assertEquals("NORMAL", captor.getValue().getPriority());
+    }
+
+    @Test
+    void create_generatesTraceIdWhenMissing() {
+        when(actorResolver.currentTraceId()).thenReturn(null);
+        when(publicIdGenerator.generate("trace")).thenReturn("trace_002");
+        CreateMissionRequest request = new CreateMissionRequest(
+                "Test Mission", "desc", "rbt_001", "NORMAL", null, createStepDtos());
+
+        MissionDto result = service.create(request);
+
+        assertEquals("trace_002", result.traceId());
+        ArgumentCaptor<Mission> missionCaptor = ArgumentCaptor.forClass(Mission.class);
+        verify(missionRepository).insert(missionCaptor.capture());
+        assertEquals("trace_002", missionCaptor.getValue().getTraceId());
+        verify(traceRecorder).recordFact(eq("trace_002"), eq("mission.created"), eq("msn_001"),
+                eq("mission"), eq("rbt_001"), eq("msn_001"), eq("user_001"), anyMap());
     }
 
     @Test

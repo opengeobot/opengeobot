@@ -20,9 +20,11 @@ import signal
 import sys
 
 from loguru import logger
+import uvicorn
 
 from .config import GatewayConfig
 from .handler import ToolGatewayHandler
+from .http_server import McpSseServer
 from .nats_client import NatsBridge
 from .registry import ToolRegistry
 from .router import ToolRouter
@@ -56,6 +58,8 @@ class McpToolGateway:
             config, self._nats, self._registry, self._router
         )
         self._stop_event = asyncio.Event()
+        self._http_server: uvicorn.Server | None = None
+        self._http_task: asyncio.Task[None] | None = None
 
     @property
     def registry(self) -> ToolRegistry:
@@ -84,10 +88,31 @@ class McpToolGateway:
         await self._nats.subscribe(
             self._config.unregister_subject, self._handler.handle_unregister
         )
+        self._start_http_server()
         logger.info("MCP tool gateway started - subscribed to tool subjects")
+
+    def _start_http_server(self) -> None:
+        app = McpSseServer(self._config, self._registry, self._router).build_app()
+        config = uvicorn.Config(
+            app,
+            host=self._config.http_host,
+            port=self._config.http_port,
+            log_level="warning",
+            access_log=False,
+        )
+        server = uvicorn.Server(config)
+        self._http_server = server
+        self._http_task = asyncio.create_task(server.serve())
 
     async def stop(self) -> None:
         logger.info("MCP tool gateway stopping...")
+        if self._http_server is not None:
+            self._http_server.should_exit = True
+        if self._http_task is not None:
+            try:
+                await asyncio.wait_for(self._http_task, timeout=5.0)
+            except TimeoutError:
+                pass
         await self._nats.drain_and_close()
         self._stop_event.set()
 

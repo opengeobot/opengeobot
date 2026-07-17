@@ -3,9 +3,9 @@
 # Author: AxeXie
 """Unit tests for the QwenPaw AgentInitializer.
 
-Covers agent creation, update, no-op (same skills), degraded mode on
-connection failure, and the auto-create-disabled path. httpx is mocked so no
-real network calls are made.
+Covers agent creation, managed profile drift detection, no-op behavior,
+degraded mode on connection failure, and the auto-create-disabled path. httpx
+is mocked so no real network calls are made.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 
 from opengeobot_agent.config import AgentConfig
-from opengeobot_agent.initializer import AgentInitializer
+from opengeobot_agent.initializer import AGENT_DESCRIPTION, AgentInitializer
 
 SKILL_NAMES = ["stand_up", "move_forward", "stop", "capture_image"]
 
@@ -106,7 +106,13 @@ class TestAgentInitializerCreate:
             status_code=200,
             json_data={"id": "opengeobot-controller", "name": "一脑多控"},
         )
-        mock_client = _make_mock_client(get_resp=get_resp, post_resp=post_resp)
+        put_resp = _make_response(
+            status_code=200,
+            json_data={"id": "opengeobot-controller"},
+        )
+        mock_client = _make_mock_client(
+            get_resp=get_resp, post_resp=post_resp, put_resp=put_resp
+        )
 
         with patch(
             "opengeobot_agent.initializer.httpx.AsyncClient",
@@ -120,10 +126,10 @@ class TestAgentInitializerCreate:
 
         # GET was called to check existence
         mock_client.get.assert_awaited_once()
-        # POST was called to create
+        # POST was called to create the basic agent
         mock_client.post.assert_awaited_once()
-        # PUT was never called
-        mock_client.put.assert_not_awaited()
+        # PUT was called to write the full AgentProfileConfig (persona + mcp)
+        mock_client.put.assert_awaited_once()
 
     async def test_create_request_body_has_correct_fields(self):
         config = _make_config()
@@ -131,7 +137,10 @@ class TestAgentInitializerCreate:
 
         get_resp = _make_response(status_code=404)
         post_resp = _make_response(status_code=200, json_data={})
-        mock_client = _make_mock_client(get_resp=get_resp, post_resp=post_resp)
+        put_resp = _make_response(status_code=200, json_data={})
+        mock_client = _make_mock_client(
+            get_resp=get_resp, post_resp=post_resp, put_resp=put_resp
+        )
 
         with patch(
             "opengeobot_agent.initializer.httpx.AsyncClient",
@@ -153,24 +162,30 @@ class TestAgentInitializerCreate:
 
 
 class TestAgentInitializerUpdate:
-    """Agent exists -> update skill_names via PUT."""
+    """Agent exists -> update managed AgentProfileConfig fields via PUT."""
 
-    async def test_updates_agent_when_skills_differ(self):
+    async def test_updates_agent_when_managed_fields_differ(self):
         config = _make_config()
         initializer = AgentInitializer(config)
 
         existing_agent = {
             "id": "opengeobot-controller",
             "name": "一脑多控",
-            "skill_names": ["stand_up", "move_forward"],  # fewer skills
-            "description": "old desc",
+            "description": AGENT_DESCRIPTION,
             "workspace_dir": "/app/working/workspaces/opengeobot-controller",
             "language": "zh",
+            "system_prompt_files": ["AGENTS.md", "SOUL.md", "PROFILE.md"],
+            "mcp": {"clients": {}},
+            "approval_level": "STRICT",
+            "active_model": {
+                "provider_id": "legacy-provider",
+                "model": "legacy-model",
+            },
         }
         get_resp = _make_response(status_code=200, json_data=existing_agent)
         put_resp = _make_response(
             status_code=200,
-            json_data={"id": "opengeobot-controller", "skill_names": SKILL_NAMES},
+            json_data={"id": "opengeobot-controller"},
         )
         mock_client = _make_mock_client(get_resp=get_resp, put_resp=put_resp)
 
@@ -191,17 +206,23 @@ class TestAgentInitializerUpdate:
         # POST was never called (agent already exists)
         mock_client.post.assert_not_awaited()
 
-    async def test_update_put_body_has_new_skills(self):
+    async def test_update_put_body_excludes_skill_names(self):
         config = _make_config()
         initializer = AgentInitializer(config)
 
         existing_agent = {
             "id": "opengeobot-controller",
             "name": "一脑多控",
-            "skill_names": ["old_skill"],
-            "description": "desc",
-            "workspace_dir": "/app/ws",
+            "description": "old desc",
+            "workspace_dir": "/app/working/workspaces/opengeobot-controller",
             "language": "zh",
+            "system_prompt_files": ["AGENTS.md", "SOUL.md", "PROFILE.md"],
+            "mcp": {"clients": {}},
+            "approval_level": "STRICT",
+            "active_model": {
+                "provider_id": config.qwenpaw_model_provider,
+                "model": config.qwenpaw_model_name,
+            },
         }
         get_resp = _make_response(status_code=200, json_data=existing_agent)
         put_resp = _make_response(status_code=200, json_data={})
@@ -218,23 +239,31 @@ class TestAgentInitializerUpdate:
         body = call_args.kwargs["json"]
 
         assert "/api/agents/opengeobot-controller" in url
-        assert body["skill_names"] == SKILL_NAMES
+        assert body["id"] == "opengeobot-controller"
+        assert "skill_names" not in body
+        assert body["description"] == AGENT_DESCRIPTION
 
 
 class TestAgentInitializerNoOp:
-    """Agent exists with identical skills -> no update needed."""
+    """Agent exists with aligned managed fields -> no update needed."""
 
-    async def test_no_update_when_skills_unchanged(self):
+    async def test_no_update_when_get_omits_skill_names(self):
         config = _make_config()
         initializer = AgentInitializer(config)
 
         existing_agent = {
             "id": "opengeobot-controller",
             "name": "一脑多控",
-            "skill_names": SKILL_NAMES,  # same skills
-            "description": "desc",
-            "workspace_dir": "/app/ws",
+            "description": AGENT_DESCRIPTION,
+            "workspace_dir": "/app/working/workspaces/opengeobot-controller",
             "language": "zh",
+            "system_prompt_files": ["AGENTS.md", "SOUL.md", "PROFILE.md"],
+            "mcp": {"clients": {}},
+            "approval_level": "STRICT",
+            "active_model": {
+                "provider_id": config.qwenpaw_model_provider,
+                "model": config.qwenpaw_model_name,
+            },
         }
         get_resp = _make_response(status_code=200, json_data=existing_agent)
         mock_client = _make_mock_client(get_resp=get_resp)
@@ -369,7 +398,10 @@ class TestAgentInitializerDefaults:
 
         get_resp = _make_response(status_code=404)
         post_resp = _make_response(status_code=200, json_data={})
-        mock_client = _make_mock_client(get_resp=get_resp, post_resp=post_resp)
+        put_resp = _make_response(status_code=200, json_data={})
+        mock_client = _make_mock_client(
+            get_resp=get_resp, post_resp=post_resp, put_resp=put_resp
+        )
 
         with patch(
             "opengeobot_agent.initializer.httpx.AsyncClient",
@@ -384,3 +416,197 @@ class TestAgentInitializerDefaults:
         call_args = mock_client.post.call_args
         body = call_args.kwargs["json"]
         assert body["skill_names"] == []
+
+
+class TestAgentInitializerPutBody:
+    """Verify the PUT body carries persona files, mcp clients and approval_level."""
+
+    async def test_put_body_contains_persona_and_mcp_config(self):
+        config = _make_config(
+            qwenpaw_mcp_gateway_url="http://mcp-gateway:8090/sse",
+            qwenpaw_agent_approval_level="STRICT",
+        )
+        initializer = AgentInitializer(config)
+
+        get_resp = _make_response(status_code=404)
+        post_resp = _make_response(status_code=200, json_data={})
+        put_resp = _make_response(status_code=200, json_data={})
+        mock_client = _make_mock_client(
+            get_resp=get_resp, post_resp=post_resp, put_resp=put_resp
+        )
+
+        with patch(
+            "opengeobot_agent.initializer.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            await initializer.initialize(skill_names=SKILL_NAMES)
+
+        call_args = mock_client.put.call_args
+        body = call_args.kwargs["json"]
+
+        assert body["id"] == "opengeobot-controller"
+        assert "skill_names" not in body
+        assert body["system_prompt_files"] == [
+            "AGENTS.md",
+            "SOUL.md",
+            "PROFILE.md",
+        ]
+        assert "opengeobot-mcp-gateway" in body["mcp"]["clients"]
+        mcp_client = body["mcp"]["clients"]["opengeobot-mcp-gateway"]
+        assert mcp_client["transport"] == "sse"
+        assert mcp_client["url"] == "http://mcp-gateway:8090/sse"
+        assert body["approval_level"] == "STRICT"
+
+    async def test_mcp_skipped_when_gateway_url_empty(self):
+        config = _make_config()  # qwenpaw_mcp_gateway_url defaults to ""
+        initializer = AgentInitializer(config)
+
+        get_resp = _make_response(status_code=404)
+        post_resp = _make_response(status_code=200, json_data={})
+        put_resp = _make_response(status_code=200, json_data={})
+        mock_client = _make_mock_client(
+            get_resp=get_resp, post_resp=post_resp, put_resp=put_resp
+        )
+
+        with patch(
+            "opengeobot_agent.initializer.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            await initializer.initialize(skill_names=SKILL_NAMES)
+
+        call_args = mock_client.put.call_args
+        body = call_args.kwargs["json"]
+
+        assert body["mcp"]["clients"] == {}
+
+
+class TestAgentInitializerMcpUpdate:
+    """PUT behavior driven by mcp.clients changes on an existing agent."""
+
+    async def test_no_put_when_managed_fields_aligned(self):
+        config = _make_config(
+            qwenpaw_mcp_gateway_url="http://mcp-gateway:8090/sse",
+        )
+        initializer = AgentInitializer(config)
+
+        # The exact mcp.clients structure that _build_mcp_clients() produces
+        # when qwenpaw_mcp_gateway_auth_token is empty.
+        matching_mcp_clients = {
+            "opengeobot-mcp-gateway": {
+                "name": "OpenGeoBot MCP Tool Gateway",
+                "description": "Platform MCP Tool Gateway for registered skills",
+                "enabled": True,
+                "transport": "sse",
+                "url": "http://mcp-gateway:8090/sse",
+                "headers": {},
+            }
+        }
+        existing_agent = {
+            "id": "opengeobot-controller",
+            "name": "一脑多控",
+            "description": AGENT_DESCRIPTION,
+            "workspace_dir": "/app/working/workspaces/opengeobot-controller",
+            "language": "zh",
+            "system_prompt_files": ["AGENTS.md", "SOUL.md", "PROFILE.md"],
+            "mcp": {"clients": matching_mcp_clients},
+            "approval_level": "STRICT",
+            "active_model": {
+                "provider_id": config.qwenpaw_model_provider,
+                "model": config.qwenpaw_model_name,
+            },
+        }
+        get_resp = _make_response(status_code=200, json_data=existing_agent)
+        mock_client = _make_mock_client(get_resp=get_resp)
+
+        with patch(
+            "opengeobot_agent.initializer.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            result = await initializer.initialize(skill_names=SKILL_NAMES)
+
+        assert result is True
+        mock_client.get.assert_awaited_once()
+        # No PUT/POST since all managed fields already match.
+        mock_client.put.assert_not_awaited()
+        mock_client.post.assert_not_awaited()
+
+    async def test_put_when_mcp_config_changed(self):
+        config = _make_config(
+            qwenpaw_mcp_gateway_url="http://mcp-gateway:8090/sse",
+        )
+        initializer = AgentInitializer(config)
+
+        # Same skills but mcp.clients is empty (different from desired).
+        existing_agent = {
+            "id": "opengeobot-controller",
+            "name": "一脑多控",
+            "description": AGENT_DESCRIPTION,
+            "workspace_dir": "/app/working/workspaces/opengeobot-controller",
+            "language": "zh",
+            "system_prompt_files": ["AGENTS.md", "SOUL.md", "PROFILE.md"],
+            "mcp": {"clients": {}},
+            "approval_level": "STRICT",
+            "active_model": {
+                "provider_id": config.qwenpaw_model_provider,
+                "model": config.qwenpaw_model_name,
+            },
+        }
+        get_resp = _make_response(status_code=200, json_data=existing_agent)
+        put_resp = _make_response(status_code=200, json_data={})
+        mock_client = _make_mock_client(get_resp=get_resp, put_resp=put_resp)
+
+        with patch(
+            "opengeobot_agent.initializer.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            result = await initializer.initialize(skill_names=SKILL_NAMES)
+
+        assert result is True
+        mock_client.get.assert_awaited_once()
+        # PUT is called because mcp.clients differs.
+        mock_client.put.assert_awaited_once()
+        mock_client.post.assert_not_awaited()
+
+        # The PUT body should carry the updated mcp config.
+        call_args = mock_client.put.call_args
+        body = call_args.kwargs["json"]
+        assert body["id"] == "opengeobot-controller"
+        assert "opengeobot-mcp-gateway" in body["mcp"]["clients"]
+        assert (
+            body["mcp"]["clients"]["opengeobot-mcp-gateway"]["url"]
+            == "http://mcp-gateway:8090/sse"
+        )
+
+    async def test_update_failure_returns_false_instead_of_raising(self):
+        config = _make_config()
+        initializer = AgentInitializer(config)
+
+        existing_agent = {
+            "id": "opengeobot-controller",
+            "name": "一脑多控",
+            "description": "old desc",
+            "workspace_dir": "/app/working/workspaces/opengeobot-controller",
+            "language": "zh",
+            "system_prompt_files": ["AGENTS.md", "SOUL.md", "PROFILE.md"],
+            "mcp": {"clients": {}},
+            "approval_level": "STRICT",
+            "active_model": {
+                "provider_id": config.qwenpaw_model_provider,
+                "model": config.qwenpaw_model_name,
+            },
+        }
+        get_resp = _make_response(status_code=200, json_data=existing_agent)
+        put_resp = _make_error_response(status_code=422)
+        mock_client = _make_mock_client(get_resp=get_resp, put_resp=put_resp)
+
+        with patch(
+            "opengeobot_agent.initializer.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            result = await initializer.initialize(skill_names=SKILL_NAMES)
+
+        assert result is False
+        assert initializer.is_initialized is False
+        assert initializer.agent_id is None
+        mock_client.get.assert_awaited_once()
+        mock_client.put.assert_awaited_once()

@@ -105,7 +105,10 @@ class TestEdgeConfigDefaults:
         assert config.offline_cache_path == "./.edge-data/offline-cache.json"
         assert config.log_level == "INFO"
         assert config.jetstream_stream_name == "EDGE_STREAM"
-        assert config.jetstream_stream_subjects == "opengeobot.dev.edge.>"
+        assert (
+            config.jetstream_stream_subjects
+            == "opengeobot.dev.edge.command.*,opengeobot.dev.edge.state.*,opengeobot.dev.edge.reconcile.*"
+        )
         assert config.jetstream_consumer_prefix == "edge-cmd"
 
 
@@ -169,7 +172,7 @@ class TestEdgeConfigEnvOverrides:
 class TestEdgeConfigSubjects:
     def test_command_subject_contains_robot_id(self) -> None:
         config = EdgeConfig(
-            robot_id="rbt_abc", nats_url="", nats_max_reconnect=-1,
+            robot_id="rbt_abc", gateway_id="edge_01", nats_url="", nats_max_reconnect=-1,
             nats_reconnect_wait=2.0, nats_connect_timeout=5.0,
             cloud_api_base_url="", state_publish_interval=5.0,
             skill_request_timeout=10.0, offline_cache_path="", log_level="INFO",
@@ -178,7 +181,7 @@ class TestEdgeConfigSubjects:
 
     def test_state_subject_contains_robot_id(self) -> None:
         config = EdgeConfig(
-            robot_id="rbt_xyz", nats_url="", nats_max_reconnect=-1,
+            robot_id="rbt_xyz", gateway_id="edge_01", nats_url="", nats_max_reconnect=-1,
             nats_reconnect_wait=2.0, nats_connect_timeout=5.0,
             cloud_api_base_url="", state_publish_interval=5.0,
             skill_request_timeout=10.0, offline_cache_path="", log_level="INFO",
@@ -187,7 +190,7 @@ class TestEdgeConfigSubjects:
 
     def test_skill_execute_subject_contains_robot_id(self) -> None:
         config = EdgeConfig(
-            robot_id="rbt_123", nats_url="", nats_max_reconnect=-1,
+            robot_id="rbt_123", gateway_id="edge_01", nats_url="", nats_max_reconnect=-1,
             nats_reconnect_wait=2.0, nats_connect_timeout=5.0,
             cloud_api_base_url="", state_publish_interval=5.0,
             skill_request_timeout=10.0, offline_cache_path="", log_level="INFO",
@@ -196,7 +199,7 @@ class TestEdgeConfigSubjects:
 
     def test_reconciliation_subject_contains_robot_id(self) -> None:
         config = EdgeConfig(
-            robot_id="rbt_456", nats_url="", nats_max_reconnect=-1,
+            robot_id="rbt_456", gateway_id="edge_01", nats_url="", nats_max_reconnect=-1,
             nats_reconnect_wait=2.0, nats_connect_timeout=5.0,
             cloud_api_base_url="", state_publish_interval=5.0,
             skill_request_timeout=10.0, offline_cache_path="", log_level="INFO",
@@ -205,7 +208,7 @@ class TestEdgeConfigSubjects:
 
     def test_jetstream_consumer_name_contains_robot_id(self) -> None:
         config = EdgeConfig(
-            robot_id="rbt_789", nats_url="", nats_max_reconnect=-1,
+            robot_id="rbt_789", gateway_id="edge_01", nats_url="", nats_max_reconnect=-1,
             nats_reconnect_wait=2.0, nats_connect_timeout=5.0,
             cloud_api_base_url="", state_publish_interval=5.0,
             skill_request_timeout=10.0, offline_cache_path="", log_level="INFO",
@@ -214,7 +217,7 @@ class TestEdgeConfigSubjects:
 
     def test_jetstream_consumer_name_with_custom_prefix(self) -> None:
         config = EdgeConfig(
-            robot_id="rbt_789", nats_url="", nats_max_reconnect=-1,
+            robot_id="rbt_789", gateway_id="edge_01", nats_url="", nats_max_reconnect=-1,
             nats_reconnect_wait=2.0, nats_connect_timeout=5.0,
             cloud_api_base_url="", state_publish_interval=5.0,
             skill_request_timeout=10.0, offline_cache_path="", log_level="INFO",
@@ -226,7 +229,7 @@ class TestEdgeConfigSubjects:
 class TestEdgeConfigImmutable:
     def test_frozen_dataclass_cannot_be_mutated(self) -> None:
         config = EdgeConfig(
-            robot_id="rbt_1", nats_url="", nats_max_reconnect=-1,
+            robot_id="rbt_1", gateway_id="edge_01", nats_url="", nats_max_reconnect=-1,
             nats_reconnect_wait=2.0, nats_connect_timeout=5.0,
             cloud_api_base_url="", state_publish_interval=5.0,
             skill_request_timeout=10.0, offline_cache_path="", log_level="INFO",

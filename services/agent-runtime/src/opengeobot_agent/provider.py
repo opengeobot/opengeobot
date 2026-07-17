@@ -29,6 +29,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from .config import AgentConfig
+from .persona import get_persona_content
 
 if TYPE_CHECKING:
     from .nats_client import NatsBridge
@@ -247,17 +248,22 @@ class NatsSkillRegistry(SkillRegistry):
                     if not isinstance(item, dict):
                         continue
                     skill = SkillDefinition.model_validate(item)
-                    self._cache.setdefault(skill.skill_id, skill)
+                    self._cache_skill(skill)
                 return self._cache.get(skill_id)
             # Backward compat: single-object response
             skill = SkillDefinition.model_validate(data)
-            self._cache[skill_id] = skill
-            return skill
+            self._cache_skill(skill)
+            return self._cache.get(skill_id)
         except Exception as exc:  # noqa: BLE001 - lookup failure marks step invalid
             logger.bind(skill_id=skill_id, error=str(exc)).warning(
                 "Skill registry lookup failed"
             )
             return None
+
+    def _cache_skill(self, skill: SkillDefinition) -> None:
+        self._cache.setdefault(skill.skill_id, skill)
+        if skill.name:
+            self._cache.setdefault(skill.name, skill)
 
 
 # ------------------------------------------------------------------
@@ -390,7 +396,7 @@ class QwenPawProvider(AgentRuntimeProvider):
         return {
             "status": "healthy",
             "provider": "qwenpaw",
-            "endpoint": self._config.qwenpaw_endpoint,
+            "endpoint": self._resolve_runtime_endpoint(),
         }
 
     async def _validate_steps(self, proposal: PlanProposal) -> None:
@@ -426,7 +432,7 @@ class QwenPawProvider(AgentRuntimeProvider):
                 step.validation_error = f"Invalid skill schema for '{step.skill_id}': {exc.message}"
 
     async def _call_qwenpaw_api(self, mission: MissionContext) -> dict[str, Any]:
-        """Call the QwenPaw HTTP API and return the parsed response body."""
+        """Call the QwenPaw console chat API and return a normalized response."""
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self._config.qwenpaw_api_key:
             headers["Authorization"] = f"Bearer {self._config.qwenpaw_api_key}"
@@ -438,13 +444,14 @@ class QwenPawProvider(AgentRuntimeProvider):
             async with httpx.AsyncClient(
                 timeout=self._config.qwenpaw_timeout,
             ) as client:
-                response = await client.post(
-                    self._config.qwenpaw_endpoint,
+                async with client.stream(
+                    "POST",
+                    self._resolve_runtime_endpoint(),
                     json=payload,
                     headers=headers,
-                )
-                response.raise_for_status()
-                return response.json()
+                ) as response:
+                    response.raise_for_status()
+                    return await self._read_sse_response(response)
         except httpx.TimeoutException as exc:
             raise QwenPawProviderError(
                 f"QwenPaw API timed out after {self._config.qwenpaw_timeout}s"
@@ -480,30 +487,28 @@ class QwenPawProvider(AgentRuntimeProvider):
     ) -> str:
         """Build the system prompt, injecting available skill IDs and schemas.
 
-        When ``skills`` is provided and non-empty, each skill_id and its
-        input_schema are listed.  Otherwise the agent's configured skill names
-        are used as a fallback (with empty params).
+        The base persona (AGENTS.md) defines the "一脑多控" agent role,
+        safety red lines and output format. When ``skills`` is provided and
+        non-empty, each skill_id and its input_schema are listed. Otherwise
+        the agent's configured skill names are used as a fallback.
         """
-        prompt = (
-            "You are a mission planning assistant for a robot platform. "
-            "Given a mission objective, produce a plan as a JSON object with "
-            '"steps" (array of {"skill_id": string, "params": object, '
-            '"description": string}) and "confidence" (0.0-1.0). '
-            "Only use registered skill IDs. Do not include direct motor commands."
+        prompt = get_persona_content(
+            self._config.qwenpaw_persona_dir, "AGENTS.md"
         )
 
         available: list[tuple[str, str]] = []
         if skills:
             for skill in skills:
+                execution_skill_id = skill.name or skill.skill_id
                 available.append(
-                    (skill.skill_id, json.dumps(skill.input_schema))
+                    (execution_skill_id, json.dumps(skill.input_schema))
                 )
         elif self._agent_skill_names:
             for name in self._agent_skill_names:
                 available.append((name, "{}"))
 
         if available:
-            prompt += "\n\nAvailable skills:"
+            prompt += "\n\n可用技能 (Available skills):"
             for i, (skill_id, params) in enumerate(available, 1):
                 prompt += f"\n{i}. skill_id: {skill_id}, params: {params}"
 
@@ -512,29 +517,51 @@ class QwenPawProvider(AgentRuntimeProvider):
                 ", ".join(self._agent_skill_names) if self._agent_skill_names else ""
             )
             prompt += (
-                f"\n\nYou are operating as agent '{self._agent_id}'"
-                + (f" with skills: {skills_str}." if skills_str else ".")
+                f"\n\n你当前作为智能体 '{self._agent_id}' 运行"
+                + (f"，绑定技能: {skills_str}。" if skills_str else "。")
             )
         return prompt
 
     def _build_request_payload(
         self, mission: MissionContext, skills: list[SkillDefinition] | None = None
     ) -> dict[str, Any]:
-        """Build the QwenPaw chat-completions request payload."""
+        """Build the QwenPaw agent-scoped console chat request payload."""
         system_prompt = self._build_system_prompt(skills)
-        user_content = json.dumps({
-            "mission_id": mission.mission_id,
-            "robot_id": mission.robot_id,
-            "objective": mission.objective,
-            "constraints": mission.constraints,
-        })
+        user_content = json.dumps(
+            {
+                "mission_id": mission.mission_id,
+                "robot_id": mission.robot_id,
+                "objective": mission.objective,
+                "constraints": mission.constraints,
+            },
+            ensure_ascii=False,
+        )
+        prompt = (
+            "请基于以下 OpenGeoBot 任务上下文生成任务规划提案。"
+            "\n必须严格只输出一个 JSON 对象，不要使用 Markdown 代码块，"
+            "不要输出额外解释。"
+            "\n\n## 角色与约束\n"
+            f"{system_prompt}"
+            "\n\n## 任务上下文\n"
+            f"{user_content}"
+        )
         return {
-            "model": self._config.qwenpaw_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
+            "session_id": mission.trace_id or mission.mission_id,
+            "user_id": "opengeobot",
+            "stream": True,
+            "tool_choice": "none",
+            "metadata": {
+                "mission_id": mission.mission_id,
+                "trace_id": mission.trace_id,
+                "robot_id": mission.robot_id,
+                "request_kind": "plan",
+            },
+            "input": [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": prompt}],
+                }
             ],
-            "temperature": 0.3,
         }
 
     def _build_replan_system_prompt(
@@ -542,40 +569,46 @@ class QwenPawProvider(AgentRuntimeProvider):
     ) -> str:
         """Build the replan system prompt with failure context.
 
-        Explains that a previous plan was generated but a step failed, and
-        asks the LLM to produce a revised plan for the remaining steps.
+        Uses the persona (AGENTS.md) as the base so the "一脑多控" role,
+        safety red lines and output format stay consistent. Then appends the
+        failure context (completed steps, the failed step, remaining steps)
+        and asks the LLM to produce a revised plan for the remaining steps.
         """
-        prompt = (
-            "You are a mission planning assistant for a robot platform. "
-            "You previously planned a mission but a step failed during execution. "
-            "Please generate a revised plan for the remaining steps, adjusting as needed.\n\n"
-            f"Original objective: {request.original_objective}\n"
-            f"Failed step: {json.dumps(request.failed_step)}\n"
-            f"Failure reason: {request.failure_reason}\n"
+        prompt = get_persona_content(
+            self._config.qwenpaw_persona_dir, "AGENTS.md"
+        )
+        prompt += (
+            "\n\n## 重规划上下文\n\n"
+            "你之前规划的任务在执行过程中有步骤失败，请基于以下上下文生成修订后的"
+            "规划方案，调整剩余步骤。\n\n"
+            f"- 原始目标: {request.original_objective}\n"
+            f"- 失败步骤: {json.dumps(request.failed_step, ensure_ascii=False)}\n"
+            f"- 失败原因: {request.failure_reason}\n"
         )
         if request.completed_steps:
-            prompt += f"Completed steps: {json.dumps(request.completed_steps)}\n"
+            prompt += (
+                "- 已完成步骤: "
+                f"{json.dumps(request.completed_steps, ensure_ascii=False)}\n"
+            )
         if request.remaining_steps:
-            prompt += f"Remaining steps (before failure): {json.dumps(request.remaining_steps)}\n"
-        prompt += (
-            "\nProduce a plan as a JSON object with "
-            '"steps" (array of {"skill_id": string, "params": object, '
-            '"description": string}) and "confidence" (0.0-1.0). '
-            "Only use registered skill IDs. Do not include direct motor commands."
-        )
+            prompt += (
+                "- 失败前剩余步骤: "
+                f"{json.dumps(request.remaining_steps, ensure_ascii=False)}\n"
+            )
 
         available: list[tuple[str, str]] = []
         if skills:
             for skill in skills:
+                execution_skill_id = skill.name or skill.skill_id
                 available.append(
-                    (skill.skill_id, json.dumps(skill.input_schema))
+                    (execution_skill_id, json.dumps(skill.input_schema))
                 )
         elif self._agent_skill_names:
             for name in self._agent_skill_names:
                 available.append((name, "{}"))
 
         if available:
-            prompt += "\n\nAvailable skills:"
+            prompt += "\n\n可用技能 (Available skills):"
             for i, (skill_id, params) in enumerate(available, 1):
                 prompt += f"\n{i}. skill_id: {skill_id}, params: {params}"
 
@@ -584,28 +617,50 @@ class QwenPawProvider(AgentRuntimeProvider):
     def _build_replan_payload(
         self, request: ReplanRequest, skills: list[SkillDefinition] | None = None
     ) -> dict[str, Any]:
-        """Build the QwenPaw chat-completions replan request payload."""
+        """Build the QwenPaw agent-scoped console chat replan request payload."""
         system_prompt = self._build_replan_system_prompt(request, skills)
-        user_content = json.dumps({
-            "mission_id": request.mission_id,
-            "robot_id": request.robot_id,
-            "original_objective": request.original_objective,
-            "failed_step": request.failed_step,
-            "failure_reason": request.failure_reason,
-            "completed_steps": request.completed_steps,
-            "remaining_steps": request.remaining_steps,
-        })
+        user_content = json.dumps(
+            {
+                "mission_id": request.mission_id,
+                "robot_id": request.robot_id,
+                "original_objective": request.original_objective,
+                "failed_step": request.failed_step,
+                "failure_reason": request.failure_reason,
+                "completed_steps": request.completed_steps,
+                "remaining_steps": request.remaining_steps,
+            },
+            ensure_ascii=False,
+        )
+        prompt = (
+            "请基于以下 OpenGeoBot 失败上下文生成修订后的任务规划提案。"
+            "\n必须严格只输出一个 JSON 对象，不要使用 Markdown 代码块，"
+            "不要输出额外解释。"
+            "\n\n## 角色与约束\n"
+            f"{system_prompt}"
+            "\n\n## 重规划上下文\n"
+            f"{user_content}"
+        )
         return {
-            "model": self._config.qwenpaw_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
+            "session_id": request.trace_id or request.mission_id,
+            "user_id": "opengeobot",
+            "stream": True,
+            "tool_choice": "none",
+            "metadata": {
+                "mission_id": request.mission_id,
+                "trace_id": request.trace_id,
+                "robot_id": request.robot_id,
+                "request_kind": "replan",
+            },
+            "input": [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": prompt}],
+                }
             ],
-            "temperature": 0.3,
         }
 
     async def _call_qwenpaw_replan_api(self, request: ReplanRequest) -> dict[str, Any]:
-        """Call the QwenPaw HTTP API for replanning and return the parsed body."""
+        """Call the QwenPaw console chat API for replanning and normalize it."""
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self._config.qwenpaw_api_key:
             headers["Authorization"] = f"Bearer {self._config.qwenpaw_api_key}"
@@ -617,13 +672,14 @@ class QwenPawProvider(AgentRuntimeProvider):
             async with httpx.AsyncClient(
                 timeout=self._config.qwenpaw_timeout,
             ) as client:
-                response = await client.post(
-                    self._config.qwenpaw_endpoint,
+                async with client.stream(
+                    "POST",
+                    self._resolve_runtime_endpoint(),
                     json=payload,
                     headers=headers,
-                )
-                response.raise_for_status()
-                return response.json()
+                ) as response:
+                    response.raise_for_status()
+                    return await self._read_sse_response(response)
         except httpx.TimeoutException as exc:
             raise QwenPawProviderError(
                 f"QwenPaw replan API timed out after {self._config.qwenpaw_timeout}s"
@@ -635,6 +691,98 @@ class QwenPawProvider(AgentRuntimeProvider):
             ) from exc
         except httpx.HTTPError as exc:
             raise QwenPawProviderError(f"QwenPaw replan API request failed: {exc}") from exc
+
+    def _resolve_runtime_endpoint(self) -> str:
+        """Resolve the effective QwenPaw runtime endpoint for the current agent."""
+        endpoint = self._config.qwenpaw_endpoint.strip()
+        agent_id = self._agent_id or self._config.qwenpaw_agent_id
+        if "{agent_id}" in endpoint:
+            return endpoint.format(agent_id=agent_id)
+        if endpoint.endswith("/v1/chat/completions"):
+            base = endpoint[: -len("/v1/chat/completions")]
+            return f"{base}/api/agents/{agent_id}/console/chat"
+        return re.sub(
+            r"/api/agents/[^/]+/console/chat$",
+            f"/api/agents/{agent_id}/console/chat",
+            endpoint,
+        )
+
+    async def _read_sse_response(
+        self, response: httpx.Response
+    ) -> dict[str, Any]:
+        """Normalize the QwenPaw SSE stream into a chat-completions-like shape."""
+        assistant_text = ""
+        events: list[dict[str, Any]] = []
+        async for raw_line in response.aiter_lines():
+            line = raw_line.strip()
+            if not line or line.startswith(":") or not line.startswith("data:"):
+                continue
+            payload = line[5:].strip()
+            if not payload or payload == "[DONE]":
+                continue
+            try:
+                event = json.loads(payload)
+            except json.JSONDecodeError:
+                logger.bind(payload=payload[:200]).debug(
+                    "Skipping non-JSON SSE payload from QwenPaw"
+                )
+                continue
+            if not isinstance(event, dict):
+                continue
+            events.append(event)
+            extracted_text = self._extract_assistant_text(event)
+            if extracted_text:
+                assistant_text = extracted_text
+
+        if not assistant_text:
+            raise QwenPawProviderError("QwenPaw SSE stream did not contain assistant content")
+        return {
+            "choices": [{"message": {"role": "assistant", "content": assistant_text}}],
+            "events": events,
+        }
+
+    def _extract_assistant_text(self, event: dict[str, Any]) -> str:
+        """Extract the most complete assistant text available from one SSE event."""
+        role = event.get("role")
+        event_type = str(event.get("type", ""))
+        if role == "assistant":
+            text = self._extract_text_value(event)
+            if text:
+                return text
+        if event_type == "response":
+            text = self._extract_text_value(event.get("response"))
+            if text:
+                return text
+        return self._extract_text_value(event.get("output"))
+
+    def _extract_text_value(self, value: Any) -> str:
+        """Recursively extract concatenated text fragments from nested payloads."""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, dict):
+            direct_text = value.get("text")
+            if isinstance(direct_text, str) and direct_text.strip():
+                return direct_text.strip()
+            content = value.get("content")
+            if isinstance(content, list):
+                text = self._extract_text_value(content)
+                if text:
+                    return text
+            output = value.get("output")
+            if isinstance(output, list):
+                text = self._extract_text_value(output)
+                if text:
+                    return text
+            parts: list[str] = []
+            for item in value.values():
+                text = self._extract_text_value(item)
+                if text:
+                    parts.append(text)
+            return "\n".join(parts).strip()
+        if isinstance(value, list):
+            parts = [self._extract_text_value(item) for item in value]
+            return "\n".join(part for part in parts if part).strip()
+        return ""
 
     def _parse_response(
         self, mission: MissionContext, response_data: dict[str, Any]
@@ -658,11 +806,9 @@ class QwenPawProvider(AgentRuntimeProvider):
                     generated_at=now,
                 )
 
-            content = choices[0].get("message", {}).get("content", "")
-            if isinstance(content, str):
-                # Strip markdown code fences before JSON parsing.
-                content = content.strip()
-                content = re.sub(r'^```(?:json)?\s*\n?', '', content).rstrip('`').rstrip()
+            content = self._extract_json_content(
+                choices[0].get("message", {}).get("content", "")
+            )
             plan_data = json.loads(content) if isinstance(content, str) else content
             if not isinstance(plan_data, dict):
                 return PlanProposal(
@@ -716,3 +862,45 @@ class QwenPawProvider(AgentRuntimeProvider):
                 error=f"Failed to parse QwenPaw response: {exc}",
                 generated_at=now,
             )
+
+    def _extract_json_content(self, content: Any) -> Any:
+        """Extract a JSON payload from mixed assistant prose plus JSON."""
+        if not isinstance(content, str):
+            return content
+        normalized = content.strip()
+        normalized = re.sub(r'^```(?:json)?\s*\n?', '', normalized).rstrip("`").rstrip()
+        if normalized.startswith("{") or normalized.startswith("["):
+            return normalized
+
+        json_fragment = self._find_first_json_object(normalized)
+        return json_fragment if json_fragment is not None else normalized
+
+    def _find_first_json_object(self, text: str) -> str | None:
+        """Return the first balanced JSON object embedded in free-form text."""
+        start = text.find("{")
+        if start < 0:
+            return None
+
+        depth = 0
+        in_string = False
+        escaped = False
+        for index in range(start, len(text)):
+            char = text[index]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : index + 1]
+        return None

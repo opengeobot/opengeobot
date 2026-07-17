@@ -28,6 +28,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -310,6 +311,20 @@ public class MissionOrchestrator {
             Map<String, Object> params = new LinkedHashMap<>();
             params.put("lease_id", lease.leaseId());
             params.put("fencing_token", lease.fencingToken());
+            List<MissionStepDto> missionSteps = mission.steps();
+            if (missionSteps != null && !missionSteps.isEmpty()) {
+                List<Map<String, Object>> serializedSteps = new ArrayList<>(missionSteps.size());
+                for (MissionStepDto step : missionSteps) {
+                    Map<String, Object> stepPayload = new HashMap<>();
+                    stepPayload.put("step_id", step.stepId());
+                    stepPayload.put("step_order", step.stepOrder());
+                    stepPayload.put("skill_id", step.skillId());
+                    stepPayload.put("params", step.inputParams() != null ? step.inputParams() : Map.of());
+                    stepPayload.put("description", null);
+                    serializedSteps.add(stepPayload);
+                }
+                params.put("steps", serializedSteps);
+            }
 
             EdgeCommandDto command = new EdgeCommandDto(
                     commandId,

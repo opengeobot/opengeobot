@@ -23,6 +23,7 @@ from nats.aio.client import Client as NatsClient
 from nats.aio.msg import Msg
 from nats.errors import ConnectionClosedError, NoServersError
 from nats.js.api import StorageType, StreamConfig
+from nats.js.errors import NotFoundError
 
 from .config import SafetyGatewayConfig
 
@@ -107,9 +108,10 @@ class NatsBridge:
     async def ensure_stream(self, name: str, subjects: list[str]) -> None:
         """Create or update a JetStream stream covering the given subjects.
 
-        Safe to call repeatedly - if the stream already exists, no action is
-        taken. Failures are logged but do not prevent the gateway from
-        operating (safety is local-first).
+        Safe to call repeatedly. If the stream already exists its subjects are
+        updated so stale request-reply subjects can be removed from the stream.
+        Failures are logged but do not prevent the gateway from operating
+        (safety is local-first).
         """
         if self._js is None:
             logger.warning("JetStream not initialised; cannot ensure stream")
@@ -120,10 +122,17 @@ class NatsBridge:
                 subjects=subjects,
                 storage=StorageType.FILE,
             )
-            await self._js.add_stream(config=config)
-            logger.bind(stream=name, subjects=subjects).info(
-                "JetStream stream ensured"
-            )
+            try:
+                await self._js.stream_info(name)
+                await self._js.update_stream(config=config)
+                logger.bind(stream=name, subjects=subjects).info(
+                    "JetStream stream updated"
+                )
+            except NotFoundError:
+                await self._js.add_stream(config=config)
+                logger.bind(stream=name, subjects=subjects).info(
+                    "JetStream stream created"
+                )
         except Exception as exc:  # noqa: BLE001 - stream creation failure must not crash gateway
             logger.bind(stream=name, error=str(exc)).warning(
                 "Failed to ensure JetStream stream; gateway continues in standalone mode"
